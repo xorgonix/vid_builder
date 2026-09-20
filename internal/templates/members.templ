@@ -1,0 +1,163 @@
+package templates
+
+templ MembersPage(data MembersData) {
+	@shell(data.Shell, membersBody(data))
+}
+
+templ membersBody(data MembersData) {
+	<div class="max-w-4xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Members</h1>
+				<p class="opacity-70 text-sm">Who can see or change this workspace's work.</p>
+			</div>
+			<a class="btn btn-sm" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/settings") }>Settings</a>
+		</div>
+		if data.CanEdit {
+			<div class="card bg-base-100 shadow mb-4">
+				<div class="card-body">
+					<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/members") } class="flex gap-2 items-end flex-wrap">
+						<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+						<label class="form-control flex-1"><span class="label-text mb-1">Existing user email</span><input class="input input-bordered input-sm" type="email" name="email" placeholder="person@example.com" required/></label>
+						<label class="form-control"><span class="label-text mb-1">Role</span>
+							<select class="select select-bordered select-sm" name="role">
+								<option value="editor">Editor</option>
+								<option value="reviewer">Reviewer</option>
+								<option value="viewer">Viewer</option>
+								<option value="owner">Owner</option>
+							</select>
+						</label>
+						<button class="btn btn-sm btn-primary" type="submit">Add member</button>
+					</form>
+					<p class="text-xs opacity-60 mt-1">Users must already exist; create accounts in Administration.</p>
+				</div>
+			</div>
+		}
+		<div class="overflow-x-auto card bg-base-100 shadow">
+			<table class="table">
+				<thead><tr><th>Member</th><th>Role</th><th>Status</th><th>Joined</th><th></th></tr></thead>
+				<tbody>
+					for _, m := range data.Members {
+						<tr>
+							<td>
+								<div class="font-medium">{ m.DisplayName }</div>
+								<div class="text-xs opacity-60">{ m.Email }</div>
+							</td>
+							<td>
+								if data.CanEdit {
+									<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/members/" + m.UserID) } class="flex gap-1 items-center">
+										<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+										<input type="hidden" name="_method" value="PATCH"/>
+										<select class="select select-bordered select-xs" name="role">
+											@roleOption(m.Role, "owner")
+											@roleOption(m.Role, "editor")
+											@roleOption(m.Role, "reviewer")
+											@roleOption(m.Role, "viewer")
+										</select>
+										<select class="select select-bordered select-xs" name="status">
+											@statusOption(m.Status, "active")
+											@statusOption(m.Status, "disabled")
+										</select>
+										<button class="btn btn-xs" type="submit">Save</button>
+									</form>
+								} else {
+									<span class="badge badge-ghost badge-sm">{ m.Role }</span>
+								}
+							</td>
+							<td><span class={ "badge badge-sm", memberStatusClass(m.Status) }>{ m.Status }</span></td>
+							<td class="text-xs opacity-60">{ m.JoinedAt }</td>
+							<td>
+								if data.CanEdit && !m.IsSelf {
+									<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/members/" + m.UserID) }>
+										<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+										<input type="hidden" name="_method" value="DELETE"/>
+										<button class="btn btn-xs btn-error btn-outline" type="submit">Remove</button>
+									</form>
+								} else if m.IsSelf {
+									<span class="badge badge-ghost badge-sm">you</span>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}
+
+templ roleOption(current, value string) {
+	if current == value {
+		<option value={ value } selected="selected">{ value }</option>
+	} else {
+		<option value={ value }>{ value }</option>
+	}
+}
+
+templ statusOption(current, value string) {
+	if current == value {
+		<option value={ value } selected="selected">{ value }</option>
+	} else {
+		<option value={ value }>{ value }</option>
+	}
+}
+
+func memberStatusClass(status string) string {
+	if status == "active" {
+		return "badge-success"
+	}
+	return "badge-ghost"
+}
+
+templ AdminUsersPage(data AdminUsersData) {
+	@shell(data.Shell, adminUsersBody(data))
+}
+
+templ adminUsersBody(data AdminUsersData) {
+	<div class="max-w-4xl mx-auto">
+		<h1 class="text-2xl font-bold mb-1">Users</h1>
+		<p class="opacity-70 text-sm mb-4">System administration. Public registration is disabled; accounts are created here.</p>
+		<div class="card bg-base-100 shadow mb-4">
+			<div class="card-body">
+				<h2 class="card-title text-base">Create user</h2>
+				<form method="post" action="/admin/users" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<label class="form-control"><span class="label-text mb-1">Email</span><input class="input input-bordered input-sm" type="email" name="email" required/></label>
+					<label class="form-control"><span class="label-text mb-1">Display name</span><input class="input input-bordered input-sm" name="display_name" required/></label>
+					<label class="form-control"><span class="label-text mb-1">Password</span><input class="input input-bordered input-sm" type="password" name="password" required/></label>
+					<label class="form-control flex-row items-center gap-2 mt-5"><input type="checkbox" class="checkbox checkbox-sm" name="is_admin"/><span class="label-text">System administrator</span></label>
+					<div class="sm:col-span-2 flex justify-end"><button class="btn btn-sm btn-primary" type="submit">Create user</button></div>
+				</form>
+			</div>
+		</div>
+		<div class="overflow-x-auto card bg-base-100 shadow">
+			<table class="table">
+				<thead><tr><th>User</th><th>Status</th><th>Admin</th><th>Created</th><th></th></tr></thead>
+				<tbody>
+					for _, u := range data.Users {
+						<tr>
+							<td><div class="font-medium">{ u.DisplayName }</div><div class="text-xs opacity-60">{ u.Email }</div></td>
+							<td><span class={ "badge badge-sm", memberStatusClass(u.Status) }>{ u.Status }</span></td>
+							<td>@boolBadge(u.IsAdmin)</td>
+							<td class="text-xs opacity-60">{ u.CreatedAt }</td>
+							<td>
+								if !u.IsSelf {
+									<form method="post" action={ templ.URL("/admin/users/" + u.ID) }>
+										<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+										<input type="hidden" name="_method" value="PATCH"/>
+										if u.Status == "active" {
+											<input type="hidden" name="status" value="disabled"/>
+											<button class="btn btn-xs btn-error btn-outline" type="submit">Disable</button>
+										} else {
+											<input type="hidden" name="status" value="active"/>
+											<button class="btn btn-xs" type="submit">Enable</button>
+										}
+									</form>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}

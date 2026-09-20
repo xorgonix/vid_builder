@@ -549,6 +549,42 @@ type WorkflowOption struct {
 	Status  string
 }
 
+// MemberView is a workspace member row.
+type MemberView struct {
+	UserID      string
+	Email       string
+	DisplayName string
+	Role        string
+	Status      string
+	JoinedAt    string
+	IsSelf      bool
+}
+
+// MembersData backs the membership screen.
+type MembersData struct {
+	Shell   ShellData
+	Members []MemberView
+	CanEdit bool
+}
+
+// AdminUserView is a user row in administration.
+type AdminUserView struct {
+	ID          string
+	Email       string
+	DisplayName string
+	Status      string
+	IsAdmin     bool
+	IsSelf      bool
+	CreatedAt   string
+}
+
+// AdminUsersData backs the user-administration screen.
+type AdminUsersData struct {
+	Shell ShellData
+	Users []AdminUserView
+	Error string
+}
+
 // EditItemView is one clip in an edit.
 type EditItemView struct {
 	ID            string

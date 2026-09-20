@@ -103,6 +103,18 @@ func (s *Server) workspaceScope(next http.Handler) http.Handler {
 	})
 }
 
+// requireSystemAdmin rejects actors who are not system administrators.
+func (s *Server) requireSystemAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u := UserFrom(r.Context())
+		if u == nil || !u.IsSystemAdmin {
+			s.forbidden(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // requireRole returns middleware rejecting actors without one of the roles.
 func (s *Server) requireRole(roles ...string) func(http.Handler) http.Handler {
 	allowed := map[string]bool{}

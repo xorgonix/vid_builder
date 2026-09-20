@@ -29,7 +29,8 @@ templ settingsBody(data ShellData, view SettingsView) {
 			<div class="card bg-base-100 shadow">
 				<div class="card-body">
 					<h2 class="card-title text-base">Membership</h2>
-					<p class="text-sm opacity-70">Owners, editors, reviewers and viewers. Membership management arrives with Phase 2.</p>
+					<p class="text-sm opacity-70">Owners, editors, reviewers and viewers.</p>
+					<a class="btn btn-sm mt-2" href={ templ.URL("/w/" + data.CurrentWorkspace.ID + "/members") }>Manage members</a>
 				</div>
 			</div>
 			<div class="card bg-base-100 shadow">

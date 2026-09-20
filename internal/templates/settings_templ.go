@@ -104,7 +104,20 @@ func settingsBody(data ShellData, view SettingsView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</dd></dl></div></div><div class=\"grid gap-4 sm:grid-cols-2\"><div class=\"card bg-base-100 shadow\"><div class=\"card-body\"><h2 class=\"card-title text-base\">Membership</h2><p class=\"text-sm opacity-70\">Owners, editors, reviewers and viewers. Membership management arrives with Phase 2.</p></div></div><div class=\"card bg-base-100 shadow\"><div class=\"card-body\"><h2 class=\"card-title text-base\">Execution targets</h2><p class=\"text-sm opacity-70\">Local ComfyUI, rented agents and APIs. Configure local services before production.</p><a class=\"btn btn-sm mt-2\" href=\"/settings/local-services\">Local services</a></div></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</dd></dl></div></div><div class=\"grid gap-4 sm:grid-cols-2\"><div class=\"card bg-base-100 shadow\"><div class=\"card-body\"><h2 class=\"card-title text-base\">Membership</h2><p class=\"text-sm opacity-70\">Owners, editors, reviewers and viewers.</p><a class=\"btn btn-sm mt-2\" href=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var6 templ.SafeURL
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/w/" + data.CurrentWorkspace.ID + "/members"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/settings.templ`, Line: 33, Col: 95}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\">Manage members</a></div></div><div class=\"card bg-base-100 shadow\"><div class=\"card-body\"><h2 class=\"card-title text-base\">Execution targets</h2><p class=\"text-sm opacity-70\">Local ComfyUI, rented agents and APIs. Configure local services before production.</p><a class=\"btn btn-sm mt-2\" href=\"/settings/local-services\">Local services</a></div></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

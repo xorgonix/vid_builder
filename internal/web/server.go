@@ -100,6 +100,12 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/settings/local-services", s.handleLocalServices)
 		r.With(s.csrfProtect).Post("/settings/local-services/test", s.handleTestLocalServices)
 		r.Get("/app/capabilities", s.handleCapabilities)
+		r.Route("/admin", func(r chi.Router) {
+			r.Use(s.requireSystemAdmin)
+			r.Get("/users", s.handleAdminUsers)
+			r.With(s.csrfProtect).Post("/users", s.handleAdminCreateUser)
+			r.With(s.csrfProtect).Patch("/users/{userID}", s.handleAdminUpdateUser)
+		})
 		r.With(s.csrfProtect).Post("/account/sessions/{id}", s.handleSessionRevoke)
 		r.With(s.csrfProtect).Post("/logout", s.handleLogout)
 		r.Route("/workspaces", func(r chi.Router) {
@@ -192,6 +198,10 @@ func (s *Server) Handler() http.Handler {
 			r.With(s.requireRole("owner", "editor")).Post("/projects/{p}/locations", s.handleCreateLocation)
 			r.With(s.requireRole("owner", "editor")).Post("/projects/{p}/style-rules", s.handleCreateStyleRule)
 			r.Get("/settings", s.handleWorkspaceSettings)
+			r.Get("/members", s.handleMembers)
+			r.With(s.requireRole("owner")).Post("/members", s.handleAddMember)
+			r.With(s.requireRole("owner")).Patch("/members/{userID}", s.handleUpdateMember)
+			r.With(s.requireRole("owner")).Delete("/members/{userID}", s.handleRemoveMember)
 			r.Get("/diagnostics", s.handleDiagnostics)
 		})
 	})
