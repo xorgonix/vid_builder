@@ -1,0 +1,44 @@
+package templates
+
+// SettingsView summarizes workspace settings.
+type SettingsView struct {
+	Name string
+	Kind string
+	Role string
+}
+
+templ SettingsPage(data ShellData, view SettingsView) {
+	@shell(data, settingsBody(data, view))
+}
+
+templ settingsBody(data ShellData, view SettingsView) {
+	<div class="max-w-3xl mx-auto">
+		<h1 class="text-2xl font-bold mb-1">Workspace settings</h1>
+		<p class="opacity-70 text-sm mb-6">Occasional administration — membership, execution targets and defaults.</p>
+		<div class="card bg-base-100 shadow mb-4">
+			<div class="card-body">
+				<h2 class="card-title">Identity</h2>
+				<dl class="grid grid-cols-2 gap-2 text-sm">
+					<dt class="opacity-60">Name</dt><dd>{ view.Name }</dd>
+					<dt class="opacity-60">Kind</dt><dd>{ view.Kind }</dd>
+					<dt class="opacity-60">Your role</dt><dd>{ view.Role }</dd>
+				</dl>
+			</div>
+		</div>
+		<div class="grid gap-4 sm:grid-cols-2">
+			<div class="card bg-base-100 shadow">
+				<div class="card-body">
+					<h2 class="card-title text-base">Membership</h2>
+					<p class="text-sm opacity-70">Owners, editors, reviewers and viewers. Membership management arrives with Phase 2.</p>
+				</div>
+			</div>
+			<div class="card bg-base-100 shadow">
+				<div class="card-body">
+					<h2 class="card-title text-base">Execution targets</h2>
+					<p class="text-sm opacity-70">Local ComfyUI, rented agents and APIs. Configure local services before production.</p>
+					<a class="btn btn-sm mt-2" href="/settings/local-services">Local services</a>
+				</div>
+			</div>
+		</div>
+	</div>
+}

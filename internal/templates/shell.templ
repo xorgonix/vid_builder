@@ -1,0 +1,122 @@
+package templates
+
+templ shell(data ShellData, body templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en" data-theme="dark">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ data.Title } · vid-build</title>
+			<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css"/>
+			<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+			<script
+				src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"
+				integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V"
+				crossorigin="anonymous"
+			></script>
+			<style>
+				.brandmark { font-weight: 800; letter-spacing: -0.02em; }
+			</style>
+		</head>
+		<body class="min-h-screen bg-base-200 text-base-content">
+			<header class="navbar bg-base-100 border-b border-base-300 sticky top-0 z-30 gap-2">
+				<div class="flex-none">
+					<a href="/workspaces" class="btn btn-ghost text-lg brandmark">vid-build <span class="badge badge-primary badge-sm align-top">0.01</span></a>
+				</div>
+				if data.CurrentWorkspace != nil {
+					<div class="flex-none">
+						<details class="dropdown">
+							<summary class="btn btn-ghost gap-2">
+								if data.CurrentWorkspace.Kind == "client" {
+									<span class="badge badge-warning badge-sm">client</span>
+								}
+								<span>{ data.CurrentWorkspace.Name }</span>
+							</summary>
+							<ul class="menu dropdown-content bg-base-100 rounded-box z-40 w-64 p-2 shadow">
+								for _, w := range data.Workspaces {
+									<li>
+										<a href={ templ.URL("/w/" + w.ID) } class={ "flex justify-between", templ.KV("menu-active", data.CurrentWorkspace != nil && w.ID == data.CurrentWorkspace.ID) }>
+											<span>{ w.Name }</span>
+											<span class="badge badge-ghost badge-sm">{ w.Role }</span>
+										</a>
+									</li>
+								}
+								<li><a href="/workspaces">All workspaces…</a></li>
+							</ul>
+						</details>
+					</div>
+					if data.Project != nil {
+						<div class="flex-none hidden md:flex items-center gap-1 text-sm opacity-80">
+							<span class="opacity-50">/</span>
+							<a class="link link-hover" href={ templ.URL("/w/" + data.CurrentWorkspace.ID + "/projects/" + data.Project.ID) }>{ data.Project.Title }</a>
+							if data.Video != nil {
+								<span class="opacity-50">/</span>
+								<a class="link link-hover" href={ templ.URL("/w/" + data.CurrentWorkspace.ID + "/projects/" + data.Project.ID + "/videos/" + data.Video.ID) }>{ data.Video.Title }</a>
+							}
+						</div>
+					}
+				}
+				<div class="flex-1"></div>
+				<div class="flex-none">
+					<details class="dropdown dropdown-end">
+						<summary class="btn btn-ghost">{ data.UserName }</summary>
+						<ul class="menu dropdown-content bg-base-100 rounded-box z-40 w-52 p-2 shadow">
+							<li><a href="/account">Account</a></li>
+							if data.IsAdmin {
+								<li><a href="/admin/users">Administration</a></li>
+							}
+							<li>
+								<form method="post" action="/logout">
+									<input type="hidden" name="_csrf" value={ data.CSRFToken }/>
+									<button type="submit" class="w-full text-left">Sign out</button>
+								</form>
+							</li>
+						</ul>
+					</details>
+				</div>
+			</header>
+			<div class="flex">
+				if data.CurrentWorkspace != nil {
+					<aside class="hidden lg:block w-52 shrink-0 border-r border-base-300 bg-base-100 min-h-[calc(100vh-4rem)]">
+						<ul class="menu p-2 gap-1">
+							<li><a href={ templ.URL("/w/" + data.CurrentWorkspace.ID) } class={ templ.KV("menu-active", data.ActiveNav == "dashboard") }>Dashboard</a></li>
+							<li><a href={ templ.URL("/w/" + data.CurrentWorkspace.ID + "/projects") } class={ templ.KV("menu-active", data.ActiveNav == "projects") }>Projects</a></li>
+							for _, item := range data.NavItems() {
+								<li><a href={ templ.URL(item.Href) } class={ templ.KV("menu-active", data.ActiveNav == item.Key) }>{ item.Label }</a></li>
+							}
+							<li class="menu-title">Settings</li>
+							<li><a href={ templ.URL("/w/" + data.CurrentWorkspace.ID + "/settings") } class={ templ.KV("menu-active", data.ActiveNav == "settings") }>Workspace</a></li>
+							<li><a href="/settings/local-services">Local services</a></li>
+						</ul>
+					</aside>
+				}
+				<main class="flex-1 min-w-0 p-4 lg:p-6">
+					if data.Flash != "" {
+						<div class={ "alert mb-4", flashClass(data.FlashKind) } role="status">
+							<span>{ data.Flash }</span>
+						</div>
+					}
+					@body
+				</main>
+			</div>
+			<footer class="border-t border-base-300 bg-base-100 px-4 py-2 text-xs opacity-70 flex flex-wrap gap-4">
+				<span>vid-build 0.01</span>
+				<span>local-first · SQLite source of truth</span>
+				<span id="status-worker">worker: idle</span>
+			</footer>
+		</body>
+	</html>
+}
+
+func flashClass(kind string) string {
+	switch kind {
+	case "error":
+		return "alert-error"
+	case "warning":
+		return "alert-warning"
+	case "success":
+		return "alert-success"
+	default:
+		return "alert-info"
+	}
+}

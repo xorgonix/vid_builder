@@ -1,0 +1,315 @@
+package templates
+
+templ ErrorPage(code int, title string, detail string) {
+	<!DOCTYPE html>
+	<html lang="en" data-theme="dark">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ title } · vid-build</title>
+			<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css"/>
+			<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+		</head>
+		<body class="min-h-screen bg-base-200 grid place-items-center p-6">
+			<div class="card bg-base-100 shadow w-full max-w-md">
+				<div class="card-body">
+					<div class="badge badge-error">{ code }</div>
+					<h1 class="card-title">{ title }</h1>
+					<p class="opacity-80">{ detail }</p>
+					<div class="card-actions justify-end">
+						<a href="/workspaces" class="btn btn-primary btn-sm">Back to workspaces</a>
+					</div>
+				</div>
+			</div>
+		</body>
+	</html>
+}
+
+templ LoginPage(data LoginData) {
+	<!DOCTYPE html>
+	<html lang="en" data-theme="dark">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>Sign in · vid-build</title>
+			<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css"/>
+			<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+		</head>
+		<body class="min-h-screen bg-base-200 grid place-items-center p-6">
+			<div class="w-full max-w-sm">
+				<div class="text-center mb-6">
+					<h1 class="text-2xl brandmark">vid-build <span class="badge badge-primary badge-sm align-top">0.01</span></h1>
+					<p class="opacity-70 text-sm mt-1">Local-first video development studio</p>
+				</div>
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<h2 class="card-title text-lg">Sign in</h2>
+						if data.Error != "" {
+							<div class="alert alert-error text-sm" role="alert">{ data.Error }</div>
+						}
+						<form method="post" action="/login" class="flex flex-col gap-3">
+							<input type="hidden" name="_csrf" value={ data.CSRFToken }/>
+							<label class="form-control w-full">
+								<span class="label-text mb-1">Email</span>
+								<input class="input input-bordered w-full" type="email" name="email" value={ data.Email } autocomplete="username" required autofocus/>
+							</label>
+							<label class="form-control w-full">
+								<span class="label-text mb-1">Password</span>
+								<input class="input input-bordered w-full" type="password" name="password" autocomplete="current-password" required/>
+							</label>
+							<button class="btn btn-primary w-full" type="submit">Sign in</button>
+						</form>
+					</div>
+				</div>
+				<p class="text-xs opacity-60 mt-4 text-center">Session and workspace-scoped. No public registration.</p>
+			</div>
+		</body>
+	</html>
+}
+
+templ WorkspaceListPage(data WorkspaceListData) {
+	@shell(data.Shell, workspaceListBody(data))
+}
+
+templ workspaceListBody(data WorkspaceListData) {
+	<div class="max-w-5xl mx-auto">
+		<div class="flex items-center justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold">Your workspaces</h1>
+				<p class="opacity-70 text-sm">Choose whose body of work you are entering.</p>
+			</div>
+			<button class="btn btn-primary btn-sm" onclick="create_ws.showModal()">New workspace</button>
+		</div>
+		if len(data.Shell.Workspaces) == 0 {
+			<div class="alert"><span>No workspaces yet. Create one to begin.</span></div>
+		}
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+			for _, w := range data.Shell.Workspaces {
+				<a href={ templ.URL("/w/" + w.ID) } class="card bg-base-100 hover:bg-base-300/40 transition shadow">
+					<div class="card-body">
+						<div class="flex items-center justify-between">
+							<h2 class="card-title">{ w.Name }</h2>
+							<span class={ "badge badge-sm", kindClass(w.Kind) }>{ w.Kind }</span>
+						</div>
+						<p class="text-sm opacity-70">Role: { w.Role }</p>
+					</div>
+				</a>
+			}
+		</div>
+		<dialog id="create_ws" class="modal">
+			<div class="modal-box">
+				<form method="post" action="/workspaces">
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<h3 class="font-bold text-lg mb-3">New workspace</h3>
+					<label class="form-control mb-3">
+						<span class="label-text mb-1">Name</span>
+						<input class="input input-bordered" name="name" required/>
+					</label>
+					<label class="form-control mb-4">
+						<span class="label-text mb-1">Kind</span>
+						<select class="select select-bordered" name="kind">
+							<option value="personal">Personal</option>
+							<option value="client">Client</option>
+							<option value="team">Team</option>
+						</select>
+					</label>
+					<div class="modal-action">
+						<button type="button" class="btn" onclick="create_ws.close()">Cancel</button>
+						<button type="submit" class="btn btn-primary">Create</button>
+					</div>
+				</form>
+			</div>
+		</dialog>
+	</div>
+}
+
+func kindClass(kind string) string {
+	switch kind {
+	case "client":
+		return "badge-warning"
+	case "team":
+		return "badge-info"
+	default:
+		return "badge-ghost"
+	}
+}
+
+templ WorkspaceDashboardPage(data DashboardData) {
+	@shell(data.Shell, dashboardBody(data))
+}
+
+templ dashboardBody(data DashboardData) {
+	<div class="max-w-6xl mx-auto">
+		<div class="flex items-center justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold">{ data.Shell.CurrentWorkspace.Name }</h1>
+				<p class="opacity-70 text-sm">What needs attention across this body of work?</p>
+			</div>
+			<a class="btn btn-primary btn-sm" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/new") }>New project</a>
+		</div>
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+			if len(data.Projects) == 0 {
+				<div class="card bg-base-100 shadow col-span-full">
+					<div class="card-body items-center text-center">
+						<h2 class="card-title">No projects yet</h2>
+						<p class="opacity-70 text-sm">A project holds a shared creative world. Creating one also creates its first video.</p>
+						<a class="btn btn-primary btn-sm mt-2" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/new") }>Create project</a>
+					</div>
+				</div>
+			}
+			for _, p := range data.Projects {
+				<a href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/" + p.ID) } class="card bg-base-100 shadow hover:bg-base-300/40 transition">
+					<div class="card-body">
+						<div class="flex items-center justify-between">
+							<h2 class="card-title">{ p.Title }</h2>
+							<span class="badge badge-ghost badge-sm">{ p.Status }</span>
+						</div>
+						if p.Description != "" {
+							<p class="text-sm opacity-70 line-clamp-2">{ p.Description }</p>
+						}
+						<p class="text-xs opacity-60">{ p.VideoCount } video(s) · updated { p.UpdatedAt }</p>
+					</div>
+				</a>
+			}
+		</div>
+	</div>
+}
+
+templ ProjectNewPage(data ProjectNewData) {
+	@shell(data.Shell, projectNewBody(data))
+}
+
+templ projectNewBody(data ProjectNewData) {
+	<div class="max-w-3xl mx-auto">
+		<h1 class="text-2xl font-bold mb-1">New project</h1>
+		<p class="opacity-70 text-sm mb-6">Decide whether this is a new creative world or another video in an existing project. A first video is created automatically.</p>
+		if data.Error != "" {
+			<div class="alert alert-error mb-4" role="alert">{ data.Error }</div>
+		}
+		<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects") } class="card bg-base-100 shadow">
+			<div class="card-body gap-4">
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<fieldset class="fieldset">
+					<legend class="fieldset-legend">Project</legend>
+					<input class="input input-bordered w-full" name="title" placeholder="Project title" value={ data.Values["title"] } required/>
+					<textarea class="textarea textarea-bordered w-full mt-2" name="description" placeholder="Description (optional)">{ data.Values["description"] }</textarea>
+				</fieldset>
+				<fieldset class="fieldset">
+					<legend class="fieldset-legend">First video</legend>
+					<input class="input input-bordered w-full" name="video_title" placeholder="Video title (defaults to project title)" value={ data.Values["video_title"] }/>
+					<input class="input input-bordered w-full mt-2" name="purpose" placeholder="Purpose — what should this video accomplish?" value={ data.Values["purpose"] }/>
+					<div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+						<label class="form-control">
+							<span class="label-text mb-1">Format</span>
+							<select class="select select-bordered" name="format">
+								<option value="landscape">Landscape 16:9</option>
+								<option value="vertical">Vertical 9:16</option>
+								<option value="square">Square 1:1</option>
+							</select>
+						</label>
+						<label class="form-control">
+							<span class="label-text mb-1">Target duration (sec)</span>
+							<input class="input input-bordered" type="number" min="0" name="duration_s" value={ data.Values["duration_s"] }/>
+						</label>
+						<label class="form-control">
+							<span class="label-text mb-1">Audience</span>
+							<input class="input input-bordered" name="audience" value={ data.Values["audience"] }/>
+						</label>
+					</div>
+				</fieldset>
+				<div class="card-actions justify-end">
+					<a class="btn btn-ghost" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID) }>Cancel</a>
+					<button class="btn btn-primary" type="submit">Create project</button>
+				</div>
+			</div>
+		</form>
+	</div>
+}
+
+templ ProjectPage(data ProjectData) {
+	@shell(data.Shell, projectBody(data))
+}
+
+templ projectBody(data ProjectData) {
+	<div class="max-w-5xl mx-auto">
+		<div class="flex items-start justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold">{ data.Project.Title }</h1>
+				if data.Project.Description != "" {
+					<p class="opacity-70 text-sm max-w-2xl">{ data.Project.Description }</p>
+				}
+			</div>
+			<div class="badge badge-ghost">{ data.Project.Status }</div>
+		</div>
+		<h2 class="text-lg font-semibold mb-3">Videos</h2>
+		<div class="grid gap-4 sm:grid-cols-2">
+			for _, v := range data.Videos {
+				<a href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/" + data.Project.ID + "/videos/" + v.ID) } class="card bg-base-100 shadow hover:bg-base-300/40 transition">
+					<div class="card-body">
+						<div class="flex items-center justify-between">
+							<h3 class="card-title">{ v.Title }</h3>
+							<span class="badge badge-ghost badge-sm">{ v.Status }</span>
+						</div>
+						if v.Purpose != "" {
+							<p class="text-sm opacity-80">{ v.Purpose }</p>
+						}
+						<p class="text-xs opacity-60">{ v.Width }×{ v.Height } · { v.Format }</p>
+					</div>
+				</a>
+			}
+		</div>
+		<div class="mt-6">
+			<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/" + data.Project.ID + "/videos") } class="flex gap-2 items-end">
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<label class="form-control">
+					<span class="label-text mb-1">Another deliverable</span>
+					<input class="input input-bordered input-sm" name="title" placeholder="Cutdown / variant title" required/>
+				</label>
+				<select class="select select-bordered select-sm" name="format">
+					<option value="landscape">Landscape</option>
+					<option value="vertical">Vertical</option>
+					<option value="square">Square</option>
+				</select>
+				<button class="btn btn-sm" type="submit">Add video</button>
+			</form>
+		</div>
+	</div>
+}
+
+templ VideoPage(data VideoData) {
+	@shell(data.Shell, videoBody(data))
+}
+
+templ videoBody(data VideoData) {
+	<div class="max-w-5xl mx-auto">
+		<div class="flex items-start justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold">{ data.Video.Title }</h1>
+				if data.Video.Purpose != "" {
+					<p class="opacity-70 text-sm">{ data.Video.Purpose }</p>
+				}
+			</div>
+			<div class="badge badge-ghost">{ data.Video.Status }</div>
+		</div>
+		<div class="grid gap-4 sm:grid-cols-3">
+			<div class="stat bg-base-100 rounded-box shadow">
+				<div class="stat-title">Sections</div>
+				<div class="stat-value text-2xl">{ data.Sections }</div>
+			</div>
+			<div class="stat bg-base-100 rounded-box shadow">
+				<div class="stat-title">Scenes</div>
+				<div class="stat-value text-2xl">{ data.Scenes }</div>
+			</div>
+			<div class="stat bg-base-100 rounded-box shadow">
+				<div class="stat-title">Shots</div>
+				<div class="stat-value text-2xl">{ data.Shots }</div>
+			</div>
+		</div>
+		if !data.BriefCurrent {
+			<div class="alert alert-warning mt-6">
+				<span>Brief incomplete — accepted direction has not been established yet.</span>
+				<a class="btn btn-sm" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/" + data.Project.ID + "/videos/" + data.Video.ID + "/develop") }>Develop</a>
+			</div>
+		}
+	</div>
+}

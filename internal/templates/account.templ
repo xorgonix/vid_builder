@@ -1,0 +1,79 @@
+package templates
+
+// AccountView is the profile summary shown on the account page.
+type AccountView struct {
+	Email    string
+	Name     string
+	IsAdmin  bool
+	Status   string
+	JoinedAt string
+}
+
+// SessionView is one listed browser session.
+type SessionView struct {
+	ID        string
+	CreatedAt string
+	LastSeen  string
+	ExpiresAt string
+	Revoked   bool
+	UserAgent string
+}
+
+templ AccountPage(data ShellData, acct AccountView, sessions []SessionView) {
+	@shell(data, accountBody(data, acct, sessions))
+}
+
+templ accountBody(data ShellData, acct AccountView, sessions []SessionView) {
+	<div class="max-w-3xl mx-auto">
+		<h1 class="text-2xl font-bold mb-4">Account</h1>
+		<div class="card bg-base-100 shadow mb-6">
+			<div class="card-body gap-2">
+				<div class="flex items-center gap-2">
+					<h2 class="card-title">{ acct.Name }</h2>
+					if acct.IsAdmin {
+						<span class="badge badge-primary badge-sm">system admin</span>
+					}
+					<span class="badge badge-ghost badge-sm">{ acct.Status }</span>
+				</div>
+				<p class="opacity-80">{ acct.Email }</p>
+				<p class="text-xs opacity-60">Member since { acct.JoinedAt }</p>
+			</div>
+		</div>
+		<h2 class="text-lg font-semibold mb-2">Active sessions</h2>
+		<div class="overflow-x-auto card bg-base-100 shadow">
+			<table class="table">
+				<thead>
+					<tr><th>Session</th><th>Last seen</th><th>Expires</th><th>Agent</th><th></th></tr>
+				</thead>
+				<tbody>
+					for _, sess := range sessions {
+						<tr class={ templ.KV("opacity-50", sess.Revoked) }>
+							<td class="font-mono text-xs">{ shortID(sess.ID) }</td>
+							<td class="text-xs">{ sess.LastSeen }</td>
+							<td class="text-xs">{ sess.ExpiresAt }</td>
+							<td class="text-xs">{ sess.UserAgent }</td>
+							<td>
+								if sess.Revoked {
+									<span class="badge badge-ghost badge-sm">revoked</span>
+								} else {
+									<form method="post" action={ templ.URL("/account/sessions/" + sess.ID) }>
+										<input type="hidden" name="_csrf" value={ data.CSRFToken }/>
+										<input type="hidden" name="_method" value="DELETE"/>
+										<button class="btn btn-xs btn-ghost" type="submit">Revoke</button>
+									</form>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}
+
+func shortID(id string) string {
+	if len(id) <= 8 {
+		return id
+	}
+	return id[:8]
+}

@@ -3,6 +3,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,12 +12,12 @@ import (
 // Config is the complete runtime configuration. All runtime variables live in
 // config.json (which is gitignored) — never in code.
 type Config struct {
-	Server   ServerConfig   `json:"server"`
-	Database DatabaseConfig `json:"database"`
-	Media    MediaConfig    `json:"media"`
-	LLM      LLMConfig      `json:"llm"`
-	ComfyUI  ComfyUIConfig  `json:"comfyui"`
-	FFmpeg   FFmpegConfig   `json:"ffmpeg"`
+	Server    ServerConfig    `json:"server"`
+	Database  DatabaseConfig  `json:"database"`
+	Media     MediaConfig     `json:"media"`
+	LLM       LLMConfig       `json:"llm"`
+	ComfyUI   ComfyUIConfig   `json:"comfyui"`
+	FFmpeg    FFmpegConfig    `json:"ffmpeg"`
 	Auth      AuthConfig      `json:"auth"`
 	Security  SecurityConfig  `json:"security"`
 	Worker    WorkerConfig    `json:"worker"`
@@ -33,34 +34,34 @@ type BootstrapConfig struct {
 }
 
 type ServerConfig struct {
-	Host                   string `json:"host"`
-	Port                   int    `json:"port"`
-	Mode                   string `json:"mode"` // desktop | local-web | lan | server
-	BootstrapTokenTTLMin   int    `json:"bootstrap_token_ttl_minutes"`
+	Host                 string `json:"host"`
+	Port                 int    `json:"port"`
+	Mode                 string `json:"mode"` // desktop | local-web | lan | server
+	BootstrapTokenTTLMin int    `json:"bootstrap_token_ttl_minutes"`
 }
 
 type DatabaseConfig struct {
-	Path           string `json:"path"`
-	BusyTimeoutMs  int    `json:"busy_timeout_ms"`
-	MaxPoolConns   int    `json:"max_pool_conns"`
+	Path          string `json:"path"`
+	BusyTimeoutMs int    `json:"busy_timeout_ms"`
+	MaxPoolConns  int    `json:"max_pool_conns"`
 }
 
 type MediaConfig struct {
-	RootDir       string `json:"root_dir"`
-	TempDir       string `json:"temp_dir"`
-	ThumbnailDir  string `json:"thumbnail_dir"`
-	ExportsDir    string `json:"exports_dir"`
+	RootDir      string `json:"root_dir"`
+	TempDir      string `json:"temp_dir"`
+	ThumbnailDir string `json:"thumbnail_dir"`
+	ExportsDir   string `json:"exports_dir"`
 }
 
 type LLMConfig struct {
-	Enabled            bool    `json:"enabled"`
-	BaseURL            string  `json:"base_url"`
-	Model              string  `json:"model"`
-	APIKey             string  `json:"api_key"`
-	Temperature        float64 `json:"temperature"`
-	MaxTokens          int     `json:"max_tokens"`
-	RequestTimeoutSec  int     `json:"request_timeout_seconds"`
-	PlannerSystemPrompt string `json:"planner_system_prompt"`
+	Enabled             bool    `json:"enabled"`
+	BaseURL             string  `json:"base_url"`
+	Model               string  `json:"model"`
+	APIKey              string  `json:"api_key"`
+	Temperature         float64 `json:"temperature"`
+	MaxTokens           int     `json:"max_tokens"`
+	RequestTimeoutSec   int     `json:"request_timeout_seconds"`
+	PlannerSystemPrompt string  `json:"planner_system_prompt"`
 }
 
 type ComfyUIConfig struct {
@@ -71,16 +72,16 @@ type ComfyUIConfig struct {
 }
 
 type FFmpegConfig struct {
-	Enabled          bool   `json:"enabled"`
-	BinaryPath       string `json:"binary_path"`
+	Enabled           bool   `json:"enabled"`
+	BinaryPath        string `json:"binary_path"`
 	RequestTimeoutSec int    `json:"request_timeout_seconds"`
 }
 
 type AuthConfig struct {
-	SessionTTLHours    int `json:"session_ttl_hours"`
-	Argon2MemoryKB     int `json:"argon2_memory_kb"`
-	Argon2Iterations   int `json:"argon2_iterations"`
-	Argon2Parallelism  int `json:"argon2_parallelism"`
+	SessionTTLHours   int `json:"session_ttl_hours"`
+	Argon2MemoryKB    int `json:"argon2_memory_kb"`
+	Argon2Iterations  int `json:"argon2_iterations"`
+	Argon2Parallelism int `json:"argon2_parallelism"`
 }
 
 type SecurityConfig struct {
@@ -110,7 +111,7 @@ func Default() *Config {
 		Media:    MediaConfig{RootDir: "data/media", TempDir: "data/temp", ThumbnailDir: "data/media/thumbs", ExportsDir: "data/exports"},
 		LLM: LLMConfig{
 			Enabled: true, BaseURL: "http://127.0.0.1:1234",
-			Model: "qwen3.5-9b-uncensored-hauhaucs-aggressive",
+			Model:       "qwen3.5-9b-uncensored-hauhaucs-aggressive",
 			Temperature: 0.7, MaxTokens: 4096, RequestTimeoutSec: 180,
 			PlannerSystemPrompt: "You are vid-build's planner, a video pre-production assistant. You help creators develop briefs, outlines, shot lists, prompts and blocking. You propose; you never decide. Always respond with the requested structured JSON and nothing else.",
 		},
@@ -140,6 +141,19 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// LoadOrCreate loads config.json, writing defaults first if it does not exist.
+func LoadOrCreate(path string) (*Config, error) {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		cfg := Default()
+		b, _ := json.MarshalIndent(cfg, "", "  ")
+		if werr := os.WriteFile(path, b, 0o600); werr != nil {
+			return nil, fmt.Errorf("write default config %s: %w", path, werr)
+		}
+		return cfg, cfg.Validate()
+	}
+	return Load(path)
 }
 
 // Validate checks required values after defaults are applied.

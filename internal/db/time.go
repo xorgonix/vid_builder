@@ -2,10 +2,15 @@ package db
 
 import "time"
 
+// Format renders a time in the canonical stored timestamp format.
+func Format(t time.Time) string {
+	return t.UTC().Format("2006-01-02T15:04:05.000Z07:00")
+}
+
 // Now returns the current UTC time formatted as RFC3339 with millisecond
 // precision — the canonical timestamp format stored in SQLite (spec §6.5).
 func Now() string {
-	return time.Now().UTC().Format("2006-01-02T15:04:05.000Z07:00")
+	return Format(time.Now())
 }
 
 // NormalizeEmail lower-cases and trims an email for identity comparison.
