@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"vidbuild/internal/backup"
 	"vidbuild/internal/comfyui"
 	"vidbuild/internal/config"
 	"vidbuild/internal/exporter"
@@ -25,19 +26,24 @@ import (
 
 // Worker runs generation jobs.
 type Worker struct {
-	cfg   *config.Config
-	store *store.Store
-	media *media.Store
-	comfy *comfyui.Client
-	log   *slog.Logger
-	owner string
+	cfg        *config.Config
+	store      *store.Store
+	media      *media.Store
+	comfy      *comfyui.Client
+	log        *slog.Logger
+	owner      string
+	backupsDir string
 }
 
 // New constructs a worker.
 func New(cfg *config.Config, st *store.Store, ms *media.Store, log *slog.Logger) *Worker {
+	backups := filepath.Join(filepath.Dir(cfg.Database.Path), "backups")
+	if abs, err := filepath.Abs(backups); err == nil {
+		backups = abs
+	}
 	return &Worker{
 		cfg: cfg, store: st, media: ms, comfy: comfyui.New(cfg.ComfyUI), log: log,
-		owner: fmt.Sprintf("local-%d", time.Now().UnixNano()),
+		owner: fmt.Sprintf("local-%d", time.Now().UnixNano()), backupsDir: backups,
 	}
 }
 
@@ -103,6 +109,8 @@ func (w *Worker) process(ctx context.Context, job *store.Job) error {
 		return w.processExport(ctx, job)
 	case "package":
 		return w.processPackage(ctx, job)
+	case "backup":
+		return w.processBackup(ctx, job)
 	default:
 		return fmt.Errorf("worker: unsupported job type %q", job.JobType)
 	}
@@ -557,4 +565,24 @@ func writeZipFile(zw *zip.Writer, name string, data []byte) error {
 	}
 	_, err = f.Write(data)
 	return err
+}
+
+// processBackup writes a coordinated DB + media-manifest backup (spec §20).
+func (w *Worker) processBackup(ctx context.Context, job *store.Job) error {
+	_ = w.store.UpdateJobState(ctx, job.ID, "running", "collect", "info", "Collecting media manifest", 2000)
+	assets, err := w.store.ListAllAssets(ctx)
+	if err != nil {
+		return fmt.Errorf("worker: list assets: %w", err)
+	}
+	entries := make([]backup.MediaEntry, 0, len(assets))
+	for _, a := range assets {
+		entries = append(entries, backup.MediaEntry{URI: a.StorageURI, SHA256: a.Checksum, SizeBytes: a.SizeBytes})
+	}
+	_ = w.store.UpdateJobState(ctx, job.ID, "running", "copy", "info", "Copying database and writing manifest", 5000)
+	dir, err := backup.Create(ctx, w.store.DB.DB, entries, w.backupsDir)
+	if err != nil {
+		return fmt.Errorf("worker: backup: %w", err)
+	}
+	_ = w.store.EmitDomainEvent(ctx, job.WorkspaceID, "database", "all", "backup.completed", "{}")
+	return w.store.UpdateJobState(ctx, job.ID, "succeeded", "persist", "info", fmt.Sprintf("Backup written to %s (%d media referenced)", filepath.Base(dir), len(entries)), 10000)
 }

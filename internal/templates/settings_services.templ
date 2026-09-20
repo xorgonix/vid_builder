@@ -66,6 +66,48 @@ templ diagnosticsBody(data DiagnosticsData) {
 				</table>
 			</div>
 		</div>
+
+		<div class="card bg-base-100 shadow mt-4">
+			<div class="card-body">
+				<div class="flex items-center justify-between">
+					<h2 class="card-title text-base">Backups</h2>
+					if data.IsOwner {
+						<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/diagnostics/backup") }>
+							<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+							<button class="btn btn-sm btn-primary" type="submit">Queue backup</button>
+						</form>
+					}
+				</div>
+				<p class="text-xs opacity-70">Each backup is a consistent database copy plus a media manifest (URIs and SHA-256). A database-only copy is never labelled complete.</p>
+				<div class="overflow-x-auto mt-2">
+					<table class="table table-sm">
+						<thead><tr><th>Backup</th><th>Created</th><th>Media</th><th>Size</th><th></th></tr></thead>
+						<tbody>
+							for _, b := range data.Backups {
+								<tr>
+									<td class="font-mono text-xs">{ b.Name }</td>
+									<td class="text-xs">{ b.CreatedAt }</td>
+									<td>{ b.Media }</td>
+									<td class="text-xs">{ b.SizeBytes } B</td>
+									<td>
+										if data.IsOwner {
+											<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/diagnostics/backups/verify") } class="flex gap-1">
+												<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+												<input type="hidden" name="name" value={ b.Name }/>
+												<button class="btn btn-xs" type="submit">Verify</button>
+											</form>
+										}
+									</td>
+								</tr>
+							}
+							if len(data.Backups) == 0 {
+								<tr><td colspan="5" class="opacity-60">No backups yet.</td></tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
 	</div>
 }
 

@@ -1060,6 +1060,39 @@ func (s *Store) GetAttemptBoundInputs(ctx context.Context, id string) (string, e
 	return raw, err
 }
 
+// ListAllAssets returns every non-deleted asset (backup manifest use).
+func (s *Store) ListAllAssets(ctx context.Context) ([]Asset, error) {
+	rows, err := s.QueryContext(ctx, `SELECT id, workspace_id, project_id, generation_attempt_id, kind, role, storage_uri, mime_type, size_bytes, checksum_sha256, width, height, duration_ms, created_at
+		FROM assets WHERE deleted_at IS NULL ORDER BY created_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Asset
+	for rows.Next() {
+		var a Asset
+		if err := rows.Scan(&a.ID, &a.WorkspaceID, &a.ProjectID, &a.GenerationAttemptID, &a.Kind, &a.Role, &a.StorageURI, &a.MimeType, &a.SizeBytes, &a.Checksum, &a.Width, &a.Height, &a.DurationMs, &a.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// EmitBackupJob creates a durable backup job.
+func (s *Store) EmitBackupJob(ctx context.Context, workspaceID string) (*Job, error) {
+	now := db.Now()
+	j := &Job{ID: ids.New(), WorkspaceID: workspaceID, JobType: "backup", AggregateType: "database", AggregateID: "all", State: "queued", CreatedAt: now}
+	if _, err := s.ExecContext(ctx, `INSERT INTO jobs (id, workspace_id, job_type, aggregate_type, aggregate_id, state, priority, request_json, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+		j.ID, workspaceID, "backup", "database", "all", "queued", 0, "{}", now); err != nil {
+		return nil, err
+	}
+	if _, err := s.ExecContext(ctx, `INSERT INTO job_events (id, job_id, sequence, phase, level, message, progress_basis_points, created_at) VALUES (?,?,0,'queued','info','Backup queued',0,?)`, ids.New(), j.ID, now); err != nil {
+		return nil, err
+	}
+	return j, nil
+}
+
 // EmitDomainEvent appends to the transactional outbox.
 func (s *Store) EmitDomainEvent(ctx context.Context, workspaceID, aggregateType, aggregateID, eventType, payloadJSON string) error {
 	if payloadJSON == "" {

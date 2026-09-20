@@ -818,6 +818,17 @@ type DiagnosticsData struct {
 	MediaRootOK        bool
 	WorkingDir         string
 	Platform           string
+	IsOwner            bool
+	Backups            []BackupEntryView
+}
+
+// BackupEntryView is one backup set.
+type BackupEntryView struct {
+	Name      string
+	CreatedAt string
+	SizeBytes int64
+	Complete  bool
+	Media     int
 }
 
 // OutlineData backs the Outline screen.

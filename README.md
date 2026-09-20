@@ -86,6 +86,27 @@ internal/web          Chi handlers, middleware, static assets
 internal/templates    templ components
 ```
 
+## Backup and restore
+
+Admins can queue a coordinated backup from **Workspace → Diagnostics → Backups**.
+Each backup is a consistent database copy (SQLite `VACUUM INTO`) plus a
+`manifest.json` listing every media URI with its SHA-256; a database-only copy is
+never labelled complete. The **Verify** button re-checks database integrity and
+re-hashes every referenced media file.
+
+Restore is an offline tool (stop the application first):
+
+```powershell
+# dry run — verify only
+go run ./cmd/vidbuild-restore -backup data/backups/backup-YYYYMMDD-HHMMSS
+
+# perform the swap (keeps a safety copy of the current database)
+go run ./cmd/vidbuild-restore -backup data/backups/backup-YYYYMMDD-HHMMSS -yes
+```
+
+Media files stay in the media store and are verified against the manifest rather
+than copied.
+
 ## Security
 
 Argon2id passwords, opaque session tokens (only hashes stored), per-session CSRF

@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"time"
 
+	"vidbuild/internal/backup"
 	"vidbuild/internal/comfyui"
 	"vidbuild/internal/templates"
 )
@@ -144,7 +146,60 @@ func (s *Server) handleDiagnostics(w http.ResponseWriter, r *http.Request) {
 		d.WorkingDir = wd
 	}
 	d.Platform = runtime.GOOS + "/" + runtime.GOARCH
+	d.IsOwner = RoleFrom(r.Context()) == "owner"
+	if list, err := backup.List(s.backupsDir()); err == nil {
+		for _, e := range list {
+			d.Backups = append(d.Backups, templates.BackupEntryView{Name: e.Name, CreatedAt: e.CreatedAt, SizeBytes: e.SizeBytes, Complete: e.Complete, Media: e.Media})
+		}
+	}
 	_ = ws
 
 	s.renderPage(w, r, templates.DiagnosticsPage(d))
+}
+
+// backupsDir returns the configured backup directory (sibling of the database).
+func (s *Server) backupsDir() string {
+	dir := filepath.Join(filepath.Dir(s.cfg.Database.Path), "backups")
+	if abs, err := filepath.Abs(dir); err == nil {
+		return abs
+	}
+	return dir
+}
+
+func (s *Server) handleBackup(w http.ResponseWriter, r *http.Request) {
+	ws := WorkspaceFrom(r.Context())
+	job, err := s.store.EmitBackupJob(r.Context(), ws.ID)
+	if err != nil {
+		s.log.Error("emit backup job", "err", err)
+		http.Redirect(w, r, "/w/"+ws.ID+"/diagnostics?msg="+urlMsg("Could not queue backup.")+"&kind=error", http.StatusSeeOther)
+		return
+	}
+	_ = s.store.Audit(r.Context(), ws.ID, actorID(r), "backup.create", "database", "all", "queued backup", "{}")
+	http.Redirect(w, r, "/w/"+ws.ID+"/diagnostics?msg="+urlMsg("Backup queued ("+job.ID[:8]+"). Refresh when the worker finishes.")+"&kind=success", http.StatusSeeOther)
+}
+
+func (s *Server) handleVerifyBackup(w http.ResponseWriter, r *http.Request) {
+	ws := WorkspaceFrom(r.Context())
+	_ = r.ParseForm()
+	name := filepath.Base(r.FormValue("name"))
+	if name == "" || name == "." || name == ".." {
+		http.Redirect(w, r, "/w/"+ws.ID+"/diagnostics?msg="+urlMsg("No backup selected.")+"&kind=error", http.StatusSeeOther)
+		return
+	}
+	res, err := backup.Verify(r.Context(), filepath.Join(s.backupsDir(), name), s.cfg.Media.RootDir)
+	if err != nil {
+		http.Redirect(w, r, "/w/"+ws.ID+"/diagnostics?msg="+urlMsg("Verify failed: "+err.Error())+"&kind=error", http.StatusSeeOther)
+		return
+	}
+	if !res.DBOK {
+		http.Redirect(w, r, "/w/"+ws.ID+"/diagnostics?msg="+urlMsg("Backup database failed integrity: "+res.DBError)+"&kind=error", http.StatusSeeOther)
+		return
+	}
+	kind := "success"
+	msg := "Backup OK: database integrity ok, " + itoa(res.MediaOK) + "/" + itoa(res.MediaTotal) + " media checksums match."
+	if len(res.MediaBad) > 0 {
+		kind = "warning"
+		msg = "Backup database OK, but " + itoa(len(res.MediaBad)) + " media file(s) missing or changed: " + res.MediaBad[0]
+	}
+	http.Redirect(w, r, "/w/"+ws.ID+"/diagnostics?msg="+urlMsg(msg)+"&kind="+kind, http.StatusSeeOther)
 }
