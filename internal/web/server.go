@@ -210,6 +210,10 @@ func (s *Server) Handler() http.Handler {
 			r.With(s.requireRole("owner")).Patch("/members/{userID}", s.handleUpdateMember)
 			r.With(s.requireRole("owner")).Delete("/members/{userID}", s.handleRemoveMember)
 			r.Get("/diagnostics", s.handleDiagnostics)
+			r.Get("/model-profiles", s.handleModelProfiles)
+			r.With(s.requireRole("owner", "editor")).Post("/model-profiles", s.handleCreateModelProfile)
+			r.With(s.requireRole("owner", "editor")).Delete("/model-profiles/{profileID}", s.handleDeleteModelProfile)
+			r.With(s.requireRole("owner", "editor")).Post("/projects/{p}/default-profile", s.handleSetProjectDefaultProfile)
 		})
 	})
 

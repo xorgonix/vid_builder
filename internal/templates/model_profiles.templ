@@ -1,0 +1,68 @@
+package templates
+
+templ ModelProfilesPage(data ModelProfilesData) {
+	@shell(data.Shell, modelProfilesBody(data))
+}
+
+templ modelProfilesBody(data ModelProfilesData) {
+	<div class="max-w-4xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Model profiles</h1>
+				<p class="opacity-70 text-sm">Named reusable production settings. Model names, samplers and LoRAs are production settings, not creative direction.</p>
+			</div>
+			<a class="btn btn-sm" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/settings") }>Settings</a>
+		</div>
+		<div class="overflow-x-auto card bg-base-100 shadow mb-4">
+			<table class="table">
+				<thead><tr><th>Name</th><th>Task</th><th>Checkpoint</th><th></th></tr></thead>
+				<tbody>
+					for _, p := range data.Profiles {
+						<tr>
+							<td class="font-medium">{ p.Name }</td>
+							<td>{ p.Task }</td>
+							<td class="font-mono text-xs">{ p.Checkpoint }</td>
+							<td>
+								<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/model-profiles/" + p.ID) }>
+									<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+									<input type="hidden" name="_method" value="DELETE"/>
+									<button class="btn btn-xs btn-error btn-outline" type="submit">Delete</button>
+								</form>
+							</td>
+						</tr>
+					}
+					if len(data.Profiles) == 0 {
+						<tr><td colspan="4" class="opacity-60">No profiles yet.</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		<div class="card bg-base-100 shadow">
+			<div class="card-body">
+				<h2 class="card-title text-base">New profile</h2>
+				<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/model-profiles") } class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<label class="form-control"><span class="label-text mb-1">Name</span><input class="input input-bordered input-sm" name="name" placeholder="Fast concept" required/></label>
+					<label class="form-control"><span class="label-text mb-1">Task</span>
+						<select class="select select-bordered select-sm" name="task">
+							<option value="image">image</option>
+							<option value="first_last_video">first_last_video</option>
+						</select>
+					</label>
+					<label class="form-control"><span class="label-text mb-1">Checkpoint</span>
+						if len(data.Checkpoints) > 0 {
+							<select class="select select-bordered select-sm" name="checkpoint">
+								for _, cp := range data.Checkpoints {
+									<option value={ cp }>{ cp }</option>
+								}
+							</select>
+						} else {
+							<input class="input input-bordered input-sm" name="checkpoint" placeholder="photon_v1.safetensors"/>
+						}
+					</label>
+					<div class="sm:col-span-3 flex justify-end"><button class="btn btn-sm btn-primary" type="submit">Create profile</button></div>
+				</form>
+			</div>
+		</div>
+	</div>
+}

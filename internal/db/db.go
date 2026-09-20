@@ -86,6 +86,7 @@ var columnMigrations = []string{
 	`ALTER TABLE generation_attempts ADD COLUMN peak_vram_mb INTEGER`,
 	`ALTER TABLE workflow_versions ADD COLUMN tested_comfyui_version TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE shot_specs ADD COLUMN prompt_layers_json TEXT NOT NULL DEFAULT '[]'`,
+	`ALTER TABLE projects ADD COLUMN default_model_profile_id TEXT`,
 }
 
 // SeedBootstraps creates the initial system admin user (if no users exist) and

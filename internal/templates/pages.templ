@@ -245,6 +245,25 @@ templ projectBody(data ProjectData) {
 			<a class="btn btn-sm" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/" + data.Project.ID + "/bible") }>Project Bible</a>
 			<a class="btn btn-sm" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/" + data.Project.ID + "/package") }>Package</a>
 		</div>
+		<div class="card bg-base-100 shadow mb-4">
+			<div class="card-body">
+				<h2 class="card-title text-base">Default model profile</h2>
+				<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/" + data.Project.ID + "/default-profile") } class="flex gap-2 items-end">
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<select class="select select-bordered select-sm" name="profile_id">
+						<option value="">— none —</option>
+						for _, p := range data.Profiles {
+							if p.ID == data.DefaultProfileID {
+								<option value={ p.ID } selected="selected">{ p.Name } ({ p.Checkpoint })</option>
+							} else {
+								<option value={ p.ID }>{ p.Name } ({ p.Checkpoint })</option>
+							}
+						}
+					</select>
+					<button class="btn btn-sm" type="submit">Save default</button>
+				</form>
+			</div>
+		</div>
 		<h2 class="text-lg font-semibold mb-3">Videos</h2>
 		<div class="grid gap-4 sm:grid-cols-2">
 			for _, v := range data.Videos {

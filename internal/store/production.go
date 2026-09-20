@@ -345,6 +345,7 @@ type RequestInput struct {
 	QualityTier       string
 	CandidateCount    int
 	WorkflowVersionID string
+	ModelProfileID    string
 	RequestJSON       string
 	CompilationJSON   string
 	Enqueue           bool
@@ -380,9 +381,9 @@ func (s *Store) CreateGenerationRequest(ctx context.Context, in RequestInput, us
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.ExecContext(ctx, `INSERT INTO generation_requests (id, project_id, video_id, shot_id, shot_spec_id, spec_version, workflow_version_id, output_role, quality_tier, candidate_count, status, request_json, prompt_compilation_json, created_by_user_id, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		req.ID, in.ProjectID, in.VideoID, in.ShotID, in.ShotSpecID, in.SpecVersion, nullStr(in.WorkflowVersionID), in.OutputRole, in.QualityTier, in.CandidateCount, status, requestJSON, compilationJSON, userID, now, now); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO generation_requests (id, project_id, video_id, shot_id, shot_spec_id, spec_version, workflow_version_id, model_profile_id, output_role, quality_tier, candidate_count, status, request_json, prompt_compilation_json, created_by_user_id, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		req.ID, in.ProjectID, in.VideoID, in.ShotID, in.ShotSpecID, in.SpecVersion, nullStr(in.WorkflowVersionID), nullStr(in.ModelProfileID), in.OutputRole, in.QualityTier, in.CandidateCount, status, requestJSON, compilationJSON, userID, now, now); err != nil {
 		return nil, nil, nil, fmt.Errorf("insert request: %w", err)
 	}
 	attempts := make([]GenerationAttempt, 0, in.CandidateCount)

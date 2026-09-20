@@ -71,11 +71,18 @@ func (s *Server) handleProjectDashboard(w http.ResponseWriter, r *http.Request) 
 	for _, v := range videos {
 		views = append(views, templates.VideoView{ID: v.ID, Title: v.Title, Purpose: v.Purpose, Format: v.Format, Status: v.Status, Width: v.Width, Height: v.Height})
 	}
-	s.renderPage(w, r, templates.ProjectPage(templates.ProjectData{
+	data := templates.ProjectData{
 		Shell:   shell,
 		Project: templates.ProjectView{ID: project.ID, Title: project.Title, Description: project.Description, Status: project.Status},
 		Videos:  views,
-	}))
+	}
+	if profiles, err := s.store.ListModelProfiles(r.Context(), ws.ID); err == nil {
+		for _, p := range profiles {
+			data.Profiles = append(data.Profiles, templates.ProfileOption{ID: p.ID, Name: p.Name, Checkpoint: p.ProfileCheckpoint()})
+		}
+	}
+	data.DefaultProfileID = s.store.GetProjectDefaultProfile(r.Context(), project.ID)
+	s.renderPage(w, r, templates.ProjectPage(data))
 }
 
 func (s *Server) handleVideoCreate(w http.ResponseWriter, r *http.Request) {

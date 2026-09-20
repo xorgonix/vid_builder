@@ -40,6 +40,13 @@ templ settingsBody(data ShellData, view SettingsView) {
 					<a class="btn btn-sm mt-2" href="/settings/local-services">Local services</a>
 				</div>
 			</div>
+			<div class="card bg-base-100 shadow">
+				<div class="card-body">
+					<h2 class="card-title text-base">Model profiles</h2>
+					<p class="text-sm opacity-70">Named reusable production settings and checkpoints.</p>
+					<a class="btn btn-sm mt-2" href={ templ.URL("/w/" + data.CurrentWorkspace.ID + "/model-profiles") }>Manage profiles</a>
+				</div>
+			</div>
 		</div>
 	</div>
 }

@@ -154,13 +154,30 @@ func (s *Server) handleGenerateForm(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// Model profiles (spec §8.5) and per-project default.
+	wsForProfiles := WorkspaceFrom(r.Context())
+	if profiles, err := s.store.ListModelProfiles(r.Context(), wsForProfiles.ID); err == nil {
+		for _, p := range profiles {
+			data.Profiles = append(data.Profiles, templates.ProfileOption{ID: p.ID, Name: p.Name, Checkpoint: p.ProfileCheckpoint()})
+		}
+	}
+	data.DefaultProfileID = s.store.GetProjectDefaultProfile(r.Context(), project.ID)
+	if data.DefaultProfileID != "" {
+		if p, err := s.store.GetModelProfile(r.Context(), wsForProfiles.ID, data.DefaultProfileID); err == nil {
+			if cp := p.ProfileCheckpoint(); cp != "" {
+				data.DefaultModel = cp
+			}
+		}
+	}
 	// Capability preflight.
 	client := comfyui.New(s.cfg.ComfyUI)
 	if stats, err := client.Stats(r.Context()); err != nil {
 		data.ComfyError = err.Error()
 	} else {
 		data.ComfyReady = true
-		data.DefaultModel = firstCheckpoint(r, client)
+		if data.DefaultModel == "" {
+			data.DefaultModel = firstCheckpoint(r, client)
+		}
 		_ = stats
 		if cps, err := client.Checkpoints(r.Context()); err == nil {
 			data.Checkpoints = cps
@@ -256,6 +273,15 @@ func (s *Server) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		"seed_policy": formValueOr(r, "seed_policy", "random"),
 		"checkpoint":  r.FormValue("checkpoint"),
 	}
+	// A selected model profile is explicit: its checkpoint wins.
+	profileID := r.FormValue("model_profile_id")
+	if profileID != "" {
+		if p, err := s.store.GetModelProfile(r.Context(), WorkspaceFrom(r.Context()).ID, profileID); err == nil {
+			if cp := p.ProfileCheckpoint(); cp != "" {
+				payload["checkpoint"] = cp
+			}
+		}
+	}
 
 	// Endpoint-conditioned motion invariant (spec §18.3): no start-only fallback.
 	if role == "motion" && r.FormValue("requires_first_last") != "" {
@@ -286,7 +312,7 @@ func (s *Server) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	req, _, job, err := s.store.CreateGenerationRequest(r.Context(), store.RequestInput{
 		WorkspaceID: ws.ID, ProjectID: project.ID, VideoID: video.ID, ShotID: shot.ID, ShotSpecID: spec.ID,
 		SpecVersion: spec.Version, OutputRole: role, QualityTier: formValueOr(r, "tier", "concept"),
-		CandidateCount: candidates, WorkflowVersionID: versionID, RequestJSON: string(raw),
+		CandidateCount: candidates, WorkflowVersionID: versionID, ModelProfileID: profileID, RequestJSON: string(raw),
 		Enqueue: formValueOr(r, "execution", "local") != "campaign",
 	}, user.ID)
 	if err != nil {

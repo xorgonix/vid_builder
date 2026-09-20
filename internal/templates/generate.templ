@@ -46,6 +46,19 @@ templ generateBody(data GenerateData) {
 						<input class="input input-bordered" value="No validated workflow" disabled="disabled"/>
 					}
 				</label>
+				<label class="form-control">
+					<span class="label-text mb-1">Model profile</span>
+					<select class="select select-bordered" name="model_profile_id">
+						<option value="">— none —</option>
+						for _, p := range data.Profiles {
+							if p.ID == data.DefaultProfileID {
+								<option value={ p.ID } selected="selected">{ p.Name } ({ p.Checkpoint })</option>
+							} else {
+								<option value={ p.ID }>{ p.Name } ({ p.Checkpoint })</option>
+							}
+						}
+					</select>
+				</label>
 				<fieldset class="fieldset">
 					<legend class="fieldset-legend">Frozen specification (read-only)</legend>
 					<textarea class="textarea textarea-bordered w-full font-mono text-sm" name="positive" rows="4">{ data.Positive }</textarea>

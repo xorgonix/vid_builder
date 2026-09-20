@@ -122,9 +122,11 @@ type VideoView struct {
 
 // ProjectData backs the project dashboard.
 type ProjectData struct {
-	Shell   ShellData
-	Project ProjectView
-	Videos  []VideoView
+	Shell            ShellData
+	Project          ProjectView
+	Videos           []VideoView
+	Profiles         []ProfileOption
+	DefaultProfileID string
 }
 
 // VideoData backs a video overview page.
@@ -428,6 +430,8 @@ type GenerateData struct {
 	EndpointsReady            bool
 	EndpointNote              string
 	WorkflowSupportsEndpoints bool
+	Profiles                  []ProfileOption
+	DefaultProfileID          string
 }
 
 // JobEventView is a job event line.
@@ -565,6 +569,29 @@ type WorkflowOption struct {
 	Name    string
 	Version string
 	Status  string
+}
+
+// ProfileView is a model profile row.
+type ProfileView struct {
+	ID         string
+	Name       string
+	Task       string
+	Checkpoint string
+}
+
+// ProfileOption is a selectable model profile.
+type ProfileOption struct {
+	ID         string
+	Name       string
+	Checkpoint string
+}
+
+// ModelProfilesData backs the model profiles screen.
+type ModelProfilesData struct {
+	Shell       ShellData
+	Profiles    []ProfileView
+	Checkpoints []string
+	ComfyReady  bool
 }
 
 // MemberView is a workspace member row.

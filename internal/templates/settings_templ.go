@@ -117,7 +117,20 @@ func settingsBody(data ShellData, view SettingsView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\">Manage members</a></div></div><div class=\"card bg-base-100 shadow\"><div class=\"card-body\"><h2 class=\"card-title text-base\">Execution targets</h2><p class=\"text-sm opacity-70\">Local ComfyUI, rented agents and APIs. Configure local services before production.</p><a class=\"btn btn-sm mt-2\" href=\"/settings/local-services\">Local services</a></div></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\">Manage members</a></div></div><div class=\"card bg-base-100 shadow\"><div class=\"card-body\"><h2 class=\"card-title text-base\">Execution targets</h2><p class=\"text-sm opacity-70\">Local ComfyUI, rented agents and APIs. Configure local services before production.</p><a class=\"btn btn-sm mt-2\" href=\"/settings/local-services\">Local services</a></div></div><div class=\"card bg-base-100 shadow\"><div class=\"card-body\"><h2 class=\"card-title text-base\">Model profiles</h2><p class=\"text-sm opacity-70\">Named reusable production settings and checkpoints.</p><a class=\"btn btn-sm mt-2\" href=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var7 templ.SafeURL
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/w/" + data.CurrentWorkspace.ID + "/model-profiles"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/settings.templ`, Line: 47, Col: 102}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\">Manage profiles</a></div></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
