@@ -74,7 +74,10 @@ templ shotSpecTab(data ShotDetailData, spec SpecView) {
 		<input type="hidden" name="_method" value="PATCH"/>
 		<div class="flex items-center justify-between">
 			<div class="text-sm opacity-70">Current version v{ spec.Version }</div>
-			<button class="btn btn-xs" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/specs/" + spec.Kind + "/suggest") } formnovalidate>Suggest with planner</button>
+			<div class="flex gap-1">
+				<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/candidates/" + spec.Kind) }>Compare candidates</a>
+				<button class="btn btn-xs" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/specs/" + spec.Kind + "/suggest") } formnovalidate>Suggest with planner</button>
+			</div>
 		</div>
 		<label class="form-control">
 			<span class="label-text mb-1">Positive prompt</span>

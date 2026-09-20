@@ -88,12 +88,18 @@ templ diagnosticsBody(data DiagnosticsData) {
 			<div class="card-body">
 				<div class="flex items-center justify-between">
 					<h2 class="card-title text-base">Backups</h2>
-					if data.IsOwner {
-						<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/diagnostics/backup") }>
-							<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
-							<button class="btn btn-sm btn-primary" type="submit">Queue backup</button>
-						</form>
-					}
+					<div class="flex gap-2">
+						if data.IsOwner {
+							<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/diagnostics/thumbnails") }>
+								<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+								<button class="btn btn-sm" type="submit">Generate missing thumbnails</button>
+							</form>
+							<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/diagnostics/backup") }>
+								<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+								<button class="btn btn-sm btn-primary" type="submit">Queue backup</button>
+							</form>
+						}
+					</div>
 				</div>
 				<p class="text-xs opacity-70">Each backup is a consistent database copy plus a media manifest (URIs and SHA-256). A database-only copy is never labelled complete.</p>
 				<div class="overflow-x-auto mt-2">

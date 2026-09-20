@@ -39,6 +39,14 @@ func (s ShellData) VideoBase() string {
 	return "/w/" + s.CurrentWorkspace.ID + "/projects/" + s.Project.ID + "/videos/" + s.Video.ID
 }
 
+// ImgSrc returns the thumbnail URL when available, else the full asset URL.
+func ImgSrc(a AssetView) string {
+	if a.ThumbURL != "" {
+		return a.ThumbURL
+	}
+	return a.URL
+}
+
 // NavItems returns the primary navigation for the current context.
 func (s ShellData) NavItems() []NavItem {
 	if s.CurrentWorkspace == nil || s.Project == nil {
@@ -457,17 +465,20 @@ type AttemptView struct {
 
 // AssetView is an asset rendered in the UI.
 type AssetView struct {
-	ID        string
-	Kind      string
-	Role      string
-	MimeType  string
-	URL       string
-	Checksum  string
-	SizeBytes int64
-	CreatedAt string
-	Seed      string
-	Model     string
-	Duration  string
+	ID          string
+	Kind        string
+	Role        string
+	MimeType    string
+	URL         string
+	ThumbURL    string
+	Checksum    string
+	SizeBytes   int64
+	CreatedAt   string
+	Seed        string
+	Model       string
+	Duration    string
+	WorkflowSHA string
+	Approval    string
 }
 
 // JobPageData backs the job detail page.
@@ -500,6 +511,18 @@ type ReviewData struct {
 	Video       VideoView
 	Groups      []ReviewGroup
 	Annotations []AnnotationView
+}
+
+// CandidatesData backs the candidate comparison page.
+type CandidatesData struct {
+	Shell      ShellData
+	Project    ProjectView
+	Video      VideoView
+	Shot       ShotNode
+	Role       string
+	RoleLabel  string
+	Assets     []AssetView
+	SelectedID string
 }
 
 // AnnotationView is a review note.
@@ -696,6 +719,7 @@ type SelectionOption struct {
 	RoleLabel string
 	AssetID   string
 	AssetURL  string
+	ThumbURL  string
 }
 
 // EditData backs the Edit screen.

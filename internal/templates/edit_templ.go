@@ -370,9 +370,9 @@ func editBody(data EditData) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var23 string
-			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.URL(o.AssetURL))
+			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.URL(thumbOr(o.ThumbURL, o.AssetURL)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/edit.templ`, Line: 83, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/edit.templ`, Line: 83, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var23)
 			if templ_7745c5c3_Err != nil {
@@ -996,6 +996,13 @@ func exportBody(data ExportData) templ.Component {
 		}
 		return nil
 	})
+}
+
+func thumbOr(thumb, full string) string {
+	if thumb != "" {
+		return thumb
+	}
+	return full
 }
 
 var _ = templruntime.GeneratedTemplate

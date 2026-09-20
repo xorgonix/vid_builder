@@ -51,10 +51,14 @@ func (s *Server) handleEdit(w http.ResponseWriter, r *http.Request) {
 					if err != nil {
 						continue
 					}
-					data.Options = append(data.Options, templates.SelectionOption{
+					opt := templates.SelectionOption{
 						ShotID: sh.ID, ShotTitle: sh.Title, Role: role, RoleLabel: roleLabel(role),
 						AssetID: sel.AssetID, AssetURL: "/assets/" + sel.AssetID,
-					})
+					}
+					if thumb, err := s.store.GetThumbnailForAsset(r.Context(), sel.AssetID); err == nil && thumb != nil {
+						opt.ThumbURL = "/assets/" + thumb.ID
+					}
+					data.Options = append(data.Options, opt)
 				}
 			}
 		}

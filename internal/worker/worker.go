@@ -23,6 +23,7 @@ import (
 	"vidbuild/internal/exporter"
 	"vidbuild/internal/media"
 	"vidbuild/internal/store"
+	"vidbuild/internal/thumbs"
 	"vidbuild/internal/workflows"
 )
 
@@ -349,7 +350,8 @@ func (w *Worker) runAttempt(ctx context.Context, job *store.Job, req *store.Gene
 	if err != nil {
 		return fmt.Errorf("record asset: %w", err)
 	}
-	_ = assetID
+	// Best-effort derived thumbnail; failure never fails the attempt.
+	w.makeThumbnail(ctx, job.WorkspaceID, req.ProjectID, assetID, "image/png")
 
 	resolved, _ := json.Marshal(map[string]string{"positive": payload.Positive, "negative": payload.Negative})
 	elapsed := time.Since(started).Milliseconds()
@@ -528,6 +530,42 @@ func summarize(out string) string {
 		out = out[:200]
 	}
 	return ": " + out
+}
+
+// makeThumbnail derives and stores a thumbnail asset, logging (not failing) on error.
+func (w *Worker) makeThumbnail(ctx context.Context, workspaceID, projectID, assetID, mime string) {
+	if !thumbs.IsImageMime(mime) {
+		return
+	}
+	asset, err := w.store.GetAsset(ctx, assetID)
+	if err != nil {
+		return
+	}
+	f, err := w.media.Open(asset.StorageURI)
+	if err != nil {
+		w.log.Warn("thumbnail: open", "err", err)
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(f, 64<<20))
+	f.Close()
+	if err != nil {
+		w.log.Warn("thumbnail: read", "err", err)
+		return
+	}
+	pngBytes, dw, dh, err := thumbs.GenerateImage(data, 0, 0)
+	if err != nil {
+		w.log.Warn("thumbnail: generate", "err", err)
+		return
+	}
+	relDir := fmt.Sprintf("%s/%s/thumbs", workspaceID, projectID)
+	uri, checksum, size, err := w.media.Put(relDir, assetID+".png", strings.NewReader(string(pngBytes)))
+	if err != nil {
+		w.log.Warn("thumbnail: store", "err", err)
+		return
+	}
+	if _, err := w.store.CreateThumbnail(ctx, workspaceID, projectID, assetID, uri, "image/png", size, checksum, dw, dh); err != nil {
+		w.log.Warn("thumbnail: record", "err", err)
+	}
 }
 
 // processPackage builds a portable project package (spec §12.3, §20).

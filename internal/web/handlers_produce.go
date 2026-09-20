@@ -413,12 +413,21 @@ func (s *Server) assetViews(ctx context.Context, assets []store.Asset) []templat
 	out := make([]templates.AssetView, 0, len(assets))
 	for _, a := range assets {
 		av := templates.AssetView{ID: a.ID, Kind: a.Kind, Role: a.Role, MimeType: a.MimeType, URL: "/assets/" + a.ID, Checksum: a.Checksum, SizeBytes: a.SizeBytes, CreatedAt: a.CreatedAt}
+		if thumb, err := s.store.GetThumbnailForAsset(ctx, a.ID); err == nil && thumb != nil {
+			av.ThumbURL = "/assets/" + thumb.ID
+		}
 		if att, err := s.store.GetAttemptByAsset(ctx, a.ID); err == nil && att != nil {
 			if att.Seed.Valid {
 				av.Seed = fmt.Sprintf("%d", att.Seed.Int64)
 			}
 			if att.ModelID.Valid {
 				av.Model = att.ModelID.String
+			}
+			if att.DurationMs.Valid {
+				av.Duration = fmt.Sprintf("%d ms", att.DurationMs.Int64)
+			}
+			if att.WorkflowGraphSHA != "" {
+				av.WorkflowSHA = att.WorkflowGraphSHA
 			}
 		}
 		out = append(out, av)

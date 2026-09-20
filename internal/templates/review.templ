@@ -35,6 +35,7 @@ templ reviewBody(data ReviewData) {
 									}
 								</div>
 							</div>
+							<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + g.ShotID + "/candidates/" + g.Role) }>Compare</a>
 							<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + g.ShotID) }>Shot</a>
 						</div>
 						<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
@@ -105,7 +106,7 @@ func annotationStatusClass(status string) string {
 templ assetCard(data ReviewData, g ReviewGroup, a AssetView) {
 	<div class={ "rounded-box border p-2 flex flex-col gap-2", selectedBorder(g.SelectedID == a.ID) }>
 		<a href={ templ.URL(a.URL) } target="_blank" rel="noopener">
-			<img src={ templ.URL(a.URL) } alt={ "Candidate " + shortID(a.ID) } class="w-full rounded"/>
+			<img src={ templ.URL(ImgSrc(a)) } alt={ "Candidate " + shortID(a.ID) } class="w-full rounded"/>
 		</a>
 		<div class="text-xs opacity-70 font-mono break-all">
 			<div>seed { a.Seed } · { a.Model }</div>

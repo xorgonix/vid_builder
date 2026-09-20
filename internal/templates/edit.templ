@@ -80,7 +80,7 @@ templ editBody(data EditData) {
 						<ul class="flex flex-col gap-2">
 							for _, o := range data.Options {
 								<li class="flex items-center gap-2 border-b border-base-300 pb-2">
-									<img src={ templ.URL(o.AssetURL) } alt="candidate" class="w-16 rounded"/>
+									<img src={ templ.URL(thumbOr(o.ThumbURL, o.AssetURL)) } alt="candidate" class="w-16 rounded"/>
 									<div class="flex-1 text-sm">
 										<div class="font-medium">{ o.ShotTitle }</div>
 										<div class="text-xs opacity-60">{ o.RoleLabel }</div>
@@ -167,4 +167,10 @@ templ exportBody(data ExportData) {
 			}
 		}
 	</div>
+}
+func thumbOr(thumb, full string) string {
+	if thumb != "" {
+		return thumb
+	}
+	return full
 }
