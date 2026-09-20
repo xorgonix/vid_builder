@@ -417,6 +417,7 @@ type GenerateData struct {
 	Height          int
 	WorkflowID      string
 	WorkflowName    string
+	Workflows       []WorkflowOption
 	Checkpoints     []string
 	DefaultModel    string
 	ComfyReady      bool
@@ -507,6 +508,45 @@ type WorkflowView struct {
 type WorkflowsData struct {
 	Shell     ShellData
 	Workflows []WorkflowView
+}
+
+// NodeClassCount is a detected ComfyUI node class.
+type NodeClassCount struct {
+	Class string
+	Count int
+}
+
+// BindingRow is an editable semantic binding.
+type BindingRow struct {
+	Field     string
+	NodeID    string
+	InputName string
+	Required  bool
+}
+
+// WorkflowVersionData backs the workflow binding/validation screen.
+type WorkflowVersionData struct {
+	Shell           ShellData
+	PackageID       string
+	PackageName     string
+	Source          string
+	VersionID       string
+	Status          string
+	GraphSHA        string
+	SemanticVersion string
+	NodeCount       int
+	Classes         []NodeClassCount
+	Bindings        []BindingRow
+	BoundFields     []string
+	AllFields       []string
+}
+
+// WorkflowOption is a selectable workflow version.
+type WorkflowOption struct {
+	ID      string
+	Name    string
+	Version string
+	Status  string
 }
 
 // EditItemView is one clip in an edit.

@@ -30,6 +30,22 @@ templ generateBody(data GenerateData) {
 				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
 				<input type="hidden" name="shot_id" value={ data.Shot.ID }/>
 				<input type="hidden" name="role" value={ data.Role }/>
+				<label class="form-control">
+					<span class="label-text mb-1">Workflow version</span>
+					if len(data.Workflows) > 0 {
+						<select class="select select-bordered" name="workflow_version_id">
+							for _, w := range data.Workflows {
+								if w.ID == data.WorkflowID {
+									<option value={ w.ID } selected="selected">{ w.Name } v{ w.Version }</option>
+								} else {
+									<option value={ w.ID }>{ w.Name } v{ w.Version }</option>
+								}
+							}
+						</select>
+					} else {
+						<input class="input input-bordered" value="No validated workflow" disabled="disabled"/>
+					}
+				</label>
 				<fieldset class="fieldset">
 					<legend class="fieldset-legend">Frozen specification (read-only)</legend>
 					<textarea class="textarea textarea-bordered w-full font-mono text-sm" name="positive" rows="4">{ data.Positive }</textarea>

@@ -895,6 +895,142 @@ func (s *Store) GetAttemptByAsset(ctx context.Context, assetID string) (*Generat
 	return scanAttempt(row)
 }
 
+// CreateImportedWorkflow stores an immutable imported graph as a new package.
+func (s *Store) CreateImportedWorkflow(ctx context.Context, workspaceID, userID, name, slug, task, graphJSON, graphSHA, manifestJSON string, bindings []WorkflowBinding) (*WorkflowPackage, *WorkflowVersion, error) {
+	now := db.Now()
+	pkg := &WorkflowPackage{ID: ids.New(), Name: name, Slug: slug, Task: task, Source: "imported", Active: true, Revision: 1}
+	var ws any
+	if workspaceID != "" {
+		ws = workspaceID
+	}
+	if _, err := s.ExecContext(ctx, `INSERT INTO workflow_packages (id, workspace_id, name, slug, task, description, source, active, created_by_user_id, created_at, updated_at)
+		VALUES (?,?,?,?,?, '', 'imported',1,?,?,?)`, pkg.ID, ws, name, slug, task, userID, now, now); err != nil {
+		return nil, nil, err
+	}
+	ver := &WorkflowVersion{ID: ids.New(), WorkflowPackageID: pkg.ID, SemanticVersion: "1.0.0", GraphJSON: graphJSON, GraphSHA: graphSHA, ManifestJSON: manifestJSON, Status: "draft", CreatedAt: now}
+	if _, err := s.ExecContext(ctx, `INSERT INTO workflow_versions (id, workflow_package_id, semantic_version, graph_json, graph_sha256, manifest_json, status, created_by_user_id, created_at)
+		VALUES (?,?,'1.0.0',?,?,?, 'draft', ?, ?)`, ver.ID, pkg.ID, graphJSON, graphSHA, manifestJSON, userID, now); err != nil {
+		return nil, nil, err
+	}
+	if err := s.replaceBindings(ctx, ver.ID, bindings); err != nil {
+		return nil, nil, err
+	}
+	return pkg, ver, nil
+}
+
+// SetWorkflowVersionStatus transitions a version (draft/validated/invalid/retired).
+func (s *Store) SetWorkflowVersionStatus(ctx context.Context, id, status string) error {
+	_, err := s.ExecContext(ctx, `UPDATE workflow_versions SET status=? WHERE id=?`, status, id)
+	return err
+}
+
+// ReplaceBindings replaces the confirmed bindings for a version atomically.
+func (s *Store) ReplaceBindings(ctx context.Context, versionID string, bindings []WorkflowBinding) error {
+	tx, err := s.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM workflow_bindings WHERE workflow_version_id=?`, versionID); err != nil {
+		return err
+	}
+	if err := replaceBindingsTx(ctx, tx, versionID, bindings); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) replaceBindings(ctx context.Context, versionID string, bindings []WorkflowBinding) error {
+	tx, err := s.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := replaceBindingsTx(ctx, tx, versionID, bindings); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func replaceBindingsTx(ctx context.Context, tx *sql.Tx, versionID string, bindings []WorkflowBinding) error {
+	now := db.Now()
+	for _, b := range bindings {
+		if b.SemanticField == "" || b.NodeID == "" {
+			continue
+		}
+		req := 0
+		if b.Required {
+			req = 1
+		}
+		def := b.DefaultJSON
+		if def == "" {
+			def = "{}"
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO workflow_bindings (id, workflow_version_id, semantic_field, node_id, input_name, value_type, required, default_json, created_at)
+			VALUES (?,?,?,?,?,?,?,?,?)`, ids.New(), versionID, b.SemanticField, b.NodeID, b.InputName, b.ValueType, req, def, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RenameWorkflowPackage updates a package's display name.
+func (s *Store) RenameWorkflowPackage(ctx context.Context, id, name string) error {
+	_, err := s.ExecContext(ctx, `UPDATE workflow_packages SET name=?, updated_at=? WHERE id=?`, name, db.Now(), id)
+	return err
+}
+
+// ListWorkflowVersions returns versions for a package, newest first.
+func (s *Store) ListWorkflowVersions(ctx context.Context, packageID string) ([]WorkflowVersion, error) {
+	rows, err := s.QueryContext(ctx, `SELECT id, workflow_package_id, semantic_version, graph_json, graph_sha256, manifest_json, status, tested_comfyui_version, created_at
+		FROM workflow_versions WHERE workflow_package_id=? ORDER BY created_at DESC`, packageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []WorkflowVersion
+	for rows.Next() {
+		var v WorkflowVersion
+		if err := rows.Scan(&v.ID, &v.WorkflowPackageID, &v.SemanticVersion, &v.GraphJSON, &v.GraphSHA, &v.ManifestJSON, &v.Status, &v.TestedComfyUIVersion, &v.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// ListSelectableVersions returns validated, non-retired versions across packages.
+func (s *Store) ListSelectableVersions(ctx context.Context) ([]WorkflowVersion, error) {
+	rows, err := s.QueryContext(ctx, `SELECT v.id, v.workflow_package_id, v.semantic_version, v.graph_json, v.graph_sha256, v.manifest_json, v.status, v.tested_comfyui_version, v.created_at
+		FROM workflow_versions v WHERE v.status='validated' ORDER BY v.created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []WorkflowVersion
+	for rows.Next() {
+		var v WorkflowVersion
+		if err := rows.Scan(&v.ID, &v.WorkflowPackageID, &v.SemanticVersion, &v.GraphJSON, &v.GraphSHA, &v.ManifestJSON, &v.Status, &v.TestedComfyUIVersion, &v.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// GetWorkflowPackage fetches a package.
+func (s *Store) GetWorkflowPackage(ctx context.Context, id string) (*WorkflowPackage, error) {
+	row := s.QueryRowContext(ctx, `SELECT id, workspace_id, name, slug, task, description, source, active, revision FROM workflow_packages WHERE id=?`, id)
+	var p WorkflowPackage
+	var active int
+	err := row.Scan(&p.ID, &p.WorkspaceID, &p.Name, &p.Slug, &p.Task, &p.Description, &p.Source, &active, &p.Revision)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	p.Active = active == 1
+	return &p, err
+}
+
 // EmitDomainEvent appends to the transactional outbox.
 func (s *Store) EmitDomainEvent(ctx context.Context, workspaceID, aggregateType, aggregateID, eventType, payloadJSON string) error {
 	if payloadJSON == "" {

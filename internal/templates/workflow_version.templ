@@ -1,0 +1,118 @@
+package templates
+
+templ WorkflowVersionPage(data WorkflowVersionData) {
+	@shell(data.Shell, workflowVersionBody(data))
+}
+
+templ workflowVersionBody(data WorkflowVersionData) {
+	<div class="max-w-4xl mx-auto">
+		<div class="flex items-start justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">{ data.PackageName }</h1>
+				<div class="flex items-center gap-2 mt-1">
+					<span class={ "badge badge-sm", workflowStatusClass(data.Status) }>{ data.Status }</span>
+					<span class="badge badge-ghost badge-sm">{ data.Source }</span>
+					<span class="text-xs opacity-60">v{ data.SemanticVersion } · { data.NodeCount } nodes</span>
+				</div>
+				<p class="font-mono text-xs opacity-60 mt-1 break-all">sha256 { data.GraphSHA }</p>
+			</div>
+			<a class="btn btn-sm" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/workflows") }>Workflows</a>
+		</div>
+
+		<div class="alert alert-info mb-4"><span>Build and prove the graph in ComfyUI. Use this screen only to tell vid-build which inputs it may supply. A missing node or input fails validation; it is never guessed.</span></div>
+
+		<div class="flex flex-wrap gap-2 mb-4">
+			<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/workflow-versions/" + data.VersionID + "/validate") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<button class="btn btn-sm btn-primary" type="submit">Validate against target</button>
+			</form>
+			<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/workflow-versions/" + data.VersionID + "/activate") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<button class="btn btn-sm" type="submit">Activate</button>
+			</form>
+			<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/workflow-versions/" + data.VersionID + "/retire") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<button class="btn btn-sm btn-error btn-outline" type="submit">Retire</button>
+			</form>
+		</div>
+
+		<details class="card bg-base-100 shadow mb-4">
+			<summary class="card-body cursor-pointer"><h2 class="card-title text-base">Detected node types ({ len(data.Classes) })</h2></summary>
+			<div class="card-body pt-0">
+				<div class="flex flex-wrap gap-1">
+					for _, c := range data.Classes {
+						<span class="badge badge-ghost badge-sm">{ c.Class } ×{ c.Count }</span>
+					}
+				</div>
+			</div>
+		</details>
+
+		<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/workflow-versions/" + data.VersionID + "/bindings") } class="card bg-base-100 shadow">
+			<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+			<input type="hidden" name="_method" value="PATCH"/>
+			<div class="card-body">
+				<h2 class="card-title text-base">Semantic bindings</h2>
+				<p class="text-xs opacity-70">Only confirmed fields are ever written into the graph. Leave a row unchecked to leave that input alone.</p>
+				<div class="overflow-x-auto">
+					<table class="table table-sm">
+						<thead><tr><th>Use</th><th>Semantic field</th><th>Node id</th><th>Input name</th><th>Required</th></tr></thead>
+						<tbody>
+							for _, f := range data.AllFields {
+								@bindingRow(f, data)
+							}
+						</tbody>
+					</table>
+				</div>
+				<div class="card-actions justify-end">
+					<button class="btn btn-primary btn-sm" type="submit">Save bindings</button>
+				</div>
+			</div>
+		</form>
+	</div>
+}
+
+templ bindingRow(field string, data WorkflowVersionData) {
+	<tr>
+		<td><input type="checkbox" class="checkbox checkbox-sm" name="field" value={ field } checked?={ contains(data.BoundFields, field) }/></td>
+		<td class="font-mono text-xs">{ field }</td>
+		<td><input class="input input-bordered input-xs w-24" name={ "node_" + field } value={ bindingNode(data.Bindings, field) } placeholder="node id"/></td>
+		<td><input class="input input-bordered input-xs w-32" name={ "input_" + field } value={ bindingInput(data.Bindings, field) } placeholder="input name"/></td>
+		<td><input type="checkbox" class="checkbox checkbox-sm" name={ "required_" + field } checked?={ bindingRequired(data.Bindings, field) }/></td>
+	</tr>
+}
+
+func contains(list []string, v string) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+func bindingNode(bindings []BindingRow, field string) string {
+	for _, b := range bindings {
+		if b.Field == field {
+			return b.NodeID
+		}
+	}
+	return ""
+}
+
+func bindingInput(bindings []BindingRow, field string) string {
+	for _, b := range bindings {
+		if b.Field == field {
+			return b.InputName
+		}
+	}
+	return ""
+}
+
+func bindingRequired(bindings []BindingRow, field string) bool {
+	for _, b := range bindings {
+		if b.Field == field {
+			return b.Required
+		}
+	}
+	return false
+}

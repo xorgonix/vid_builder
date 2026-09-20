@@ -140,6 +140,20 @@ func (s *Server) handleGenerateForm(w http.ResponseWriter, r *http.Request) {
 		data.WorkflowID = version.ID
 		data.WorkflowName = pkg.Name
 	}
+	// Selectable validated workflow versions (bundled and imported).
+	if versions, err := s.store.ListSelectableVersions(r.Context()); err == nil {
+		for _, v := range versions {
+			name := "Workflow"
+			if p, err := s.store.GetWorkflowPackage(r.Context(), v.WorkflowPackageID); err == nil {
+				name = p.Name
+			}
+			data.Workflows = append(data.Workflows, templates.WorkflowOption{ID: v.ID, Name: name, Version: v.SemanticVersion, Status: v.Status})
+			if data.WorkflowID == "" {
+				data.WorkflowID = v.ID
+				data.WorkflowName = name
+			}
+		}
+	}
 	// Capability preflight.
 	client := comfyui.New(s.cfg.ComfyUI)
 	if stats, err := client.Stats(r.Context()); err != nil {
@@ -198,10 +212,19 @@ func (s *Server) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, s.videoBase(r)+"/produce?msg="+urlMsg("Shot has no specification for that role.")+"&kind=error", http.StatusSeeOther)
 		return
 	}
-	_, version, _, err := s.bundledWorkflow(r)
-	if err != nil {
-		http.Redirect(w, r, s.videoBase(r)+"/produce?msg="+urlMsg("No validated workflow available.")+"&kind=error", http.StatusSeeOther)
-		return
+	var versionID string
+	if chosen := r.FormValue("workflow_version_id"); chosen != "" {
+		if v, err := s.store.GetWorkflowVersion(r.Context(), chosen); err == nil && v.Status == "validated" {
+			versionID = v.ID
+		}
+	}
+	if versionID == "" {
+		_, version, _, err := s.bundledWorkflow(r)
+		if err != nil {
+			http.Redirect(w, r, s.videoBase(r)+"/produce?msg="+urlMsg("No validated workflow available.")+"&kind=error", http.StatusSeeOther)
+			return
+		}
+		versionID = version.ID
 	}
 	candidates := parseInt(r.FormValue("candidates"), 1)
 	if candidates < 1 {
@@ -225,7 +248,7 @@ func (s *Server) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	req, _, job, err := s.store.CreateGenerationRequest(r.Context(), store.RequestInput{
 		WorkspaceID: ws.ID, ProjectID: project.ID, VideoID: video.ID, ShotID: shot.ID, ShotSpecID: spec.ID,
 		SpecVersion: spec.Version, OutputRole: role, QualityTier: formValueOr(r, "tier", "concept"),
-		CandidateCount: candidates, WorkflowVersionID: version.ID, RequestJSON: string(raw),
+		CandidateCount: candidates, WorkflowVersionID: versionID, RequestJSON: string(raw),
 		Enqueue: formValueOr(r, "execution", "local") != "campaign",
 	}, user.ID)
 	if err != nil {

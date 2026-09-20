@@ -58,7 +58,7 @@ func workflowsBody(data WorkflowsData) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"max-w-5xl mx-auto\"><h1 class=\"text-2xl font-bold mb-1\">Workflows</h1><p class=\"opacity-70 text-sm mb-4\">Occasional production configuration. Graphs are authored and tested in ComfyUI, exported in API format, then imported as immutable versions.</p><div class=\"overflow-x-auto card bg-base-100 shadow\"><table class=\"table\"><thead><tr><th>Name</th><th>Task</th><th>Source</th><th>Version status</th><th>Bindings</th></tr></thead> <tbody>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"max-w-5xl mx-auto\"><h1 class=\"text-2xl font-bold mb-1\">Workflows</h1><p class=\"opacity-70 text-sm mb-4\">Occasional production configuration. Graphs are authored and tested in ComfyUI, exported in API format, then imported as immutable versions.</p><div class=\"overflow-x-auto card bg-base-100 shadow mb-6\"><table class=\"table\"><thead><tr><th>Name</th><th>Task</th><th>Source</th><th>Version status</th><th>Bindings</th><th></th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -163,18 +163,67 @@ func workflowsBody(data WorkflowsData) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</td></tr>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</td><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if w.VersionID != "" {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<a class=\"btn btn-xs\" href=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var11 templ.SafeURL
+				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/workflow-versions/" + w.VersionID))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/workflows.templ`, Line: 24, Col: 125}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\">Bindings</a>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</td></tr>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		if len(data.Workflows) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<tr><td colspan=\"5\" class=\"opacity-60\">No workflows available.</td></tr>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<tr><td colspan=\"6\" class=\"opacity-60\">No workflows available.</td></tr>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</tbody></table></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</tbody></table></div><div class=\"card bg-base-100 shadow\"><div class=\"card-body\"><h2 class=\"card-title text-base\">Import a ComfyUI API-format workflow</h2><p class=\"text-xs opacity-70\">Export your tested graph from ComfyUI in API format, then import it here. Importing is immutable: editing the graph in ComfyUI requires a new import.</p><form method=\"post\" action=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var12 templ.SafeURL
+		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/workflows/import"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/workflows.templ`, Line: 40, Col: 104}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" enctype=\"multipart/form-data\" class=\"flex flex-col gap-2 mt-2\"><input type=\"hidden\" name=\"_csrf\" value=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var13 string
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(data.Shell.CSRFToken)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/workflows.templ`, Line: 41, Col: 67}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\"><div class=\"grid grid-cols-1 sm:grid-cols-2 gap-2\"><label class=\"form-control\"><span class=\"label-text mb-1\">Name</span><input class=\"input input-bordered input-sm\" name=\"name\" placeholder=\"My SDXL workflow\" required></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Task</span> <select class=\"select select-bordered select-sm\" name=\"task\"><option value=\"image\">image</option> <option value=\"first_last_video\">first_last_video</option></select></label></div><label class=\"form-control\"><span class=\"label-text mb-1\">Graph file (API JSON)</span><input type=\"file\" class=\"file-input file-input-bordered file-input-sm\" name=\"graph\" accept=\".json,application/json\"></label> <label class=\"form-control\"><span class=\"label-text mb-1\">…or paste API JSON</span><textarea class=\"textarea textarea-bordered font-mono text-xs\" name=\"graph_json\" rows=\"5\" placeholder='{\"1\":{\"class_type\":\"...\",\"inputs\":{...}}}'></textarea></label> <button class=\"btn btn-primary btn-sm self-end\" type=\"submit\">Import as immutable draft</button></form></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
