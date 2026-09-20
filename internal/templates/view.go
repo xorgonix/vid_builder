@@ -208,9 +208,20 @@ type ProposalData struct {
 	Proposal    ProposalView
 	Fields      []FieldView
 	Outline     *OutlineView
+	Blocking    *BlockingPreview
 	IsOutline   bool
 	IsBrief     bool
+	IsPrompt    bool
+	IsBlocking  bool
 	OutlineJSON string
+}
+
+// BlockingPreview previews a proposed start/end blocking.
+type BlockingPreview struct {
+	ShotID   string
+	Summary  string
+	StartSVG string
+	EndSVG   string
 }
 
 // OutlineView is a proposed outline payload.
@@ -225,6 +236,127 @@ type BriefHistoryData struct {
 	Project  ProjectView
 	Video    VideoView
 	Versions []BriefView
+}
+
+// SpecView is one shot specification in the inspector.
+type SpecView struct {
+	Kind       string
+	Label      string
+	Positive   string
+	Negative   string
+	Structured string
+	Version    int
+}
+
+// BlockingView is a rendered blocking for an endpoint.
+type BlockingView struct {
+	Role     string
+	SpecJSON string
+	Source   string
+	Version  int
+	Exists   bool
+}
+
+// ShotDetailData backs the shot inspector.
+type ShotDetailData struct {
+	Shell      ShellData
+	Project    ProjectView
+	Video      VideoView
+	Shot       ShotNode
+	Specs      []SpecView
+	StartBlock BlockingView
+	EndBlock   BlockingView
+	History    []HistoryItem
+}
+
+// HistoryItem is a line in the shot history.
+type HistoryItem struct {
+	When   string
+	Action string
+	Detail string
+}
+
+// BoardCard is a storyboard card.
+type BoardCard struct {
+	ShotID     string
+	Title      string
+	Purpose    string
+	SceneTitle string
+	Readiness  string
+	Status     string
+	DurationMs int
+	StartSVG   string
+	EndSVG     string
+	HasStart   bool
+	HasEnd     bool
+	MotionText string
+	Stale      bool
+}
+
+// BoardData backs the storyboard.
+type BoardData struct {
+	Shell   ShellData
+	Project ProjectView
+	Video   VideoView
+	Cards   []BoardCard
+	Mode    string
+	Filter  string
+	Total   int
+}
+
+// BlockingEditorData backs the paired blocking editor.
+type BlockingEditorData struct {
+	Shell     ShellData
+	Project   ProjectView
+	Video     VideoView
+	Shot      ShotNode
+	Start     BlockingView
+	End       BlockingView
+	StartSVG  string
+	EndSVG    string
+	Analysis  []string
+	SpecStart SpecView
+	SpecEnd   SpecView
+}
+
+// BibleData backs the project bible.
+type BibleData struct {
+	Shell      ShellData
+	Project    ProjectView
+	Characters []CharacterView
+	Locations  []LocationView
+	StyleRules []StyleRuleView
+}
+
+// CharacterView is a character in the bible.
+type CharacterView struct {
+	ID          string
+	Name        string
+	Description string
+	Continuity  string
+}
+
+// LocationView is a location in the bible.
+type LocationView struct {
+	ID          string
+	Name        string
+	Description string
+	Continuity  string
+}
+
+// StyleRuleView is a style rule in the bible.
+type StyleRuleView struct {
+	ID       string
+	Category string
+	Text     string
+	Priority int
+}
+
+// MoreData backs the More menu.
+type MoreData struct {
+	Shell   ShellData
+	Project ProjectView
+	Video   VideoView
 }
 
 // OutlineData backs the Outline screen.

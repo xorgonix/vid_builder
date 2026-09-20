@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"vidbuild/internal/blocking"
 	"vidbuild/internal/llm"
 )
 
@@ -192,4 +193,94 @@ func BriefText(brief map[string]string) string {
 		}
 	}
 	return b.String()
+}
+
+// SpecSuggestion is a proposed shot specification.
+type SpecSuggestion struct {
+	Positive   string         `json:"positive_prompt"`
+	Negative   string         `json:"negative_prompt"`
+	Structured map[string]any `json:"structured_spec_json"`
+	Continuity map[string]any `json:"continuity_json"`
+	Summary    string         `json:"summary"`
+}
+
+const specSchema = `{
+  "positive_prompt": "what should be present in the frame",
+  "negative_prompt": "what must be avoided",
+  "structured_spec_json": { "notes": "optional structured intent" },
+  "continuity_json": { "notes": "optional continuity constraints" },
+  "summary": "one-line summary"
+}`
+
+// SuggestSpec proposes a specification for one endpoint or the motion spec.
+func (p *Planner) SuggestSpec(ctx context.Context, projectContext, kind, shotPurpose, treatment, current string) (*SpecSuggestion, error) {
+	if !p.Enabled() {
+		return nil, fmt.Errorf("planner: LLM disabled")
+	}
+	system := "You are the vid-build planner. Propose a single shot specification of kind '" + kind + "'. " +
+		"For start/end frames, describe the visible state at that moment. For motion, describe subject, camera and environment movement and the negative motion. " +
+		"Do not claim to have changed anything. Output only JSON."
+	if projectContext != "" {
+		system += "\n\nProject context:\n" + projectContext
+	}
+	system += "\n\nShot purpose: " + shotPurpose + "\nTreatment: " + treatment
+	if current != "" {
+		system += "\nCurrent specification (improve or replace):\n" + current
+	}
+	raw, err := p.client.ChatJSON(ctx, system, nil, specSchema)
+	if err != nil {
+		return nil, err
+	}
+	var out SpecSuggestion
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// BlockingSuggestion is a proposed start/end blocking pair.
+type BlockingSuggestion struct {
+	Start   blocking.Spec `json:"start"`
+	End     blocking.Spec `json:"end"`
+	Summary string        `json:"summary"`
+}
+
+const blockingSchema = `{
+  "summary": "one-line summary of the staged change",
+  "start": {
+    "camera": {"shot_size":"wide|medium|close|extreme_close","angle":"eye|low|high|dutch","x":0.05,"y":0.05,"w":0.9,"h":0.9},
+    "actors": [{"name":"Subject","x":0.4,"y":0.55,"body_rotation":0,"pose":"standing","gaze_x":0.6,"gaze_y":0.4,"facing":"camera"}],
+    "props": [{"name":"tool","x":0.7,"y":0.6}],
+    "arrows": [{"kind":"movement","x1":0.4,"y1":0.55,"x2":0.6,"y2":0.55}]
+  },
+  "end": { "camera": {}, "actors": [], "props": [], "arrows": [] }
+}`
+
+// SuggestBlocking proposes structured blocking JSON for both endpoints.
+func (p *Planner) SuggestBlocking(ctx context.Context, projectContext, shotPurpose, treatment, startPrompt, endPrompt string) (*BlockingSuggestion, error) {
+	if !p.Enabled() {
+		return nil, fmt.Errorf("planner: LLM disabled")
+	}
+	system := "You are the vid-build planner. Propose structured start and end blocking for one shot as JSON only. " +
+		"All coordinates are normalized 0.0-1.0. The end state must visibly differ from the start state in pose, position, gaze, props or camera. " +
+		"Do not include any prose outside the JSON."
+	if projectContext != "" {
+		system += "\n\nProject context:\n" + projectContext
+	}
+	system += "\n\nShot purpose: " + shotPurpose + "\nTreatment: " + treatment
+	if startPrompt != "" {
+		system += "\nStart frame intent: " + startPrompt
+	}
+	if endPrompt != "" {
+		system += "\nEnd frame intent: " + endPrompt
+	}
+	raw, err := p.client.ChatJSON(ctx, system, nil, blockingSchema)
+	if err != nil {
+		return nil, err
+	}
+	var out BlockingSuggestion
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }

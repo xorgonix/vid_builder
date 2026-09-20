@@ -19,7 +19,7 @@ templ proposalBody(data ProposalData) {
 		<div class="alert alert-info mb-4">
 			<span>AI proposes; you decide. Select the fields you accept, then apply. Nothing changes until you apply it.</span>
 		</div>
-		if data.IsBrief {
+		if data.IsBrief || data.IsPrompt {
 			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/apply") } class="card bg-base-100 shadow">
 				<div class="card-body">
 					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
@@ -29,12 +29,36 @@ templ proposalBody(data ProposalData) {
 								<input type="checkbox" class="checkbox checkbox-sm" name={ "c_" + f.Key } checked?={ f.Checked }/>
 								<span class="label-text font-semibold">{ f.Label }</span>
 							</label>
-							<textarea class="textarea textarea-bordered w-full" name={ "f_" + f.Key } rows="2">{ f.Value }</textarea>
+							<textarea class="textarea textarea-bordered w-full font-mono text-sm" name={ "f_" + f.Key } rows="2">{ f.Value }</textarea>
 						</div>
 					}
 					<div class="card-actions justify-end mt-3">
 						<button class="btn btn-ghost" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/reject") }>Reject</button>
 						<button class="btn btn-primary" type="submit">Apply selected fields</button>
+					</div>
+				</div>
+			</form>
+		}
+		if data.IsBlocking {
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/apply") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<p class="opacity-80 text-sm">{ data.Blocking.Summary }</p>
+						<div class="grid grid-cols-2 gap-3 mt-2">
+							<label class="cursor-pointer">
+								<span class="label-text flex items-center gap-2 mb-1"><input type="checkbox" class="checkbox checkbox-sm" name="c_start" checked="checked"/> Start blocking</span>
+								<div class="rounded-box overflow-hidden border border-base-300">@templ.Raw(data.Blocking.StartSVG)</div>
+							</label>
+							<label class="cursor-pointer">
+								<span class="label-text flex items-center gap-2 mb-1"><input type="checkbox" class="checkbox checkbox-sm" name="c_end" checked="checked"/> End blocking</span>
+								<div class="rounded-box overflow-hidden border border-base-300">@templ.Raw(data.Blocking.EndSVG)</div>
+							</label>
+						</div>
+						<div class="card-actions justify-end mt-3">
+							<button class="btn btn-ghost" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/reject") }>Reject</button>
+							<button class="btn btn-primary" type="submit">Apply blocking</button>
+						</div>
 					</div>
 				</div>
 			</form>

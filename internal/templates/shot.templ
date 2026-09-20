@@ -1,0 +1,108 @@
+package templates
+
+templ ShotPage(data ShotDetailData) {
+	@shell(data.Shell, shotBody(data))
+}
+
+templ shotBody(data ShotDetailData) {
+	<div class="max-w-5xl mx-auto" id="shot-inspector">
+		<div class="flex items-start justify-between mb-4">
+			<div>
+				<div class="flex items-center gap-2">
+					<h1 class="text-2xl font-bold">{ data.Shot.Title }</h1>
+					<span class={ "badge badge-sm", readinessClass(data.Shot.Readiness) }>{ data.Shot.Readiness }</span>
+					<span class="badge badge-ghost badge-sm">{ data.Shot.Status }</span>
+				</div>
+				<p class="opacity-70 text-sm">{ data.Shot.Purpose }</p>
+			</div>
+			<div class="flex gap-2">
+				<a class="btn btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/board") }>Board</a>
+				<a class="btn btn-sm btn-primary" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/blocking") }>Blocking editor</a>
+			</div>
+		</div>
+
+		<div role="tablist" class="tabs tabs-lift">
+			<input type="radio" name="shot_tabs" class="tab" aria-label="Intent" checked="checked"/>
+			<div class="tab-content bg-base-100 border-base-300 p-4">
+				@shotIntentTab(data)
+			</div>
+			for _, spec := range data.Specs {
+				<input type="radio" name="shot_tabs" class="tab" aria-label={ spec.Label }/>
+				<div class="tab-content bg-base-100 border-base-300 p-4">
+					@shotSpecTab(data, spec)
+				</div>
+			}
+			<input type="radio" name="shot_tabs" class="tab" aria-label="History"/>
+			<div class="tab-content bg-base-100 border-base-300 p-4">
+				@shotHistoryTab(data)
+			</div>
+		</div>
+	</div>
+}
+
+templ shotIntentTab(data ShotDetailData) {
+	<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID) } class="flex flex-col gap-3 max-w-2xl">
+		<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+		<input type="hidden" name="_method" value="PATCH"/>
+		<input type="hidden" name="revision" value={ itoaT(data.Shot.Revision) }/>
+		<label class="form-control">
+			<span class="label-text mb-1">Title</span>
+			<input class="input input-bordered" name="title" value={ data.Shot.Title }/>
+		</label>
+		<label class="form-control">
+			<span class="label-text mb-1">Purpose — what the shot accomplishes</span>
+			<textarea class="textarea textarea-bordered" name="purpose" rows="2">{ data.Shot.Purpose }</textarea>
+		</label>
+		<label class="form-control">
+			<span class="label-text mb-1">Treatment</span>
+			<textarea class="textarea textarea-bordered" name="treatment" rows="2">{ data.Shot.Treatment }</textarea>
+		</label>
+		<label class="form-control max-w-40">
+			<span class="label-text mb-1">Duration (sec)</span>
+			<input class="input input-bordered" type="number" name="duration_s" value={ itoaT(data.Shot.DurationMs / 1000) }/>
+		</label>
+		<div class="card-actions justify-end">
+			<button class="btn btn-primary btn-sm" type="submit">Save intent</button>
+		</div>
+	</form>
+}
+
+templ shotSpecTab(data ShotDetailData, spec SpecView) {
+	<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/specs/" + spec.Kind) } class="flex flex-col gap-3">
+		<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+		<input type="hidden" name="_method" value="PATCH"/>
+		<div class="flex items-center justify-between">
+			<div class="text-sm opacity-70">Current version v{ spec.Version }</div>
+			<button class="btn btn-xs" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/specs/" + spec.Kind + "/suggest") } formnovalidate>Suggest with planner</button>
+		</div>
+		<label class="form-control">
+			<span class="label-text mb-1">Positive prompt</span>
+			<textarea class="textarea textarea-bordered font-mono text-sm" name="positive" rows="4">{ spec.Positive }</textarea>
+		</label>
+		<label class="form-control">
+			<span class="label-text mb-1">Negative prompt</span>
+			<textarea class="textarea textarea-bordered font-mono text-sm" name="negative" rows="2">{ spec.Negative }</textarea>
+		</label>
+		<label class="form-control">
+			<span class="label-text mb-1">Structured specification (JSON)</span>
+			<textarea class="textarea textarea-bordered font-mono text-xs" name="structured" rows="3">{ spec.Structured }</textarea>
+		</label>
+		if spec.Kind == "motion" {
+			<div class="alert alert-info text-xs"><span>Motion is separate from the approved endpoints. Editing it stales video candidates only.</span></div>
+		} else {
+			<div class="alert alert-info text-xs"><span>First-frame and last-frame text are independent. A lint warning appears if they are identical.</span></div>
+		}
+		<div class="card-actions justify-end">
+			<button class="btn btn-primary btn-sm" type="submit">Save new version</button>
+		</div>
+	</form>
+}
+
+templ shotHistoryTab(data ShotDetailData) {
+	<h3 class="font-semibold mb-2">Specification versions</h3>
+	<ul class="text-sm divide-y divide-base-300">
+		for _, h := range data.History {
+			<li class="py-1 flex justify-between"><span>{ h.Action }</span><span class="opacity-60">{ h.Detail } · { h.When }</span></li>
+		}
+	</ul>
+}

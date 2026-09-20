@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"vidbuild/internal/blocking"
 	"vidbuild/internal/llm"
 	"vidbuild/internal/planner"
 	"vidbuild/internal/store"
@@ -237,6 +238,36 @@ func (s *Server) handleProposalView(w http.ResponseWriter, r *http.Request) {
 		data.IsOutline = true
 		data.Outline = outlineViewFromPayload(payload)
 		data.OutlineJSON = proposal.PayloadJSON
+	case "prompt_revision":
+		var payload struct {
+			ShotID     string `json:"shot_id"`
+			Kind       string `json:"kind"`
+			Positive   string `json:"positive"`
+			Negative   string `json:"negative"`
+			Structured string `json:"structured"`
+		}
+		_ = json.Unmarshal([]byte(proposal.PayloadJSON), &payload)
+		data.IsPrompt = true
+		data.Fields = []templates.FieldView{
+			{Key: "positive", Label: "Positive prompt", Value: payload.Positive, Checked: true},
+			{Key: "negative", Label: "Negative prompt", Value: payload.Negative, Checked: true},
+			{Key: "structured", Label: "Structured spec JSON", Value: payload.Structured, Checked: true},
+		}
+	case "blocking":
+		var payload struct {
+			ShotID  string        `json:"shot_id"`
+			Start   blocking.Spec `json:"start"`
+			End     blocking.Spec `json:"end"`
+			Summary string        `json:"summary"`
+		}
+		_ = json.Unmarshal([]byte(proposal.PayloadJSON), &payload)
+		data.IsBlocking = true
+		data.Blocking = &templates.BlockingPreview{
+			ShotID:   payload.ShotID,
+			Summary:  payload.Summary,
+			StartSVG: blocking.RenderSVG(payload.Start),
+			EndSVG:   blocking.RenderSVG(payload.End),
+		}
 	}
 	s.renderPage(w, r, templates.ProposalPage(data))
 }
@@ -313,6 +344,63 @@ func (s *Server) handleProposalApply(w http.ResponseWriter, r *http.Request) {
 		_ = s.store.DecideProposal(r.Context(), proposal.ID, "applied", user.ID)
 		_ = s.store.Audit(r.Context(), project.WorkspaceID, user.ID, "outline.applied", "proposal", proposal.ID, "applied outline proposal", "{}")
 		http.Redirect(w, r, s.outlineURL(r)+"?msg="+urlMsg("Outline applied.")+"&kind=success", http.StatusSeeOther)
+		return
+	case "prompt_revision":
+		var payload struct {
+			ShotID     string `json:"shot_id"`
+			Kind       string `json:"kind"`
+			Positive   string `json:"positive"`
+			Negative   string `json:"negative"`
+			Structured string `json:"structured"`
+		}
+		_ = json.Unmarshal([]byte(proposal.PayloadJSON), &payload)
+		kind := normalizeSpecKind(payload.Kind)
+		if kind == "" {
+			kind = "start_frame"
+		}
+		structured := strings.TrimSpace(r.FormValue("f_structured"))
+		if structured == "" {
+			structured = payload.Structured
+		}
+		if structured == "" {
+			structured = "{}"
+		}
+		if !json.Valid([]byte(structured)) {
+			structured = "{}"
+		}
+		if _, _, err := s.store.UpdateSpec(r.Context(), payload.ShotID, user.ID, kind,
+			r.FormValue("f_positive"), r.FormValue("f_negative"), structured, "{}"); err != nil {
+			s.log.Error("apply prompt revision", "err", err)
+			s.notFound(w, r)
+			return
+		}
+		_, _ = s.store.RecomputeShotReadiness(r.Context(), payload.ShotID)
+		_ = s.store.DecideProposal(r.Context(), proposal.ID, "applied", user.ID)
+		_ = s.store.Audit(r.Context(), project.WorkspaceID, user.ID, "spec.applied", "proposal", proposal.ID, "applied prompt revision", "{}")
+		http.Redirect(w, r, withQuery(s.shotURL(r, payload.ShotID), flashQuery("Specification applied as a new version.", "success")), http.StatusSeeOther)
+		return
+	case "blocking":
+		var payload struct {
+			ShotID  string        `json:"shot_id"`
+			Start   blocking.Spec `json:"start"`
+			End     blocking.Spec `json:"end"`
+			Summary string        `json:"summary"`
+		}
+		_ = json.Unmarshal([]byte(proposal.PayloadJSON), &payload)
+		if r.FormValue("c_start") != "" {
+			if spec, err := s.store.GetCurrentSpec(r.Context(), payload.ShotID, "start_frame"); err == nil {
+				_, _ = s.store.SaveBlocking(r.Context(), spec.ID, "start", payload.Start.Marshal(), "model", s.cfg.LLM.Model, user.ID)
+			}
+		}
+		if r.FormValue("c_end") != "" {
+			if spec, err := s.store.GetCurrentSpec(r.Context(), payload.ShotID, "end_frame"); err == nil {
+				_, _ = s.store.SaveBlocking(r.Context(), spec.ID, "end", payload.End.Marshal(), "model", s.cfg.LLM.Model, user.ID)
+			}
+		}
+		_, _ = s.store.RecomputeShotReadiness(r.Context(), payload.ShotID)
+		_ = s.store.DecideProposal(r.Context(), proposal.ID, "applied", user.ID)
+		_ = s.store.Audit(r.Context(), project.WorkspaceID, user.ID, "blocking.applied", "proposal", proposal.ID, "applied blocking proposal", "{}")
+		http.Redirect(w, r, withQuery(s.blockingURL(r, payload.ShotID), flashQuery("Blocking applied.", "success")), http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, s.proposalURL(r, proposal.ID), http.StatusSeeOther)

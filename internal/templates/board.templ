@@ -1,0 +1,92 @@
+package templates
+
+templ BoardPage(data BoardData) {
+	@shell(data.Shell, boardBody(data))
+}
+
+templ boardBody(data BoardData) {
+	<div class="max-w-7xl mx-auto" id="storyboard">
+		<div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+			<div>
+				<h1 class="text-2xl font-bold">Storyboard</h1>
+				<p class="opacity-70 text-sm">See the film before expensive pixels exist. { data.Total } shot(s).</p>
+			</div>
+			<div class="flex gap-2 items-center">
+				<div class="join">
+					<a class={ "btn btn-sm join-item", templ.KV("btn-active", data.Mode == "compact") } href={ templ.URL(data.Shell.VideoBase() + "/board?mode=compact") }>Compact</a>
+					<a class={ "btn btn-sm join-item", templ.KV("btn-active", data.Mode == "director") } href={ templ.URL(data.Shell.VideoBase() + "/board?mode=director") }>Director</a>
+					<a class={ "btn btn-sm join-item", templ.KV("btn-active", data.Mode == "production") } href={ templ.URL(data.Shell.VideoBase() + "/board?mode=production") }>Production</a>
+				</div>
+				<a class="btn btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/outline") }>Outline</a>
+			</div>
+		</div>
+		<div class="flex gap-1 mb-4 flex-wrap">
+			<a class={ "btn btn-xs", templ.KV("btn-active", data.Filter == "") } href={ templ.URL(data.Shell.VideoBase() + "/board?mode=" + data.Mode) }>All</a>
+			for _, r := range []string{"incomplete", "blocking_ready", "concept_ready", "endpoint_ready", "video_ready", "complete"} {
+				<a class={ "btn btn-xs", templ.KV("btn-active", data.Filter == r) } href={ templ.URL(data.Shell.VideoBase() + "/board?mode=" + data.Mode + "&readiness=" + r) }>{ r }</a>
+			}
+		</div>
+		if len(data.Cards) == 0 {
+			<div class="alert"><span>No shots yet. Create them in the Outline, or apply an outline proposal from Develop.</span></div>
+		}
+		<div class={ "grid gap-4", boardGridClass(data.Mode) }>
+			for _, card := range data.Cards {
+				@boardCard(data, card)
+			}
+		</div>
+	</div>
+}
+
+templ boardCard(data BoardData, card BoardCard) {
+	<div class="card bg-base-100 shadow" id={ "shot-" + card.ShotID }>
+		<div class="card-body p-4">
+			<div class="flex items-center justify-between gap-2">
+				<div>
+					<h3 class="font-semibold">{ card.Title }</h3>
+					<p class="text-xs opacity-70">{ card.SceneTitle } · { card.Purpose }</p>
+				</div>
+				<div class="flex flex-col items-end gap-1">
+					<span class={ "badge badge-sm", readinessClass(card.Readiness) }>{ card.Readiness }</span>
+					<span class="text-xs opacity-60">{ card.DurationMs / 1000 }s</span>
+				</div>
+			</div>
+			<div class="grid grid-cols-3 gap-2 items-start mt-2">
+				<div>
+					<div class="text-xs uppercase opacity-60 mb-1">Start</div>
+					if card.HasStart {
+						<div class="rounded-box overflow-hidden border border-base-300">@templ.Raw(card.StartSVG)</div>
+					} else {
+						<div class="aspect-video bg-base-300/40 rounded-box grid place-items-center text-xs opacity-60">no blocking</div>
+					}
+				</div>
+				<div>
+					<div class="text-xs uppercase opacity-60 mb-1">Change</div>
+					<div class="text-xs whitespace-pre-wrap opacity-80 min-h-16">{ card.MotionText }</div>
+				</div>
+				<div>
+					<div class="text-xs uppercase opacity-60 mb-1">End</div>
+					if card.HasEnd {
+						<div class="rounded-box overflow-hidden border border-base-300">@templ.Raw(card.EndSVG)</div>
+					} else {
+						<div class="aspect-video bg-base-300/40 rounded-box grid place-items-center text-xs opacity-60">no blocking</div>
+					}
+				</div>
+			</div>
+			<div class="card-actions justify-end mt-2">
+				<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + card.ShotID) }>Open</a>
+				<a class="btn btn-xs btn-primary" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + card.ShotID + "/blocking") }>Blocking</a>
+			</div>
+		</div>
+	</div>
+}
+
+func boardGridClass(mode string) string {
+	switch mode {
+	case "compact":
+		return "sm:grid-cols-2 lg:grid-cols-3"
+	case "production":
+		return "md:grid-cols-2"
+	default:
+		return "lg:grid-cols-2"
+	}
+}

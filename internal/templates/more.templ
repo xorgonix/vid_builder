@@ -1,0 +1,37 @@
+package templates
+
+templ MorePage(data MoreData) {
+	@shell(data.Shell, moreBody(data))
+}
+
+templ moreBody(data MoreData) {
+	<div class="max-w-4xl mx-auto">
+		<h1 class="text-2xl font-bold mb-4">More</h1>
+		<div class="grid gap-4 sm:grid-cols-2">
+			<a class="card bg-base-100 shadow hover:bg-base-300/40" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/" + data.Project.ID + "/bible") }>
+				<div class="card-body">
+					<h2 class="card-title text-base">Project Bible</h2>
+					<p class="text-sm opacity-70">Characters, locations, style rules and continuity.</p>
+				</div>
+			</a>
+			<a class="card bg-base-100 shadow hover:bg-base-300/40" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/settings") }>
+				<div class="card-body">
+					<h2 class="card-title text-base">Workspace settings</h2>
+					<p class="text-sm opacity-70">Membership, execution targets and defaults.</p>
+				</div>
+			</a>
+			<a class="card bg-base-100 shadow hover:bg-base-300/40" href="/settings/local-services">
+				<div class="card-body">
+					<h2 class="card-title text-base">Local services</h2>
+					<p class="text-sm opacity-70">LM Studio, ComfyUI and FFmpeg configuration.</p>
+				</div>
+			</a>
+			<a class="card bg-base-100 shadow hover:bg-base-300/40" href={ templ.URL(data.Shell.VideoBase() + "/develop") }>
+				<div class="card-body">
+					<h2 class="card-title text-base">Brief history</h2>
+					<p class="text-sm opacity-70">How the accepted direction has changed over time.</p>
+				</div>
+			</a>
+		</div>
+	</div>
+}

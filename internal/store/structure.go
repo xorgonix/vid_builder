@@ -198,6 +198,27 @@ func (s *Store) GetShot(ctx context.Context, id string) (*Shot, error) {
 	return scanShot(row)
 }
 
+// ShotInVideo reports whether a shot belongs to the given video.
+func (s *Store) ShotInVideo(ctx context.Context, shotID, videoID string) (bool, error) {
+	var n int
+	err := s.QueryRowContext(ctx, `SELECT COUNT(*) FROM shots sh
+		JOIN scenes sc ON sc.id = sh.scene_id
+		JOIN sections se ON se.id = sc.section_id
+		WHERE sh.id=? AND se.video_id=?`, shotID, videoID).Scan(&n)
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// ShotContext returns the scene and section titles for a shot.
+func (s *Store) ShotContext(ctx context.Context, shotID string) (sceneTitle, sectionTitle string, err error) {
+	err = s.QueryRowContext(ctx, `SELECT sc.title, se.title FROM shots sh
+		JOIN scenes sc ON sc.id = sh.scene_id
+		JOIN sections se ON se.id = sc.section_id WHERE sh.id=?`, shotID).Scan(&sceneTitle, &sectionTitle)
+	return
+}
+
 func scanShot(sc scanner) (*Shot, error) {
 	var x Shot
 	err := sc.Scan(&x.ID, &x.SceneID, &x.Title, &x.Purpose, &x.Treatment, &x.DurationTargetMs, &x.Position, &x.Status, &x.Readiness, &x.Revision, &x.CreatedAt, &x.UpdatedAt)
