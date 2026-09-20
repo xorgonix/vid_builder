@@ -1,0 +1,57 @@
+package templates
+
+templ PackagePage(data PackageData) {
+	@shell(data.Shell, packageBody(data))
+}
+
+templ packageBody(data PackageData) {
+	<div class="max-w-4xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Project package</h1>
+				<p class="opacity-70 text-sm">Preview the portable export before packaging. Private source material is included as referenced media.</p>
+			</div>
+			<a class="btn btn-sm" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/" + data.Project.ID) }>Project</a>
+		</div>
+
+		<div class="grid gap-4 sm:grid-cols-3 mb-4">
+			for _, c := range data.Counts {
+				<div class="stat bg-base-100 rounded-box shadow">
+					<div class="stat-title">{ c.Label }</div>
+					<div class="stat-value text-xl">{ c.Value }</div>
+				</div>
+			}
+			<div class="stat bg-base-100 rounded-box shadow">
+				<div class="stat-title">Media files</div>
+				<div class="stat-value text-xl">{ data.MediaCount }</div>
+			</div>
+		</div>
+
+		<div class="card bg-base-100 shadow mb-4">
+			<div class="card-body">
+				<h2 class="card-title text-base">Contents</h2>
+				<ul class="text-sm list-disc list-inside opacity-80">
+					<li>project.json — schema version, project rows, videos, sections, scenes, shots, specs, blockings, bible, proposals</li>
+					<li>manifest.json — media list with checksums</li>
+					<li>media/… — referenced files (images, exports, documents)</li>
+				</ul>
+				<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/" + data.Project.ID + "/package") } class="mt-3">
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<button class="btn btn-primary btn-sm" type="submit">Queue portable package</button>
+				</form>
+			</div>
+		</div>
+
+		if data.Latest != nil {
+			<div class="card bg-base-100 shadow">
+				<div class="card-body">
+					<h2 class="card-title text-base">Latest package</h2>
+					<div class="text-xs opacity-60 font-mono break-all">sha256 { data.Latest.Checksum } · { data.Latest.SizeBytes } bytes · { data.Latest.CreatedAt }</div>
+					<a class="btn btn-sm mt-2" href={ templ.URL(data.Latest.URL) } download>Download package</a>
+				</div>
+			</div>
+		} else {
+			<div class="alert"><span>No package has been built yet.</span></div>
+		}
+	</div>
+}

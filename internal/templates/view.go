@@ -598,6 +598,21 @@ type AdminUsersData struct {
 	Error string
 }
 
+// PackageCount is one row in the package preview.
+type PackageCount struct {
+	Label string
+	Value int
+}
+
+// PackageData backs the project package preview.
+type PackageData struct {
+	Shell      ShellData
+	Project    ProjectView
+	Counts     []PackageCount
+	MediaCount int
+	Latest     *AssetView
+}
+
 // EditItemView is one clip in an edit.
 type EditItemView struct {
 	ID            string

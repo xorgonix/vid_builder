@@ -243,6 +243,7 @@ templ projectBody(data ProjectData) {
 		</div>
 		<div class="flex gap-2 mb-4">
 			<a class="btn btn-sm" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/" + data.Project.ID + "/bible") }>Project Bible</a>
+			<a class="btn btn-sm" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/projects/" + data.Project.ID + "/package") }>Package</a>
 		</div>
 		<h2 class="text-lg font-semibold mb-3">Videos</h2>
 		<div class="grid gap-4 sm:grid-cols-2">

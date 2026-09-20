@@ -3,6 +3,7 @@
 package worker
 
 import (
+	"archive/zip"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -96,6 +97,8 @@ func (w *Worker) process(ctx context.Context, job *store.Job) error {
 		return w.processGeneration(ctx, job)
 	case "export":
 		return w.processExport(ctx, job)
+	case "package":
+		return w.processPackage(ctx, job)
 	default:
 		return fmt.Errorf("worker: unsupported job type %q", job.JobType)
 	}
@@ -392,4 +395,111 @@ func (w *Worker) processExport(ctx context.Context, job *store.Job) error {
 
 func assetsIsImage(mime string) bool {
 	return len(mime) >= 6 && mime[:6] == "image/"
+}
+
+// processPackage builds a portable project package (spec §12.3, §20).
+func (w *Worker) processPackage(ctx context.Context, job *store.Job) error {
+	project, err := w.store.GetProjectByID(ctx, job.AggregateID)
+	if err != nil {
+		return fmt.Errorf("worker: load project: %w", err)
+	}
+	_ = w.store.UpdateJobState(ctx, job.ID, "running", "collect", "info", "Collecting project rows and media", 2000)
+	bundle, err := w.store.BuildProjectBundle(ctx, project.ID)
+	if err != nil {
+		return fmt.Errorf("worker: build bundle: %w", err)
+	}
+
+	tempDir := w.cfg.Media.TempDir
+	if !filepath.IsAbs(tempDir) {
+		if abs, err := filepath.Abs(tempDir); err == nil {
+			tempDir = abs
+		}
+	}
+	_ = os.MkdirAll(tempDir, 0o755)
+	zipPath := filepath.Join(tempDir, "package-"+job.ID+".zip")
+	zf, err := os.Create(zipPath)
+	if err != nil {
+		return err
+	}
+	zw := zip.NewWriter(zf)
+
+	data, _ := bundle.MarshalJSON()
+	if err := writeZipFile(zw, "project.json", data); err != nil {
+		zw.Close()
+		zf.Close()
+		return err
+	}
+	manifest := map[string]any{
+		"schema":      "vid-build-project-package",
+		"version":     1,
+		"project_id":  project.ID,
+		"title":       project.Title,
+		"media_count": len(bundle.Assets),
+		"media":       bundle.Assets,
+	}
+	manifestJSON, _ := json.MarshalIndent(manifest, "", "  ")
+	if err := writeZipFile(zw, "manifest.json", manifestJSON); err != nil {
+		zw.Close()
+		zf.Close()
+		return err
+	}
+	_ = w.store.UpdateJobState(ctx, job.ID, "running", "collect", "info", "Packing media", 6000)
+	for _, a := range bundle.Assets {
+		f, err := w.media.Open(a.StorageURI)
+		if err != nil {
+			w.log.Warn("package: skip missing media", "uri", a.StorageURI, "err", err)
+			continue
+		}
+		entry, err := zw.Create("media/" + a.StorageURI)
+		if err != nil {
+			f.Close()
+			zw.Close()
+			zf.Close()
+			return err
+		}
+		if _, err := io.Copy(entry, f); err != nil {
+			f.Close()
+			zw.Close()
+			zf.Close()
+			return err
+		}
+		f.Close()
+	}
+	if err := zw.Close(); err != nil {
+		zf.Close()
+		return err
+	}
+	if err := zf.Close(); err != nil {
+		return err
+	}
+
+	zf2, err := os.Open(zipPath)
+	if err != nil {
+		return err
+	}
+	defer zf2.Close()
+	relDir := fmt.Sprintf("%s/%s", project.WorkspaceID, project.ID)
+	uri, checksum, size, err := w.media.Put(relDir, "project-package-"+job.ID+".zip", zf2)
+	if err != nil {
+		return err
+	}
+	_ = os.Remove(zipPath)
+	if _, err := w.store.CreateAsset(ctx, store.Asset{
+		WorkspaceID: project.WorkspaceID, ProjectID: project.ID,
+		Kind: "document", Role: "project_package", StorageURI: uri,
+		MimeType: "application/zip", SizeBytes: size, Checksum: checksum,
+	}); err != nil {
+		return err
+	}
+	_ = w.store.EmitDomainEvent(ctx, project.WorkspaceID, "project", project.ID, "project.packaged", "{}")
+	return w.store.UpdateJobState(ctx, job.ID, "succeeded", "persist", "info", fmt.Sprintf("Package written (%d media files)", len(bundle.Assets)), 10000)
+}
+
+func writeZipFile(zw *zip.Writer, name string, data []byte) error {
+	f, err := zw.Create(name)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	return err
 }

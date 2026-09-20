@@ -120,6 +120,8 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/projects/new", s.handleProjectNew)
 			r.With(s.requireRole("owner", "editor")).Post("/projects", s.handleProjectCreate)
 			r.Get("/projects/{p}", s.handleProjectDashboard)
+			r.Get("/projects/{p}/package", s.handleProjectPackage)
+			r.With(s.requireRole("owner", "editor")).Post("/projects/{p}/package", s.handleQueuePackage)
 			r.With(s.requireRole("owner", "editor")).Post("/projects/{p}/videos", s.handleVideoCreate)
 			r.Route("/projects/{p}/videos/{v}", func(r chi.Router) {
 				r.Get("/", s.handleVideo)
