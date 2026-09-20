@@ -1,0 +1,69 @@
+package templates
+
+templ JobPage(data JobPageData) {
+	@shell(data.Shell, jobBody(data))
+}
+
+templ jobBody(data JobPageData) {
+	<div class="max-w-4xl mx-auto" id={ "job-" + data.Job.ID }>
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Job</h1>
+				<p class="font-mono text-xs opacity-60">{ data.Job.ID }</p>
+			</div>
+			<a class="btn btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/produce") }>Produce</a>
+		</div>
+		<div hx-get={ templ.URL(data.Shell.VideoBase() + "/jobs/" + data.Job.ID + "/status") } hx-trigger="every 2s" hx-swap="outerHTML">
+			@JobStatusFragment(data)
+		</div>
+		<h2 class="text-lg font-semibold mt-6 mb-2">Attempts</h2>
+		<div class="overflow-x-auto card bg-base-100 shadow">
+			<table class="table table-sm">
+				<thead><tr><th>#</th><th>Status</th><th>Seed</th><th>Model</th><th>Duration</th><th>Error</th></tr></thead>
+				<tbody>
+					for _, a := range data.Attempts {
+						<tr>
+							<td>{ a.Number }</td>
+							<td><span class={ "badge badge-sm", jobStateClass(a.Status) }>{ a.Status }</span></td>
+							<td class="font-mono text-xs">{ a.Seed }</td>
+							<td class="text-xs">{ a.Model }</td>
+							<td class="text-xs">{ a.DurationMs }</td>
+							<td class="text-xs text-error">{ a.Error }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		if len(data.Assets) > 0 {
+			<h2 class="text-lg font-semibold mt-6 mb-2">Outputs</h2>
+			<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+				for _, a := range data.Assets {
+					<div class="rounded-box border border-base-300 p-2">
+						<a href={ templ.URL(a.URL) } target="_blank" rel="noopener"><img src={ templ.URL(a.URL) } class="w-full rounded" alt="output"/></a>
+						<div class="text-xs opacity-60 font-mono mt-1">seed { a.Seed } · { shortID(a.ID) }</div>
+					</div>
+				}
+			</div>
+		}
+	</div>
+}
+
+templ JobStatusFragment(data JobPageData) {
+	<div id={ "job-" + data.Job.ID }>
+		<div class="flex items-center gap-2 mb-2">
+			<span class={ "badge", jobStateClass(data.Job.State) }>{ data.Job.State }</span>
+			<span class="text-sm opacity-70">{ data.Job.Type }</span>
+		</div>
+		<ul class="text-sm divide-y divide-base-300">
+			for _, e := range data.Events {
+				<li class="py-1 flex items-center gap-2">
+					<span class="badge badge-ghost badge-xs">{ e.Phase }</span>
+					<span>{ e.Message }</span>
+					if e.Progress > 0 {
+						<span class="ml-auto opacity-60 text-xs">{ e.Progress / 100 }%</span>
+					}
+				</li>
+			}
+		</ul>
+	</div>
+}

@@ -1,0 +1,26 @@
+{
+  "name": "SDXL Text to Image",
+  "slug": "sdxl-txt2img",
+  "task": "image",
+  "semantic_version": "1.0.0",
+  "tested_comfyui_version": "0.35.0",
+  "description": "Bundled, human-authored SDXL text-to-image workflow. Authored and tested in ComfyUI, exported in API format, then imported by vid-build. No node graph is constructed in application code.",
+  "graph_api_file": "sdxl_txt2img_api.json",
+  "graph_ui_file": "sdxl_txt2img_ui.json",
+  "bindings": [
+    { "semantic_field": "first_frame_positive", "node_id": "2", "input_name": "text", "value_type": "string", "required": true },
+    { "semantic_field": "first_frame_negative", "node_id": "3", "input_name": "text", "value_type": "string", "required": true },
+    { "semantic_field": "width", "node_id": "4", "input_name": "width", "value_type": "int", "required": false },
+    { "semantic_field": "height", "node_id": "4", "input_name": "height", "value_type": "int", "required": false },
+    { "semantic_field": "seed", "node_id": "5", "input_name": "seed", "value_type": "int", "required": false },
+    { "semantic_field": "model_name", "node_id": "1", "input_name": "ckpt_name", "value_type": "string", "required": false },
+    { "semantic_field": "output_node", "node_id": "7", "input_name": "", "value_type": "node", "required": true }
+  ],
+  "requirements": {
+    "checkpoints": ["photon_v1.safetensors"],
+    "custom_nodes": []
+  },
+  "expected_outputs": [
+    { "node_id": "7", "type": "image", "field": "images" }
+  ]
+}

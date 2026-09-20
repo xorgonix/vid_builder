@@ -15,8 +15,10 @@ import (
 
 	"vidbuild/internal/config"
 	"vidbuild/internal/db"
+	"vidbuild/internal/media"
 	"vidbuild/internal/store"
 	"vidbuild/internal/web"
+	"vidbuild/internal/worker"
 )
 
 func main() {
@@ -49,11 +51,21 @@ func main() {
 	defer database.Close()
 
 	st := store.New(database)
-	srv := web.New(cfg, st, logger)
-	if err := srv.Bootstrap(context.Background()); err != nil {
+	ms := media.New(cfg.AbsPath(basePath, cfg.Media.RootDir))
+	srv := web.New(cfg, st, ms, logger)
+	ctx := context.Background()
+	if err := srv.Bootstrap(ctx); err != nil {
 		logger.Error("bootstrap", "err", err)
 		os.Exit(1)
 	}
+	if err := srv.SeedBundledWorkflow(ctx); err != nil {
+		logger.Error("seed bundled workflow", "err", err)
+	}
+
+	appCtx, stopWorker := context.WithCancel(context.Background())
+	defer stopWorker()
+	wk := worker.New(cfg, st, ms, logger)
+	wk.Start(appCtx)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	httpServer := &http.Server{

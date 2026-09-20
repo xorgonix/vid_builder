@@ -1,0 +1,44 @@
+package templates
+
+templ WorkflowsPage(data WorkflowsData) {
+	@shell(data.Shell, workflowsBody(data))
+}
+
+templ workflowsBody(data WorkflowsData) {
+	<div class="max-w-5xl mx-auto">
+		<h1 class="text-2xl font-bold mb-1">Workflows</h1>
+		<p class="opacity-70 text-sm mb-4">Occasional production configuration. Graphs are authored and tested in ComfyUI, exported in API format, then imported as immutable versions.</p>
+		<div class="overflow-x-auto card bg-base-100 shadow">
+			<table class="table">
+				<thead><tr><th>Name</th><th>Task</th><th>Source</th><th>Version status</th><th>Bindings</th></tr></thead>
+				<tbody>
+					for _, w := range data.Workflows {
+						<tr>
+							<td><div class="font-medium">{ w.Name }</div><div class="text-xs opacity-60 font-mono">{ w.Slug }</div></td>
+							<td>{ w.Task }</td>
+							<td><span class="badge badge-ghost badge-sm">{ w.Source }</span></td>
+							<td><span class={ "badge badge-sm", workflowStatusClass(w.VersionStatus) }>{ w.VersionStatus }</span></td>
+							<td>{ w.Bindings }</td>
+						</tr>
+					}
+					if len(data.Workflows) == 0 {
+						<tr><td colspan="5" class="opacity-60">No workflows available.</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}
+
+func workflowStatusClass(status string) string {
+	switch status {
+	case "validated":
+		return "badge-success"
+	case "invalid":
+		return "badge-error"
+	case "retired":
+		return "badge-ghost"
+	default:
+		return "badge-warning"
+	}
+}

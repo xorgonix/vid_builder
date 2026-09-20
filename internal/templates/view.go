@@ -359,6 +359,156 @@ type MoreData struct {
 	Video   VideoView
 }
 
+// ReadyShot is a shot that can be sent to production.
+type ReadyShot struct {
+	ShotID      string
+	Title       string
+	Purpose     string
+	SceneTitle  string
+	Readiness   string
+	StartReady  bool
+	EndReady    bool
+	MotionReady bool
+}
+
+// RequestView is a generation request row.
+type RequestView struct {
+	ID         string
+	ShotID     string
+	ShotTitle  string
+	Role       string
+	Tier       string
+	Candidates int
+	Status     string
+	CreatedAt  string
+	JobID      string
+}
+
+// JobView is a job row.
+type JobView struct {
+	ID          string
+	Type        string
+	State       string
+	AggregateID string
+	CreatedAt   string
+}
+
+// ProduceData backs the Produce screen.
+type ProduceData struct {
+	Shell    ShellData
+	Project  ProjectView
+	Video    VideoView
+	Ready    []ReadyShot
+	Requests []RequestView
+	Jobs     []JobView
+}
+
+// GenerateData backs the generation request form.
+type GenerateData struct {
+	Shell           ShellData
+	Project         ProjectView
+	Video           VideoView
+	Shot            ShotNode
+	Role            string
+	RoleLabel       string
+	Positive        string
+	Negative        string
+	Width           int
+	Height          int
+	WorkflowID      string
+	WorkflowName    string
+	Checkpoints     []string
+	DefaultModel    string
+	ComfyReady      bool
+	ComfyError      string
+	SeedPolicy      string
+	RequirementsMet bool
+}
+
+// JobEventView is a job event line.
+type JobEventView struct {
+	Sequence  int
+	Phase     string
+	Level     string
+	Message   string
+	Progress  int
+	CreatedAt string
+}
+
+// AttemptView is an attempt row.
+type AttemptView struct {
+	Number     int
+	Status     string
+	Seed       string
+	Model      string
+	DurationMs string
+	Error      string
+}
+
+// AssetView is an asset rendered in the UI.
+type AssetView struct {
+	ID        string
+	Kind      string
+	Role      string
+	MimeType  string
+	URL       string
+	Checksum  string
+	SizeBytes int64
+	CreatedAt string
+	Seed      string
+	Model     string
+	Duration  string
+}
+
+// JobPageData backs the job detail page.
+type JobPageData struct {
+	Shell    ShellData
+	Project  ProjectView
+	Video    VideoView
+	Job      JobView
+	Events   []JobEventView
+	Attempts []AttemptView
+	Assets   []AssetView
+}
+
+// ReviewGroup groups candidate assets for a shot/role.
+type ReviewGroup struct {
+	ShotID     string
+	ShotTitle  string
+	Role       string
+	RoleLabel  string
+	Assets     []AssetView
+	SelectedID string
+	Decision   string
+	Stale      bool
+}
+
+// ReviewData backs the Review screen.
+type ReviewData struct {
+	Shell   ShellData
+	Project ProjectView
+	Video   VideoView
+	Groups  []ReviewGroup
+}
+
+// WorkflowView is a workflow package row.
+type WorkflowView struct {
+	PackageID     string
+	Name          string
+	Slug          string
+	Task          string
+	Source        string
+	VersionID     string
+	VersionStatus string
+	Bindings      int
+}
+
+// WorkflowsData backs the workflow list.
+type WorkflowsData struct {
+	Shell     ShellData
+	Workflows []WorkflowView
+}
+
 // OutlineData backs the Outline screen.
 type OutlineData struct {
 	Shell    ShellData

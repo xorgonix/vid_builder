@@ -567,3 +567,102 @@ CREATE INDEX IF NOT EXISTS idx_job_events_job ON job_events (job_id);
 CREATE INDEX IF NOT EXISTS idx_discovery_messages_thread ON discovery_messages (thread_id);
 CREATE INDEX IF NOT EXISTS idx_proposals_project ON proposals (project_id);
 CREATE INDEX IF NOT EXISTS idx_threads_project ON discovery_threads (project_id);
+
+-- ---------------------------------------------------------------------------
+-- vid-build 0.01 production additions (idempotent; applied on every boot)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS workflow_bindings (
+    id                  TEXT PRIMARY KEY,
+    workflow_version_id TEXT NOT NULL REFERENCES workflow_versions(id) ON DELETE CASCADE,
+    semantic_field      TEXT NOT NULL,
+    node_id             TEXT NOT NULL,
+    input_name          TEXT NOT NULL DEFAULT '',
+    value_type          TEXT NOT NULL DEFAULT 'string',
+    required            INTEGER NOT NULL DEFAULT 0,
+    transform_json      TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(transform_json)),
+    default_json        TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(default_json)),
+    created_at          TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS models (
+    id                TEXT PRIMARY KEY,
+    name              TEXT NOT NULL,
+    provider          TEXT NOT NULL DEFAULT '',
+    family            TEXT NOT NULL DEFAULT '',
+    task              TEXT NOT NULL DEFAULT 'image',
+    version           TEXT NOT NULL DEFAULT '',
+    quantization      TEXT NOT NULL DEFAULT '',
+    requirements_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(requirements_json)),
+    capabilities_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(capabilities_json)),
+    active            INTEGER NOT NULL DEFAULT 1,
+    created_at        TEXT NOT NULL,
+    updated_at        TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS model_profiles (
+    id            TEXT PRIMARY KEY,
+    workspace_id  TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    name          TEXT NOT NULL,
+    task          TEXT NOT NULL DEFAULT 'image',
+    model_id      TEXT,
+    settings_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(settings_json)),
+    lora_stack_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(lora_stack_json)),
+    created_by_user_id TEXT NOT NULL REFERENCES users(id),
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL,
+    revision      INTEGER NOT NULL DEFAULT 1
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS target_capability_snapshots (
+    id                  TEXT PRIMARY KEY,
+    execution_target_id TEXT NOT NULL REFERENCES execution_targets(id) ON DELETE CASCADE,
+    observed_at         TEXT NOT NULL,
+    service_version     TEXT NOT NULL DEFAULT '',
+    node_types_json     TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(node_types_json)),
+    models_json         TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(models_json)),
+    capabilities_json   TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(capabilities_json)),
+    hardware_json       TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(hardware_json)),
+    status              TEXT NOT NULL DEFAULT 'ok' CHECK (status IN ('ok','error')),
+    error_summary       TEXT NOT NULL DEFAULT ''
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS execution_observations (
+    id                    TEXT PRIMARY KEY,
+    generation_attempt_id TEXT NOT NULL REFERENCES generation_attempts(id) ON DELETE CASCADE,
+    execution_target_id   TEXT,
+    model_id              TEXT,
+    workflow_version_id   TEXT,
+    hardware_json         TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(hardware_json)),
+    settings_fingerprint  TEXT NOT NULL DEFAULT '',
+    elapsed_ms            INTEGER NOT NULL DEFAULT 0,
+    startup_ms            INTEGER NOT NULL DEFAULT 0,
+    peak_vram_mb          INTEGER,
+    cost_micros           INTEGER NOT NULL DEFAULT 0,
+    currency              TEXT NOT NULL DEFAULT 'USD',
+    success               INTEGER NOT NULL DEFAULT 0,
+    created_at            TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS asset_derivations (
+    id            TEXT PRIMARY KEY,
+    from_asset_id TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    to_asset_id   TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    relation      TEXT NOT NULL CHECK (relation IN ('reference','input','mask','upscaled_from','edited_from','thumbnail_of')),
+    metadata_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(metadata_json))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS transitions (
+    id            TEXT PRIMARY KEY,
+    edit_id       TEXT NOT NULL REFERENCES edits(id) ON DELETE CASCADE,
+    kind          TEXT NOT NULL CHECK (kind IN ('cut','fade','dissolve')),
+    duration_ms   INTEGER NOT NULL DEFAULT 0,
+    settings_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(settings_json))
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_bindings_version ON workflow_bindings (workflow_version_id);
+CREATE INDEX IF NOT EXISTS idx_wf_versions_pkg ON workflow_versions (workflow_package_id);
+CREATE INDEX IF NOT EXISTS idx_snapshots_target ON target_capability_snapshots (execution_target_id);
+CREATE INDEX IF NOT EXISTS idx_observations_attempt ON execution_observations (generation_attempt_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs (state, priority);
+CREATE INDEX IF NOT EXISTS idx_assets_attempt ON assets (generation_attempt_id);

@@ -40,10 +40,10 @@ data/
 *.sqlite-shm
 *.sqlite-wal
 *.db
-media/
-temp/
-backups/
-exports/output/
+/data/media/
+/data/temp/
+/data/backups/
+data/exports/output/
 
 # --- Secrets & credentials ---
 .env

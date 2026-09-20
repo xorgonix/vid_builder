@@ -1,0 +1,112 @@
+package templates
+
+templ ProducePage(data ProduceData) {
+	@shell(data.Shell, produceBody(data))
+}
+
+templ produceBody(data ProduceData) {
+	<div class="max-w-6xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Produce</h1>
+				<p class="opacity-70 text-sm">Turn ready specifications into bounded generation requests.</p>
+			</div>
+			<a class="btn btn-sm" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/workflows") }>Workflows</a>
+		</div>
+
+		<h2 class="text-lg font-semibold mb-2">Ready work</h2>
+		<div class="overflow-x-auto card bg-base-100 shadow mb-6">
+			<table class="table table-sm">
+				<thead><tr><th>Shot</th><th>Readiness</th><th>Start</th><th>End</th><th>Motion</th><th></th></tr></thead>
+				<tbody>
+					for _, rs := range data.Ready {
+						<tr>
+							<td><div class="font-medium">{ rs.Title }</div><div class="text-xs opacity-60">{ rs.SceneTitle } · { rs.Purpose }</div></td>
+							<td><span class={ "badge badge-sm", readinessClass(rs.Readiness) }>{ rs.Readiness }</span></td>
+							<td>@readyDot(rs.StartReady)</td>
+							<td>@readyDot(rs.EndReady)</td>
+							<td>@readyDot(rs.MotionReady)</td>
+							<td class="flex gap-1">
+								<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + rs.ShotID + "/generate/start_frame") }>Start</a>
+								<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + rs.ShotID + "/generate/end_frame") }>End</a>
+								<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + rs.ShotID + "/generate/motion") }>Motion</a>
+							</td>
+						</tr>
+					}
+					if len(data.Ready) == 0 {
+						<tr><td colspan="6" class="opacity-60">No shots yet.</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+
+		<h2 class="text-lg font-semibold mb-2">Requests</h2>
+		<div class="overflow-x-auto card bg-base-100 shadow mb-6">
+			<table class="table table-sm">
+				<thead><tr><th>Shot</th><th>Role</th><th>Tier</th><th>Candidates</th><th>Status</th><th></th></tr></thead>
+				<tbody>
+					for _, rq := range data.Requests {
+						<tr>
+							<td>{ rq.ShotTitle }</td>
+							<td>{ rq.Role }</td>
+							<td>{ rq.Tier }</td>
+							<td>{ rq.Candidates }</td>
+							<td><span class={ "badge badge-sm", jobStateClass(rq.Status) }>{ rq.Status }</span></td>
+							<td>
+								if rq.JobID != "" {
+									<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/jobs/" + rq.JobID) }>Job</a>
+								}
+							</td>
+						</tr>
+					}
+					if len(data.Requests) == 0 {
+						<tr><td colspan="6" class="opacity-60">No requests yet.</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+
+		<h2 class="text-lg font-semibold mb-2">Jobs</h2>
+		<div class="overflow-x-auto card bg-base-100 shadow">
+			<table class="table table-sm">
+				<thead><tr><th>Job</th><th>Type</th><th>State</th><th>Created</th></tr></thead>
+				<tbody>
+					for _, j := range data.Jobs {
+						<tr>
+							<td><a class="link link-hover font-mono text-xs" href={ templ.URL(data.Shell.VideoBase() + "/jobs/" + j.ID) }>{ shortID(j.ID) }</a></td>
+							<td>{ j.Type }</td>
+							<td><span class={ "badge badge-sm", jobStateClass(j.State) }>{ j.State }</span></td>
+							<td class="text-xs opacity-60">{ j.CreatedAt }</td>
+						</tr>
+					}
+					if len(data.Jobs) == 0 {
+						<tr><td colspan="4" class="opacity-60">No jobs yet.</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}
+
+templ readyDot(ok bool) {
+	if ok {
+		<span class="badge badge-success badge-xs">ready</span>
+	} else {
+		<span class="badge badge-ghost badge-xs">—</span>
+	}
+}
+
+func jobStateClass(state string) string {
+	switch state {
+	case "succeeded", "completed":
+		return "badge-success"
+	case "failed":
+		return "badge-error"
+	case "running", "claimed":
+		return "badge-info"
+	case "cancelled":
+		return "badge-ghost"
+	default:
+		return "badge-warning"
+	}
+}

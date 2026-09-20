@@ -1,0 +1,84 @@
+package templates
+
+templ GeneratePage(data GenerateData) {
+	@shell(data.Shell, generateBody(data))
+}
+
+templ generateBody(data GenerateData) {
+	<div class="max-w-3xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Generate · { data.RoleLabel }</h1>
+				<p class="opacity-70 text-sm">{ data.Shot.Title } — { data.Shot.Purpose }</p>
+			</div>
+			<a class="btn btn-sm btn-ghost" href={ templ.URL(data.Shell.VideoBase() + "/produce") }>Produce</a>
+		</div>
+
+		if !data.ComfyReady {
+			<div class="alert alert-error mb-4">
+				<span>ComfyUI is not reachable: { data.ComfyError }. Generation cannot be submitted until the local service responds.</span>
+			</div>
+		} else {
+			<div class="alert alert-success mb-4"><span>ComfyUI is reachable. Target: Local ComfyUI (loopback).</span></div>
+		}
+		if data.WorkflowName != "" {
+			<div class="alert mb-4"><span>Workflow: <b>{ data.WorkflowName }</b> (immutable version, bound inputs only).</span></div>
+		}
+
+		<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/generation-requests") } class="card bg-base-100 shadow">
+			<div class="card-body gap-3">
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<input type="hidden" name="shot_id" value={ data.Shot.ID }/>
+				<input type="hidden" name="role" value={ data.Role }/>
+				<fieldset class="fieldset">
+					<legend class="fieldset-legend">Frozen specification (read-only)</legend>
+					<textarea class="textarea textarea-bordered w-full font-mono text-sm" name="positive" rows="4">{ data.Positive }</textarea>
+					<textarea class="textarea textarea-bordered w-full font-mono text-xs mt-2" name="negative" rows="2">{ data.Negative }</textarea>
+				</fieldset>
+				<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+					<label class="form-control"><span class="label-text mb-1">Width</span><input class="input input-bordered" type="number" name="width" value={ itoaT(data.Width) }/></label>
+					<label class="form-control"><span class="label-text mb-1">Height</span><input class="input input-bordered" type="number" name="height" value={ itoaT(data.Height) }/></label>
+					<label class="form-control"><span class="label-text mb-1">Candidates</span><input class="input input-bordered" type="number" min="1" max="8" name="candidates" value="1"/></label>
+					<label class="form-control">
+						<span class="label-text mb-1">Quality tier</span>
+						<select class="select select-bordered" name="tier">
+							<option value="concept">Concept</option>
+							<option value="final">Final</option>
+						</select>
+					</label>
+				</div>
+				<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+					<label class="form-control">
+						<span class="label-text mb-1">Seed policy</span>
+						<select class="select select-bordered" name="seed_policy">
+							<option value="random">Random</option>
+							<option value="stable">Stable variants</option>
+							<option value="explicit">Explicit</option>
+						</select>
+					</label>
+					<label class="form-control"><span class="label-text mb-1">Seed</span><input class="input input-bordered" type="number" name="seed" value="0"/></label>
+					<label class="form-control">
+						<span class="label-text mb-1">Checkpoint</span>
+						if len(data.Checkpoints) > 0 {
+							<select class="select select-bordered" name="checkpoint">
+								for _, cp := range data.Checkpoints {
+									if cp == data.DefaultModel {
+										<option value={ cp } selected="selected">{ cp }</option>
+									} else {
+										<option value={ cp }>{ cp }</option>
+									}
+								}
+							</select>
+						} else {
+							<input class="input input-bordered" name="checkpoint" value={ data.DefaultModel }/>
+						}
+					</label>
+				</div>
+				<div class="alert alert-info text-xs"><span>This freezes the current spec revision. Attempts are immutable; rerendering creates new attempts.</span></div>
+				<div class="card-actions justify-end">
+					<button class="btn btn-primary" type="submit" disabled?={ !data.ComfyReady }>Queue generation request</button>
+				</div>
+			</div>
+		</form>
+	</div>
+}

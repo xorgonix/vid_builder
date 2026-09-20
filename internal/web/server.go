@@ -11,8 +11,10 @@ import (
 	"vidbuild/internal/auth"
 	"vidbuild/internal/config"
 	"vidbuild/internal/llm"
+	"vidbuild/internal/media"
 	"vidbuild/internal/planner"
 	"vidbuild/internal/store"
+	"vidbuild/internal/workflows"
 )
 
 const loginCSRFCookie = "vidbuild_login_csrf"
@@ -21,16 +23,17 @@ const loginCSRFCookie = "vidbuild_login_csrf"
 type Server struct {
 	cfg       *config.Config
 	store     *store.Store
+	media     *media.Store
 	log       *slog.Logger
 	dummyHash string
 	planner   *planner.Planner
 }
 
 // New constructs a Server.
-func New(cfg *config.Config, st *store.Store, log *slog.Logger) *Server {
+func New(cfg *config.Config, st *store.Store, ms *media.Store, log *slog.Logger) *Server {
 	params := auth.DefaultParams(cfg.Auth.Argon2MemoryKB, cfg.Auth.Argon2Iterations, cfg.Auth.Argon2Parallelism)
 	dummy, _ := auth.HashPassword("vid-build-timing-equalizer", params)
-	return &Server{cfg: cfg, store: st, log: log, dummyHash: dummy, planner: planner.New(llm.New(cfg.LLM))}
+	return &Server{cfg: cfg, store: st, media: ms, log: log, dummyHash: dummy, planner: planner.New(llm.New(cfg.LLM))}
 }
 
 // Bootstrap creates the first administrator and personal workspace when empty.
@@ -52,6 +55,23 @@ func (s *Server) Bootstrap(ctx context.Context) error {
 	}
 	s.log.Info("bootstrap admin created", "email", s.cfg.Bootstrap.AdminEmail)
 	return nil
+}
+
+// SeedBundledWorkflow imports the bundled workflow package once.
+func (s *Server) SeedBundledWorkflow(ctx context.Context) error {
+	pkg, err := workflows.Load()
+	if err != nil {
+		return err
+	}
+	bindings := make([]store.WorkflowBinding, 0, len(pkg.Manifest.Bindings))
+	for _, b := range pkg.Manifest.Bindings {
+		bindings = append(bindings, store.WorkflowBinding{
+			SemanticField: b.SemanticField, NodeID: b.NodeID, InputName: b.InputName,
+			ValueType: b.ValueType, Required: b.Required,
+		})
+	}
+	return s.store.SeedBundledWorkflow(ctx, pkg.Manifest.Name, pkg.Manifest.Slug, pkg.Manifest.Task,
+		pkg.Manifest.Description, pkg.GraphJSON, pkg.GraphSHA, pkg.ManifestJSON, pkg.Manifest.TestedComfyUIVersion, bindings)
 }
 
 // Handler returns the fully wired HTTP handler.
@@ -76,6 +96,7 @@ func (s *Server) Handler() http.Handler {
 		r.Use(s.requireAuth)
 		r.Get("/", s.handleRoot)
 		r.Get("/account", s.handleAccount)
+		r.Get("/assets/{assetID}", s.handleAssetFile)
 		r.With(s.csrfProtect).Post("/account/sessions/{id}", s.handleSessionRevoke)
 		r.With(s.csrfProtect).Post("/logout", s.handleLogout)
 		r.Route("/workspaces", func(r chi.Router) {
@@ -127,7 +148,17 @@ func (s *Server) Handler() http.Handler {
 				r.Post("/shots/{shotID}/blocking/{role}/copy", s.handleCopyBlocking)
 				r.Get("/shots/{shotID}/history", s.handleShotHistory)
 				r.Get("/more", s.handleMore)
+				r.Get("/produce", s.handleProduce)
+				r.Get("/shots/{shotID}/generate/{role}", s.handleGenerateForm)
+				r.Post("/generation-requests", s.handleCreateRequest)
+				r.Get("/jobs/{jobID}", s.handleJob)
+				r.Get("/jobs/{jobID}/status", s.handleJobStatus)
+				r.Get("/review", s.handleReview)
+				r.Post("/shots/{shotID}/selections", s.handleSelectAsset)
+				r.Post("/assets/{assetID}/approvals", s.handleApprove)
+				r.Post("/assets/{assetID}/assessments", s.handleAssess)
 			})
+			r.Get("/workflows", s.handleWorkflows)
 			r.Get("/projects/{p}/bible", s.handleBible)
 			r.With(s.requireRole("owner", "editor")).Post("/projects/{p}/characters", s.handleCreateCharacter)
 			r.With(s.requireRole("owner", "editor")).Post("/projects/{p}/locations", s.handleCreateLocation)

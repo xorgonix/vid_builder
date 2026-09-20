@@ -1,0 +1,115 @@
+package templates
+
+templ ReviewPage(data ReviewData) {
+	@shell(data.Shell, reviewBody(data))
+}
+
+templ reviewBody(data ReviewData) {
+	<div class="max-w-6xl mx-auto" id="review-tray">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Review</h1>
+				<p class="opacity-70 text-sm">Compare candidates against purpose and continuity. Assessment is advisory; approval is human.</p>
+			</div>
+			<a class="btn btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/produce") }>Produce</a>
+		</div>
+		if len(data.Groups) == 0 {
+			<div class="alert"><span>No candidates yet. Generate start/end frames from Produce.</span></div>
+		}
+		<div class="flex flex-col gap-6">
+			for _, g := range data.Groups {
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<div class="flex items-center justify-between">
+							<div>
+								<h2 class="card-title text-base">{ g.ShotTitle } · { g.RoleLabel }</h2>
+								<div class="flex gap-1 mt-1">
+									if g.SelectedID != "" {
+										<span class="badge badge-primary badge-sm">selected</span>
+									}
+									if g.Decision != "" {
+										<span class={ "badge badge-sm", approvalClass(g.Decision) }>{ g.Decision }</span>
+									}
+									if g.Stale {
+										<span class="badge badge-warning badge-sm">stale — spec changed since selection</span>
+									}
+								</div>
+							</div>
+							<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + g.ShotID) }>Shot</a>
+						</div>
+						<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
+							for _, a := range g.Assets {
+								@assetCard(data, g, a)
+							}
+						</div>
+					</div>
+				</div>
+			}
+		</div>
+	</div>
+}
+
+templ assetCard(data ReviewData, g ReviewGroup, a AssetView) {
+	<div class={ "rounded-box border p-2 flex flex-col gap-2", selectedBorder(g.SelectedID == a.ID) }>
+		<a href={ templ.URL(a.URL) } target="_blank" rel="noopener">
+			<img src={ templ.URL(a.URL) } alt={ "Candidate " + shortID(a.ID) } class="w-full rounded"/>
+		</a>
+		<div class="text-xs opacity-70 font-mono break-all">
+			<div>seed { a.Seed } · { a.Model }</div>
+			<div>{ shortID(a.ID) }</div>
+		</div>
+		<div class="flex flex-col gap-1">
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + g.ShotID + "/selections") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<input type="hidden" name="role" value={ g.Role }/>
+				<input type="hidden" name="asset_id" value={ a.ID }/>
+				<button class="btn btn-xs btn-primary w-full" type="submit">Select</button>
+			</form>
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/assets/" + a.ID + "/approvals") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<input type="hidden" name="decision" value="approve"/>
+				<button class="btn btn-xs btn-success w-full" type="submit">Approve</button>
+			</form>
+			<details>
+				<summary class="cursor-pointer text-xs">Reject / assess…</summary>
+				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/assets/" + a.ID + "/approvals") } class="mt-1">
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<textarea class="textarea textarea-bordered w-full text-xs mb-1" name="reason" rows="2" placeholder="Reason (required for reject/exception)"></textarea>
+					<div class="flex gap-1">
+						<button class="btn btn-xs btn-error" type="submit" name="decision" value="reject">Reject</button>
+						<button class="btn btn-xs btn-warning" type="submit" name="decision" value="approve_with_exception">Exception approve</button>
+					</div>
+				</form>
+				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/assets/" + a.ID + "/assessments") } class="mt-1">
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<input class="input input-bordered input-xs w-full mb-1" name="summary" placeholder="Assessment note"/>
+					<div class="flex gap-1">
+						<button class="btn btn-xs" type="submit" name="status" value="pass">Pass</button>
+						<button class="btn btn-xs" type="submit" name="status" value="review">Review</button>
+						<button class="btn btn-xs" type="submit" name="status" value="fail">Fail</button>
+					</div>
+				</form>
+			</details>
+		</div>
+	</div>
+}
+
+func approvalClass(decision string) string {
+	switch decision {
+	case "approve":
+		return "badge-success"
+	case "reject":
+		return "badge-error"
+	case "approve_with_exception":
+		return "badge-warning"
+	default:
+		return "badge-ghost"
+	}
+}
+
+func selectedBorder(selected bool) string {
+	if selected {
+		return "border-primary border-2"
+	}
+	return "border-base-300"
+}

@@ -4,9 +4,13 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"time"
 
 	"vidbuild/internal/db"
 )
+
+func nowTime() time.Time                  { return time.Now().UTC() }
+func secondsDuration(s int) time.Duration { return time.Duration(s) * time.Second }
 
 // ErrNotFound is returned when a requested row does not exist.
 var ErrNotFound = errors.New("store: not found")
