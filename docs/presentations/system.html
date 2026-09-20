@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>vid-build 0.01 — System overview</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/night.css"/>
+  <link rel="stylesheet" href="deck.css"/>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+
+    <section class="center" data-background-color="#020617">
+      <p class="kicker">vid-build 0.01</p>
+      <h1>System overview</h1>
+      <p class="muted">Go · Chi · templ · HTMX · daisyUI · SQLite · Wails host · LM Studio · ComfyUI · FFmpeg</p>
+    </section>
+
+    <section>
+      <h2>Non-negotiables</h2>
+      <ul>
+        <li><strong>SQLite is the sole source of truth.</strong> Media lives on disk; the database holds rows, URIs and checksums.</li>
+        <li><strong>Go is the application language.</strong> Server-rendered HTML is the interface.</li>
+        <li><strong>HTMX is the default interaction.</strong> JavaScript only for local islands (blocking editor, uploads, shortcuts).</li>
+        <li><strong>Human authority.</strong> AI proposes; a person applies, selects and approves.</li>
+        <li><strong>Wails is a host, not the architecture.</strong> The same app runs in a browser.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Layers and the boundary rule</h2>
+      <table>
+        <tr><th>Layer</th><th>Responsibility</th></tr>
+        <tr><td>Domain</td><td>state transitions, readiness, invalidation, production logic</td></tr>
+        <tr><td>Application services</td><td>use cases, transactions, authorization, jobs, audit</td></tr>
+        <tr><td>Repositories</td><td>SQLite persistence and queries</td></tr>
+        <tr><td>HTTP</td><td>parsing, CSRF, permission gates, fragment selection, redirects</td></tr>
+        <tr><td>Templates</td><td>full pages and HTMX fragments (templ)</td></tr>
+        <tr><td>Worker</td><td>claims durable jobs, calls adapters, records evidence</td></tr>
+        <tr><td>Adapters</td><td>LM Studio, ComfyUI, FFmpeg, remote/API targets</td></tr>
+        <tr><td>Desktop host</td><td>Wails lifecycle, native dialogs, notifications</td></tr>
+      </table>
+      <p class="muted">Domain, repository, service, HTTP and templ packages never import Wails; integration sits behind a small <code>DesktopBridge</code>.</p>
+    </section>
+
+    <section>
+      <h2>Request flow</h2>
+      <pre><code class="language-text">Wails webview ─┐
+Browser/phone ──┼─► Chi router ─► middleware ─► handler
+               │                  session, CSRF,      │
+               │                  workspace scope     ▼
+               │                              application service ─► repository ─► SQLite (WAL)
+               │                                        │
+               │                                        └─► job row ─► worker ─► adapter
+               │                                                              │
+               └──────────────── HTML (full page or fragment ◄───────────────┘
+                                       + media on disk (atomic write, checksum)</code></pre>
+      <p class="muted">Expensive commands return a job fragment immediately; requests never block on generation.</p>
+    </section>
+
+    <section>
+      <h2>Data model, in one picture</h2>
+      <div class="flow">
+        <span class="step">Workspace</span><span class="arrow">→</span>
+        <span class="step">Project</span><span class="arrow">→</span>
+        <span class="step">Video</span><span class="arrow">→</span>
+        <span class="step">Section</span><span class="arrow">→</span>
+        <span class="step">Scene</span><span class="arrow">→</span>
+        <span class="step">Shot</span>
+      </div>
+      <div class="flow" style="margin-top:.5em">
+        <span class="step">Shot → start_frame spec</span>
+        <span class="step">Shot → end_frame spec</span>
+        <span class="step">Shot → motion spec</span>
+      </div>
+      <div class="flow" style="margin-top:.5em">
+        <span class="step">Spec → Generation request</span><span class="arrow">→</span>
+        <span class="step">Attempt (immutable)</span><span class="arrow">→</span>
+        <span class="step">Asset</span><span class="arrow">→</span>
+        <span class="step">Selection / Assessment / Approval</span>
+      </div>
+      <p class="muted">Outline, Board and Edit are views over one ordered structure — no duplicated authority.</p>
+    </section>
+
+    <section>
+      <h2>SQLite rules that keep it sane</h2>
+      <ul>
+        <li><code>PRAGMA foreign_keys=ON</code>, WAL, bounded busy timeout, short writes.</li>
+        <li><code>STRICT</code> tables; UUIDv7 text ids; UTC RFC3339 ms timestamps; integer ms durations.</li>
+        <li>JSON columns are <code>CHECK(json_valid(...))</code>.</li>
+        <li>Every mutable aggregate has an integer <code>revision</code>; updates require the expected revision (409 on conflict).</li>
+        <li>Partial unique indexes enforce “exactly one current” row: brief, spec per kind, selection per role, blocking per endpoint.</li>
+        <li>Attempts, approvals and audit rows are append-only.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Shot readiness &amp; invalidation</h2>
+      <pre><code class="language-text">draft → blocking_ready → concept_ready → endpoint_ready → video_ready → complete</code></pre>
+      <table>
+        <tr><th>Change</th><th>Becomes stale</th><th>Stays current</th></tr>
+        <tr><td>Start spec</td><td>start candidates, dependent video</td><td>end frame (if independent)</td></tr>
+        <tr><td>End spec</td><td>end candidates, dependent video</td><td>start frame</td></tr>
+        <tr><td>Motion spec</td><td>video candidates</td><td>approved endpoints</td></tr>
+        <tr><td>Blocking</td><td>that endpoint + downstream video</td><td>the other endpoint</td></tr>
+      </table>
+      <p class="muted">Assets are never deleted for going stale; the UI shows lineage and offers regeneration.</p>
+    </section>
+
+    <section>
+      <h2>Blocking: structured JSON → deterministic SVG</h2>
+      <ul>
+        <li>Schema: canvas, camera, zones, actors (pose/gaze/facing), props, labels, arrows — coordinates normalized 0..1.</li>
+        <li>Rendered by a pure Go renderer in <code>internal/blocking</code>; same input always yields byte-identical SVG.</li>
+        <li>Change analysis diffs start vs end: shot size, angle, position, pose, gaze, props, arrows.</li>
+        <li>Browser island edits and serializes back to JSON; a plain-text JSON fallback works with JavaScript off.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Prompt compilation is an application concern</h2>
+      <ul>
+        <li>Layers: project style, character, location, endpoint, motion, workflow, experiment.</li>
+        <li>Modes: <code>inherit · append · replace · suppress · lock</code>.</li>
+        <li><code>internal/prompt</code> folds base + layers into exact positive/negative fields.</li>
+        <li>Source layers, compilation rule and final bound values are all stored — a better compiler can regenerate without losing intent.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Workflow ownership (the important split)</h2>
+      <div class="cols">
+        <div class="card">
+          <h3>ComfyUI owns</h3>
+          <ul><li>the node graph</li><li>samplers, loaders, custom nodes</li><li>graph execution</li></ul>
+        </div>
+        <div class="card">
+          <h3>vid-build owns</h3>
+          <ul><li>intent, prompt layers, references</li><li>which workflow, which target</li><li>bindings, submission, receipts</li></ul>
+        </div>
+      </div>
+      <pre><code class="language-text">design in ComfyUI → export API JSON → import immutable version
+→ confirm bindings → validate on target → compile → submit → capture receipt</code></pre>
+      <p class="muted">No node graphs are constructed in Go. A missing node or input fails validation — it is never guessed.</p>
+    </section>
+
+    <section>
+      <h2>Bindings, not hard-coded node ids</h2>
+      <pre><code class="language-json">{
+  "semantic_field": "first_frame_positive",
+  "node_id": "2",
+  "input_name": "text",
+  "required": true
+}</code></pre>
+      <ul>
+        <li>Vocabulary: <code>first/last_frame_positive|negative</code>, <code>*_asset</code>, <code>motion_*</code>, <code>seed</code>, <code>width</code>, <code>height</code>, <code>fps</code>, <code>frame_count</code>, <code>model_name</code>, <code>lora_stack</code>, <code>output_node</code>.</li>
+        <li>Import suggests bindings by node type; a human confirms them before the version is <code>validated</code>.</li>
+        <li>Validation checks node classes and checkpoints against a fresh target capability snapshot.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Generation pipeline</h2>
+      <pre><code class="language-text">spec revision ─► generation request (frozen: workflow version, tier, candidates, seed policy)
+             └─► attempts (immutable, one per candidate)
+                   └─► job (durable, leased) ─► worker phases
+validate → stage_inputs → load_models → submit → generate → collect → verify → persist → cleanup
+                   └─► assets (checksum, receipt) ─► selections ─► approvals</code></pre>
+      <p class="muted">Retry creates a new attempt. Receipts record model, workflow hash, resolved prompts, bound inputs, seed, timing, cost, peak VRAM.</p>
+    </section>
+
+    <section>
+      <h2>Endpoint-conditioned motion invariant</h2>
+      <ul>
+        <li>A motion request marked <code>requires_first_last</code> cannot start unless:
+          <ul>
+            <li>both selected endpoint assets exist and match their checksums;</li>
+            <li>both are approved or exception-approved;</li>
+            <li>the chosen workflow declares <code>first_frame_asset</code> / <code>last_frame_asset</code> bindings.</li>
+          </ul>
+        </li>
+        <li>The worker stages both frames to ComfyUI and records both checksums in the receipt.</li>
+        <li><strong>No automatic start-only fallback.</strong> A start-only run is a different, deliberate request.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Adapters &amp; targets</h2>
+      <ul>
+        <li>Contract: <code>Capabilities · Estimate · Validate · Submit · Status · Cancel · Fetch</code>.</li>
+        <li>Targets: <code>local_comfy · remote_agent · hosted_comfy · commercial_api · local_tool</code>.</li>
+        <li>Preflight compares request requirements to declared capability; unsupported settings warn explicitly and are recorded.</li>
+        <li>An adapter may not simulate an unsupported first/last, negative prompt, reference or LoRA.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Security</h2>
+      <ul>
+        <li>Argon2id password hashes; sessions stored only as SHA-256 token hashes.</li>
+        <li>Per-session CSRF on every mutation (including HTMX); workspace-scoped authorization in services, not just routes.</li>
+        <li>Loopback by default. Local services are allow-listed; ComfyUI is never reverse-proxied or exposed.</li>
+        <li>LAN access is off by default, enabled explicitly, with a single-use pairing code and per-device revocable sessions.</li>
+        <li>Secrets never enter SQLite, HTML, job payloads or receipts.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Media, backup, recovery</h2>
+      <ul>
+        <li>Atomic placement: temp write → checksum → rename → database commit. Relative forward-slash URIs; traversal rejected.</li>
+        <li>Thumbnails are derived assets (<code>thumbnail_of</code>), never untracked cache files.</li>
+        <li>Backup = consistent DB copy (<code>VACUUM INTO</code>) + media manifest with checksums; verify re-hashes every file.</li>
+        <li>Restore is an offline CLI: verify → safety copy → atomic swap → integrity check.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Durability &amp; observability</h2>
+      <ul>
+        <li>Jobs are leased (<code>lease_owner</code>, <code>lease_expires_at</code>) and recoverable after restart.</li>
+        <li>Every phase emits a <code>job_event</code>; progress in basis points.</li>
+        <li>Measured <code>execution_observations</code> feed the compute estimates — assumptions are replaced by evidence.</li>
+        <li>Audit events and a transactional outbox (<code>domain_events</code>) record who did what.</li>
+        <li>Memory coordination frees planner VRAM before local GPU work and records the action.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Code map</h2>
+      <table>
+        <tr><td><code>cmd/vidbuild</code></td><td>entrypoint (web/desktop launcher)</td></tr>
+        <tr><td><code>internal/db</code> · <code>store</code></td><td>SQLite open, migrations, repositories</td></tr>
+        <tr><td><code>internal/blocking</code> · <code>prompt</code></td><td>SVG renderer; layered prompt compiler</td></tr>
+        <tr><td><code>internal/workflows</code> · <code>comfyui</code></td><td>workflow packages/bindings; ComfyUI client</td></tr>
+        <tr><td><code>internal/worker</code> · <code>exporter</code> · <code>media</code></td><td>durable jobs; FFmpeg; atomic media store</td></tr>
+        <tr><td><code>internal/web</code> · <code>templates</code></td><td>Chi handlers, middleware, templ components</td></tr>
+      </table>
+    </section>
+
+    <section>
+      <h2>Status &amp; deferred work</h2>
+      <div class="cols">
+        <div class="card">
+          <h3 class="ok">Working, verified</h3>
+          <ul>
+            <li>Auth, workspaces, projects, videos</li>
+            <li>Planner, brief/outline proposals</li>
+            <li>Board, blocking SVG, prompt workbench</li>
+            <li>ComfyUI import/validate + generation</li>
+            <li>Review, edit/export, compute/campaigns</li>
+            <li>Backup/verify/restore, LAN pairing</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3 class="warn">Deferred</h3>
+          <ul>
+            <li>Wails packaging &amp; signing</li>
+            <li>Rental/commercial adapters</li>
+            <li>Audio generation</li>
+            <li>Vector search</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="center" data-background-color="#020617">
+      <h1>Local-first · server-authoritative · human-authorised</h1>
+      <p class="muted">Domain, services, HTTP and templates never know Wails exists.</p>
+    </section>
+
+  </div>
+</div>
+<div class="foot">vid-build 0.01 — system overview</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: true,
+    progress: true,
+    controls: true,
+    center: false,
+    transition: "none",
+    width: 1200,
+    height: 720,
+    margin: 0.06
+  });
+</script>
+</body>
+</html>

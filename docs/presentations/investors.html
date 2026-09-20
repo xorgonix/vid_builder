@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>vid-build 0.01 — Product &amp; investment overview</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/night.css"/>
+  <link rel="stylesheet" href="deck.css"/>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+
+    <section class="center" data-background-color="#020617">
+      <p class="kicker">vid-build 0.01</p>
+      <h1>The compute-native video studio</h1>
+      <p class="muted">Local-first. Human-authorised. Built to own your workflows, your lineage and your compute economics.</p>
+    </section>
+
+    <section>
+      <h2>AI video has a workflow problem</h2>
+      <ul>
+        <li>Model quality exploded; <strong>production discipline did not</strong>.</li>
+        <li>Creators juggle prompt tabs, model zoo, and spreadsheets to guess GPU cost.</li>
+        <li>Decisions and recipes vanish — you can’t reproduce last week’s good take.</li>
+        <li>Cloud tools are convenient but pull creative work, client material and cost control out of your hands.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Our insight</h2>
+      <p class="big">Making video is <strong>production</strong>, not prompting.</p>
+      <ul>
+        <li>Decisions have to be visible, attributed and reversible.</li>
+        <li>You should see the film <em>before</em> it exists as pixels.</li>
+        <li>Compute is a budget with options — local, rented, or API.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>What vid-build is</h2>
+      <div class="cols">
+        <div class="card">
+          <h3>For creators</h3>
+          <ul><li>Idea → brief → outline → storyboard → shots → review → edit</li><li>Every shot has a purpose and a visible change</li></ul>
+        </div>
+        <div class="card">
+          <h3>For studios &amp; clients</h3>
+          <ul><li>Workspaces, roles and approval trails</li><li>Runs on your hardware, over your models</li></ul>
+        </div>
+      </div>
+      <p class="muted">A desktop studio that is also a real local web app.</p>
+    </section>
+
+    <section>
+      <h2>Why now</h2>
+      <ul>
+        <li>Open models for image and video are good enough to build on — and keep improving.</li>
+        <li>Owning a GPU (or renting one) is now an economically real alternative to per-render SaaS pricing.</li>
+        <li>Studios and agencies face client-privacy and provenance requirements that cloud-only flows struggle to meet.</li>
+        <li>ComfyUI proved power users will author their own pipelines — but it is not a studio.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Differentiation</h2>
+      <table>
+        <tr><th>Everyone else</th><th>vid-build</th></tr>
+        <tr><td>Prompt box, one take</td><td>Storyboard-first; see start · change · end before rendering</td></tr>
+        <tr><td>Black-box model</td><td>You import and bind <em>your</em> tested ComfyUI workflows</td></tr>
+        <tr><td>Selection = whatever generated</td><td>Explicit select + human approval, with recorded exceptions</td></tr>
+        <tr><td>Cost is a surprise</td><td>Measured estimates and campaigns with preflight and reconciliation</td></tr>
+        <tr><td>Cloud lock-in</td><td>Local-first, SQLite source of truth, portable project packages</td></tr>
+      </table>
+    </section>
+
+    <section>
+      <h2>How it works, in four boxes</h2>
+      <div class="flow">
+        <span class="step">Develop &amp; Outline<br/><small>brief, sections, scenes, shots</small></span><span class="arrow">→</span>
+        <span class="step">Board &amp; Blocking<br/><small>deterministic SVG storyboard</small></span><span class="arrow">→</span>
+        <span class="step">Produce &amp; Review<br/><small>requests, immutable attempts, approve</small></span><span class="arrow">→</span>
+        <span class="step">Edit &amp; Compute<br/><small>assemble, export, plan cost</small></span>
+      </div>
+      <p class="muted">The awkward middle of AI video — deciding, comparing and paying — is exactly what we productise.</p>
+    </section>
+
+    <section>
+      <h2>The compute story</h2>
+      <ul>
+        <li>Same frozen request can run on a local GPU, a rented worker, or an API.</li>
+        <li>Estimates come from <strong>your measured runs</strong>, not vendor benchmarks.</li>
+        <li>Campaigns bundle compatible work: preflight → confirm → run → reconcile actual spend.</li>
+        <li>Two GPUs are modelled as independent workers — never “add the VRAM together”.</li>
+      </ul>
+      <p class="muted">Compute economics is not a settings page. It is the business model.</p>
+    </section>
+
+    <section>
+      <h2>Privacy &amp; enterprise readiness</h2>
+      <ul>
+        <li>Workspace boundaries enforced in the services, not just the UI.</li>
+        <li>Local ComfyUI stays on loopback; phones/tablets pair to vid-build, never to the model server.</li>
+        <li>Optional LAN review with per-device sessions; off by default and revocable.</li>
+        <li>Coordinated backups and portable client project packages.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Who it’s for</h2>
+      <div class="cols">
+        <div class="card">
+          <h3>Beachhead</h3>
+          <ul><li>Solo AI-video creators</li><li>Small studios with a GPU</li></ul>
+        </div>
+        <div class="card">
+          <h3>Expansion</h3>
+          <ul><li>Agencies &amp; in-house content teams</li><li>Privacy-sensitive / regulated clients</li></ul>
+        </div>
+      </div>
+      <p class="muted">Market sizing and pricing are intentionally left to validation — this deck avoids invented figures.</p>
+    </section>
+
+    <section>
+      <h2>Business-model hypotheses <span class="pill amber">to validate</span></h2>
+      <ul>
+        <li><strong>Open core:</strong> local studio free; paid team/server coordinator and collaboration.</li>
+        <li><strong>Compute margin:</strong> convenience layer for rented GPUs and API routing, billed with transparent reconciliation.</li>
+        <li><strong>Workflow marketplace:</strong> packaged, validated workflows and style kits.</li>
+        <li><strong>Studio support:</strong> deployment, backup/restore and compliance assistance.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Moat</h2>
+      <ul>
+        <li><strong>Workflow-binding standard:</strong> graphs stay owned by ComfyUI; our semantic bindings make any workflow portable across models and vendors.</li>
+        <li><strong>Provenance graph:</strong> decision → spec → workflow hash → attempt → asset → approval. Switching tools means abandoning your own production history.</li>
+        <li><strong>Cost advantage:</strong> measured, reconciled compute beats opaque credits.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Where it is today <span class="pill green">real, not a mockup</span></h2>
+      <ul>
+        <li>Working vertical slice: workspace → project → brief → outline → blocking → generation on a live ComfyUI → review/approval → edit → MP4 export.</li>
+        <li>Compute planner and campaigns; backup/verify/restore; LAN pairing; model profiles; annotations.</li>
+        <li>Unit-tested core (blocking renderer, workflow bindings, ids, config) and a clean build/vet/test.</li>
+      </ul>
+      <p class="muted">Built from a full written specification; every capability above was exercised against a real local stack.</p>
+    </section>
+
+    <section>
+      <h2>Roadmap</h2>
+      <table>
+        <tr><th>Near</th><td>Wails packaging &amp; signing; bundled video (first/last) workflow; onboarding</td></tr>
+        <tr><th>Mid</th><td>Rented-worker and commercial-API adapters; multi-user review; workflow marketplace</td></tr>
+        <tr><th>Long</th><td>Hosted team coordinator; shared render campaigns; analytics on production outcomes</td></tr>
+      </table>
+    </section>
+
+    <section>
+      <h2>Risks &amp; mitigations</h2>
+      <table>
+        <tr><th>Risk</th><th>Mitigation</th></tr>
+        <tr><td>ComfyUI churn</td><td>Versioned, immutable graph snapshots; bindings not code</td></tr>
+        <tr><td>Model commoditisation</td><td>Value is production, provenance and compute — not any single model</td></tr>
+        <tr><td>Cloud incumbents</td><td>Local-first, privacy and cost control are structural, not features</td></tr>
+        <tr><td>Complexity for beginners</td><td>Progressive disclosure; blocking-first workflow works with zero model calls</td></tr>
+      </table>
+    </section>
+
+    <section class="center" data-background-color="#020617">
+      <h1>Own the workflow.<br/>Own the lineage.<br/>Own the economics.</h1>
+      <p class="muted">Next step: [your ask / contact / demo]</p>
+    </section>
+
+  </div>
+</div>
+<div class="foot">vid-build 0.01 — product &amp; investment overview</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: true,
+    progress: true,
+    controls: true,
+    center: false,
+    transition: "fade",
+    width: 1200,
+    height: 720,
+    margin: 0.06
+  });
+</script>
+</body>
+</html>

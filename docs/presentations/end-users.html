@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>vid-build 0.01 — For creators</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/night.css"/>
+  <link rel="stylesheet" href="deck.css"/>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+
+    <section class="center" data-background-color="#020617">
+      <p class="kicker">vid-build 0.01</p>
+      <h1>Direct the film.<br/>Don’t babysit the prompt.</h1>
+      <p class="muted">A local-first studio that takes one idea to a finished, multi-shot video — and keeps every human decision.</p>
+      <p><small>Developer notes: arrows / space to advance · <code>?</code> for help</small></p>
+    </section>
+
+    <section>
+      <h2>The problem with AI video today</h2>
+      <ul>
+        <li>An idea lives in your head, a doc, and a dozen prompt tabs.</li>
+        <li>You spend money on pixels <strong>before</strong> you know the film works.</li>
+        <li>Every generation is a slot machine — and its recipe is gone tomorrow.</li>
+        <li>You can’t answer: <em>which model, which settings, why did I keep this take?</em></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>What vid-build is</h2>
+      <div class="cols">
+        <div class="card">
+          <h3>A studio, not a prompt box</h3>
+          <ul>
+            <li>Brief → outline → storyboard → production → review → edit</li>
+            <li>Runs on <strong>your</strong> machine, over your models</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>You stay the director</h3>
+          <ul>
+            <li>AI proposes; you apply and approve</li>
+            <li>Nothing expensive or decisive happens silently</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>The path, left to right</h2>
+      <div class="flow">
+        <span class="step">Develop</span><span class="arrow">→</span>
+        <span class="step">Outline</span><span class="arrow">→</span>
+        <span class="step">Board</span><span class="arrow">→</span>
+        <span class="step">Produce</span><span class="arrow">→</span>
+        <span class="step">Review</span><span class="arrow">→</span>
+        <span class="step">Edit</span><span class="arrow">→</span>
+        <span class="step">Compute</span>
+      </div>
+      <p class="muted" style="margin-top:.6em">The order is increasing commitment. You can move freely; the studio shows what’s actually ready.</p>
+    </section>
+
+    <section>
+      <h2>Develop — from ambiguity to a decision</h2>
+      <ul>
+        <li>Write the premise, constraints and open questions.</li>
+        <li>Ask the built-in planner to reflect and refine — it <em>discusses</em>, it doesn’t change your project.</li>
+        <li>Request a <strong>brief proposal</strong>, then tick only the fields you accept.</li>
+      </ul>
+      <p class="muted">Conversation is evidence. The accepted brief is authority.</p>
+    </section>
+
+    <section>
+      <h2>Outline — decide what the film says</h2>
+      <ul>
+        <li>Sections, scenes and shots — ordered, reorderable.</li>
+        <li>Every shot carries a <strong>purpose</strong> and a required <strong>visible change</strong>.</li>
+        <li>Duration budgets keep the total honest, before any rendering.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Board — see the film before the pixels</h2>
+      <p>Each shot card shows <strong>START&nbsp;·&nbsp;CHANGE&nbsp;·&nbsp;END</strong>.</p>
+      <ul>
+        <li>Blocking is a <em>structured sketch</em>, drawn instantly as SVG — no model call.</li>
+        <li>The end must visibly pay off the start.</li>
+        <li>Readiness badges tell you what’s missing.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Blocking — stage the shot cheaply</h2>
+      <div class="cols">
+        <div class="card">
+          <h3>Paired editor</h3>
+          <ul><li>Start and end side by side</li><li>Move subjects, gaze, props, camera</li></ul>
+        </div>
+        <div class="card">
+          <h3>Change analysis</h3>
+          <ul><li>Flags pose, position, gaze, prop, camera differences</li><li>Warns when nothing changes</li></ul>
+        </div>
+      </div>
+      <p class="muted">Ask the planner for a blocking proposal if you want a starting point.</p>
+    </section>
+
+    <section>
+      <h2>Prompt workbench — layers, not spaghetti</h2>
+      <ul>
+        <li>Separate layers: project style, character, location, motion, experiments.</li>
+        <li>Each layer is <strong>inherit / append / replace / suppress / lock</strong>.</li>
+        <li>See the <em>exact compiled prompt</em> before anything runs.</li>
+        <li>First-frame and last-frame text are always kept separate.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Produce — spend deliberately</h2>
+      <ul>
+        <li>Freeze the current specification into a request.</li>
+        <li>Choose candidates, quality tier, seed policy, model profile.</li>
+        <li>Run <strong>locally now</strong>, or save it for a planned <strong>campaign</strong>.</li>
+      </ul>
+      <p class="muted">Blocking and concepts are cheap. Final renders are a decision, not a default.</p>
+    </section>
+
+    <section>
+      <h2>Review — choose with evidence</h2>
+      <ul>
+        <li>Compare full-size candidates with a receipt: model, seed, workflow, time.</li>
+        <li><strong>Select</strong> the take you want; <strong>approve</strong>, reject, or approve with a recorded exception.</li>
+        <li>Automated assessments are advice. The approval is yours.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Edit &amp; export — assemble the cut</h2>
+      <ul>
+        <li>Order approved clips, trim, choose cut / fade / dissolve.</li>
+        <li>Validate, then export a single MP4 with a receipt linking back to the source assets.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Compute planner — where should this run?</h2>
+      <ul>
+        <li>Estimates from <em>your measured</em> runs, not marketing numbers.</li>
+        <li>Compare local GPU, rented workers and APIs.</li>
+        <li>Bundle ready work into a campaign, preflight it, launch, then reconcile actual cost.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>On your phone</h2>
+      <ul>
+        <li>Pair a phone or tablet over LAN with a short-lived, single-use code.</li>
+        <li>Review, comment and approve on the couch.</li>
+        <li>Each device has its own revocable session. Disable anytime.</li>
+      </ul>
+      <p class="muted">Your local models stay private — the device talks to vid-build, never to ComfyUI.</p>
+    </section>
+
+    <section>
+      <h2>What it will never do silently</h2>
+      <div class="cols">
+        <div class="card">
+          <h3 class="bad">Never</h3>
+          <ul>
+            <li>Replace your brief or outline</li>
+            <li>Approve or select a take for you</li>
+            <li>Spend on rentals or APIs</li>
+            <li>Overwrite a generation</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3 class="ok">Always</h3>
+          <ul>
+            <li>Show what changed and why</li>
+            <li>Keep every attempt as history</li>
+            <li>Ask before expensive work</li>
+            <li>Attribute decisions to you</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Getting started</h2>
+      <pre><code class="language-bash">git clone &lt;repo&gt;
+cd vid_builder
+cp config.example.json config.json
+templ generate
+go run ./cmd/vidbuild -open</code></pre>
+      <p>Then sign in and create your first project. That’s it — idea to film, one visible change at a time.</p>
+    </section>
+
+    <section class="center" data-background-color="#020617">
+      <h1>Make the film you can already see.</h1>
+      <p class="muted">vid-build 0.01</p>
+    </section>
+
+  </div>
+</div>
+<div class="foot">vid-build 0.01 — developer deck</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: true,
+    progress: true,
+    controls: true,
+    center: false,
+    transition: "slide",
+    width: 1200,
+    height: 720,
+    margin: 0.06
+  });
+</script>
+</body>
+</html>

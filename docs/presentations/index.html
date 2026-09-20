@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>vid-build 0.01 — presentations</title>
+  <style>
+    :root { --accent:#7dd3fc; --accent2:#fbbf24; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center;
+           background:#020617; color:#e5e7eb;
+           font-family: system-ui, "Segoe UI", Roboto, sans-serif; }
+    .wrap { max-width: 900px; padding: 40px 24px; }
+    h1 { font-size: 2.2rem; margin: 0 0 .2em; letter-spacing:-.02em; }
+    .sub { color:#94a3b8; margin-bottom: 2rem; }
+    .grid { display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    a.card { display:block; text-decoration:none; color:inherit;
+             background: rgba(148,163,184,.10); border:1px solid rgba(148,163,184,.25);
+             border-radius:14px; padding:20px; transition: transform .12s ease, border-color .12s ease; }
+    a.card:hover { transform: translateY(-3px); border-color: var(--accent); }
+    a.card h2 { margin:.1em 0 .4em; font-size:1.15rem; color:#f8fafc; }
+    a.card p { margin:0; color:#94a3b8; font-size:.92rem; line-height:1.4; }
+    .tag { display:inline-block; font-size:.7rem; letter-spacing:.14em; text-transform:uppercase;
+           color:var(--accent); border:1px solid var(--accent); border-radius:999px; padding:.15em .6em; }
+    footer { margin-top:2rem; color:#64748b; font-size:.8rem; }
+    code { color:#e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>vid-build <span style="color:var(--accent)">0.01</span></h1>
+    <p class="sub">Choose a deck. Each is a self-contained <code>reveal.js</code> presentation.</p>
+    <div class="grid">
+      <a class="card" href="end-users.html">
+        <span class="tag">Creators</span>
+        <h2>For end users</h2>
+        <p>What it does and the day-to-day path: develop, outline, board, produce, review, edit.</p>
+      </a>
+      <a class="card" href="system.html">
+        <span class="tag">Engineers</span>
+        <h2>System overview</h2>
+        <p>How it works: architecture, data model, workflow bindings, the endpoint invariant, security, recovery.</p>
+      </a>
+      <a class="card" href="investors.html">
+        <span class="tag">Product &amp; investors</span>
+        <h2>Why it matters</h2>
+        <p>Problem, insight, differentiation, compute economics, moat, status and roadmap.</p>
+      </a>
+    </div>
+    <footer>Tip: press <code>S</code> for speaker view (serve over HTTP), <code>?</code> for shortcuts, <code>Esc</code> for the slide overview.</footer>
+  </div>
+</body>
+</html>
