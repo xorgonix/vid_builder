@@ -12,7 +12,9 @@ import (
 	"log/slog"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"vidbuild/internal/backup"
@@ -169,6 +171,16 @@ func (w *Worker) processGeneration(ctx context.Context, job *store.Job) error {
 		return fmt.Errorf("worker: ensure target: %w", err)
 	}
 
+	// Memory coordination (spec §19.4): free the planner's GPU memory before
+	// local GPU work. The action and any failure are recorded on the job.
+	if msg, failed := w.freePlannerMemory(ctx); msg != "" {
+		level := "info"
+		if failed {
+			level = "warn"
+		}
+		_ = w.store.UpdateJobState(ctx, job.ID, "running", "memory", level, msg, 800)
+	}
+
 	// Preflight: capability check before submitting anything (spec §18.1).
 	if err := w.store.UpdateJobState(ctx, job.ID, "running", "validate", "info", "Probing ComfyUI capabilities", 1000); err != nil {
 		return err
@@ -213,6 +225,13 @@ func (w *Worker) processGeneration(ctx context.Context, job *store.Job) error {
 	}
 	_ = w.store.SetRequestStatus(ctx, req.ID, "completed")
 	_ = w.store.EmitDomainEvent(ctx, job.WorkspaceID, "generation_request", req.ID, "generation.completed", "{}")
+	if msg, failed := w.reloadPlannerMemory(ctx); msg != "" {
+		level := "info"
+		if failed {
+			level = "warn"
+		}
+		_ = w.store.UpdateJobState(ctx, job.ID, "running", "memory", level, msg, 9900)
+	}
 	return w.store.UpdateJobState(ctx, job.ID, "succeeded", "persist", "info", fmt.Sprintf("%d candidate(s) produced", succeeded), 10000)
 }
 
@@ -458,6 +477,57 @@ func hasBinding(bindings []workflows.Binding, field string) bool {
 		}
 	}
 	return false
+}
+
+// freePlannerMemory unloads the configured planner instances before local GPU
+// work. Returns a job-event message and whether the action failed.
+func (w *Worker) freePlannerMemory(ctx context.Context) (string, bool) {
+	if !w.cfg.LLM.Enabled || !w.cfg.LLM.UnloadBeforeGPU || strings.TrimSpace(w.cfg.LLM.UnloadCommand) == "" {
+		return "", false
+	}
+	out, err := runConfiguredCommand(ctx, w.cfg.LLM.UnloadCommand)
+	if err != nil {
+		w.log.Warn("memory coordination: unload failed", "err", err)
+		return "Memory coordination: could not unload the planner: " + err.Error(), true
+	}
+	return "Memory coordination: freed planner GPU memory before local work" + summarize(out), false
+}
+
+// reloadPlannerMemory optionally reloads the planner after GPU work. When no
+// reload command is configured the planner loads on demand at the next request.
+func (w *Worker) reloadPlannerMemory(ctx context.Context) (string, bool) {
+	if !w.cfg.LLM.Enabled || strings.TrimSpace(w.cfg.LLM.ReloadCommand) == "" {
+		return "", false
+	}
+	out, err := runConfiguredCommand(ctx, w.cfg.LLM.ReloadCommand)
+	if err != nil {
+		w.log.Warn("memory coordination: reload failed", "err", err)
+		return "Memory coordination: planner reload failed: " + err.Error(), true
+	}
+	return "Memory coordination: planner reloaded" + summarize(out), false
+}
+
+func runConfiguredCommand(ctx context.Context, commandLine string) (string, error) {
+	fields := strings.Fields(commandLine)
+	if len(fields) == 0 {
+		return "", nil
+	}
+	cctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(cctx, fields[0], fields[1:]...)
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+func summarize(out string) string {
+	out = strings.TrimSpace(out)
+	if out == "" {
+		return ""
+	}
+	if len(out) > 200 {
+		out = out[:200]
+	}
+	return ": " + out
 }
 
 // processPackage builds a portable project package (spec §12.3, §20).

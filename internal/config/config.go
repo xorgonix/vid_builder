@@ -62,6 +62,9 @@ type LLMConfig struct {
 	MaxTokens           int     `json:"max_tokens"`
 	RequestTimeoutSec   int     `json:"request_timeout_seconds"`
 	PlannerSystemPrompt string  `json:"planner_system_prompt"`
+	UnloadBeforeGPU     bool    `json:"unload_before_gpu"`
+	UnloadCommand       string  `json:"unload_command"`
+	ReloadCommand       string  `json:"reload_command"`
 }
 
 type ComfyUIConfig struct {
@@ -114,6 +117,7 @@ func Default() *Config {
 			Model:       "qwen3.5-9b-uncensored-hauhaucs-aggressive",
 			Temperature: 0.7, MaxTokens: 8192, RequestTimeoutSec: 180,
 			PlannerSystemPrompt: "You are vid-build's planner, a video pre-production assistant. You help creators develop briefs, outlines, shot lists, prompts and blocking. You propose; you never decide. Always respond with the requested structured JSON and nothing else.",
+			UnloadCommand:       "lms unload --all",
 		},
 		ComfyUI:  ComfyUIConfig{Enabled: false, BaseURL: "http://127.0.0.1:8188", RequestTimeoutSec: 30, PollIntervalMs: 1000},
 		FFmpeg:   FFmpegConfig{Enabled: false, BinaryPath: "ffmpeg", RequestTimeoutSec: 600},

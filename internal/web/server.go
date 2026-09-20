@@ -99,6 +99,7 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/assets/{assetID}", s.handleAssetFile)
 		r.Get("/settings/local-services", s.handleLocalServices)
 		r.With(s.csrfProtect).Post("/settings/local-services/test", s.handleTestLocalServices)
+		r.With(s.csrfProtect).Post("/settings/local-services/unload", s.handleUnloadPlanner)
 		r.Get("/app/capabilities", s.handleCapabilities)
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(s.requireSystemAdmin)

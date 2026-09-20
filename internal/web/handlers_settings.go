@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"vidbuild/internal/backup"
@@ -39,15 +40,37 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 // LocalServicesData backs the local-services settings page.
 func localServicesData(s *Server, r *http.Request) templates.LocalServicesData {
 	data := templates.LocalServicesData{
-		Shell:       s.shell(r, "Local services"),
-		LLMModel:    s.cfg.LLM.Model,
-		LLMBase:     s.cfg.LLM.BaseURL,
-		ComfyBase:   s.cfg.ComfyUI.BaseURL,
-		FFmpegBin:   s.cfg.FFmpeg.BinaryPath,
-		LLMEnabled:  s.cfg.LLM.Enabled,
-		ComfyEnable: s.cfg.ComfyUI.Enabled,
+		Shell:           s.shell(r, "Local services"),
+		LLMModel:        s.cfg.LLM.Model,
+		LLMBase:         s.cfg.LLM.BaseURL,
+		ComfyBase:       s.cfg.ComfyUI.BaseURL,
+		FFmpegBin:       s.cfg.FFmpeg.BinaryPath,
+		LLMEnabled:      s.cfg.LLM.Enabled,
+		ComfyEnable:     s.cfg.ComfyUI.Enabled,
+		UnloadBeforeGPU: s.cfg.LLM.UnloadBeforeGPU,
+		UnloadCommand:   s.cfg.LLM.UnloadCommand,
 	}
 	return data
+}
+
+// handleUnloadPlanner runs the configured unload command on demand.
+func (s *Server) handleUnloadPlanner(w http.ResponseWriter, r *http.Request) {
+	cmdline := strings.TrimSpace(s.cfg.LLM.UnloadCommand)
+	if cmdline == "" {
+		http.Redirect(w, r, "/settings/local-services?msg="+urlMsg("No unload command configured.")+"&kind=error", http.StatusSeeOther)
+		return
+	}
+	fields := strings.Fields(cmdline)
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, fields[0], fields[1:]...).CombinedOutput()
+	if err != nil {
+		s.log.Warn("unload planner", "err", err)
+		http.Redirect(w, r, "/settings/local-services?msg="+urlMsg("Unload failed: "+err.Error())+"&kind=error", http.StatusSeeOther)
+		return
+	}
+	_ = out
+	http.Redirect(w, r, "/settings/local-services?msg="+urlMsg("Planner memory freed.")+"&kind=success", http.StatusSeeOther)
 }
 
 func (s *Server) handleLocalServices(w http.ResponseWriter, r *http.Request) {

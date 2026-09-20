@@ -794,13 +794,15 @@ type CampaignPageData struct {
 
 // LocalServicesData backs the local-services settings page.
 type LocalServicesData struct {
-	Shell       ShellData
-	LLMModel    string
-	LLMBase     string
-	ComfyBase   string
-	FFmpegBin   string
-	LLMEnabled  bool
-	ComfyEnable bool
+	Shell           ShellData
+	LLMModel        string
+	LLMBase         string
+	ComfyBase       string
+	FFmpegBin       string
+	LLMEnabled      bool
+	ComfyEnable     bool
+	UnloadBeforeGPU bool
+	UnloadCommand   string
 }
 
 // DiagnosticsData backs the diagnostics page.

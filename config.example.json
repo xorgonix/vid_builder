@@ -24,7 +24,10 @@
     "temperature": 0.7,
     "max_tokens": 8192,
     "request_timeout_seconds": 180,
-    "planner_system_prompt": "You are vid-build's planner, a video pre-production assistant. You help creators develop briefs, outlines, shot lists, prompts and blocking. You propose; you never decide. Always respond with the requested structured JSON and nothing else."
+    "planner_system_prompt": "You are vid-build's planner, a video pre-production assistant. You help creators develop briefs, outlines, shot lists, prompts and blocking. You propose; you never decide. Always respond with the requested structured JSON and nothing else.",
+    "unload_before_gpu": true,
+    "unload_command": "lms unload --all",
+    "reload_command": ""
   },
   "comfyui": {
     "enabled": true,
