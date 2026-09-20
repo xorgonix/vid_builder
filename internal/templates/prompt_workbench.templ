@@ -1,0 +1,113 @@
+package templates
+
+templ PromptWorkbenchPage(data PromptWorkbenchData) {
+	@shell(data.Shell, promptWorkbenchBody(data))
+}
+
+templ promptWorkbenchBody(data PromptWorkbenchData) {
+	<script src="/static/prompt.js" defer></script>
+	<div class="max-w-5xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Prompt workbench · { data.KindLabel }</h1>
+				<p class="opacity-70 text-sm">{ data.Shot.Title } — edit layered creative instructions without touching node wiring.</p>
+			</div>
+			<div class="flex gap-1">
+				@kindTab(data, "start_frame", "Start")
+				@kindTab(data, "end_frame", "End")
+				@kindTab(data, "motion", "Motion")
+				<a class="btn btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID) }>Shot</a>
+			</div>
+		</div>
+
+		<div class="card bg-base-100 shadow mb-4">
+			<div class="card-body">
+				<h2 class="card-title text-base">Inherited context (project)</h2>
+				<p class="text-sm font-mono opacity-80 whitespace-pre-wrap">{ data.BasePositive }</p>
+				<p class="text-xs opacity-60">From the accepted brief's visual style and active project style rules.</p>
+			</div>
+		</div>
+
+		<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/prompt-workbench") } class="card bg-base-100 shadow">
+			<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+			<input type="hidden" name="kind" value={ data.Kind }/>
+			<input type="hidden" name="layers_count" class="layers-count" value={ itoaT(len(data.Layers)) }/>
+			<div class="card-body">
+				<div class="flex items-center justify-between">
+					<h2 class="card-title text-base">Layers</h2>
+					<button type="button" class="btn btn-xs add-layer" data-scopes={ joinScopes(data.Scopes) } data-modes={ joinScopes(data.Modes) }>+ Add layer</button>
+				</div>
+				<div class="grid grid-cols-12 gap-2 text-xs uppercase opacity-60">
+					<span class="col-span-3">Scope</span><span class="col-span-2">Mode</span><span class="col-span-5">Text</span><span class="col-span-2"></span>
+				</div>
+				<div class="layer-rows">
+					for i, l := range data.Layers {
+						<div class="layer-row grid grid-cols-12 gap-2 items-start border-b border-base-300 py-2">
+							<select class="select select-bordered select-xs col-span-3" name={ "scope_" + itoaT(i) }>
+								for _, s := range data.Scopes {
+									@scopeOption(s, l.Scope)
+								}
+							</select>
+							<select class="select select-bordered select-xs col-span-2" name={ "mode_" + itoaT(i) }>
+								for _, m := range data.Modes {
+									@scopeOption(m, l.Mode)
+								}
+							</select>
+							<textarea class="textarea textarea-bordered text-xs col-span-5" name={ "text_" + itoaT(i) } rows="2">{ l.Text }</textarea>
+							<label class="col-span-1 flex items-center gap-1 text-xs"><input type="checkbox" class="checkbox checkbox-xs" name={ "locked_" + itoaT(i) } checked?={ l.Locked }/>lock</label>
+							<button type="button" class="btn btn-xs btn-ghost col-span-1 remove-layer">✕</button>
+						</div>
+					}
+				</div>
+				<div class="flex gap-2 mt-3">
+					<button class="btn btn-sm" type="button" hx-post={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/prompt-preview") } hx-target="#prompt-compiled" hx-include="closest form">Compile preview</button>
+					<button class="btn btn-sm btn-primary" type="submit">Save as new specification version</button>
+				</div>
+			</div>
+		</form>
+
+		<div id="prompt-compiled" class="mt-4">
+			@CompiledPreviewFragment(data.CompiledPositive, data.CompiledNegative, data.Applied)
+		</div>
+	</div>
+}
+
+templ CompiledPreviewFragment(positive, negative string, applied []string) {
+	<div class="card bg-base-100 shadow">
+		<div class="card-body">
+			<h2 class="card-title text-base">Compiled fields</h2>
+			<div>
+				<div class="text-xs uppercase opacity-60 mb-1">Positive</div>
+				<pre class="text-xs whitespace-pre-wrap bg-base-200 rounded p-2">{ positive }</pre>
+			</div>
+			<div class="mt-2">
+				<div class="text-xs uppercase opacity-60 mb-1">Negative</div>
+				<pre class="text-xs whitespace-pre-wrap bg-base-200 rounded p-2">{ negative }</pre>
+			</div>
+			<div class="text-xs opacity-60 mt-2">Applied: { joinScopes(applied) }</div>
+		</div>
+	</div>
+}
+
+templ kindTab(data PromptWorkbenchData, kind, label string) {
+	<a class={ "btn btn-sm", templ.KV("btn-active", data.Kind == kind) } href={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/prompt-workbench?kind=" + kind) }>{ label }</a>
+}
+
+templ scopeOption(value, current string) {
+	if value == current {
+		<option value={ value } selected="selected">{ value }</option>
+	} else {
+		<option value={ value }>{ value }</option>
+	}
+}
+
+func joinScopes(list []string) string {
+	out := ""
+	for i, s := range list {
+		if i > 0 {
+			out += ","
+		}
+		out += s
+	}
+	return out
+}

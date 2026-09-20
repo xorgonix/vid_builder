@@ -17,6 +17,7 @@ templ shotBody(data ShotDetailData) {
 			</div>
 			<div class="flex gap-2">
 				<a class="btn btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/board") }>Board</a>
+				<a class="btn btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/prompt-workbench") }>Prompt workbench</a>
 				<a class="btn btn-sm btn-primary" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/blocking") }>Blocking editor</a>
 			</div>
 		</div>

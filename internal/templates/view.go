@@ -618,6 +618,34 @@ type PackageData struct {
 	Latest     *AssetView
 }
 
+// LayerView is one editable prompt layer.
+type LayerView struct {
+	Scope  string
+	Mode   string
+	Text   string
+	Locked bool
+}
+
+// PromptWorkbenchData backs the layered prompt workbench.
+type PromptWorkbenchData struct {
+	Shell            ShellData
+	Project          ProjectView
+	Video            VideoView
+	Shot             ShotNode
+	Kind             string
+	KindLabel        string
+	BasePositive     string
+	BaseNegative     string
+	Layers           []LayerView
+	Scopes           []string
+	Modes            []string
+	Positive         string
+	Negative         string
+	CompiledPositive string
+	CompiledNegative string
+	Applied          []string
+}
+
 // EditItemView is one clip in an edit.
 type EditItemView struct {
 	ID            string

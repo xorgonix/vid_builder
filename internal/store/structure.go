@@ -337,6 +337,56 @@ func (s *Store) UpdateSpec(ctx context.Context, shotID, userID, kind, positive, 
 	return next, prev, nil
 }
 
+// GetPromptLayers returns the current spec's prompt layers JSON for a kind.
+func (s *Store) GetPromptLayers(ctx context.Context, shotID, kind string) (string, error) {
+	var raw string
+	err := s.QueryRowContext(ctx, `SELECT prompt_layers_json FROM shot_specs WHERE shot_id=? AND kind=? AND superseded_at IS NULL`, shotID, kind).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "[]", nil
+	}
+	if err != nil {
+		return "[]", err
+	}
+	if raw == "" {
+		return "[]", nil
+	}
+	return raw, nil
+}
+
+// SaveSpecWithLayers supersedes the current spec and writes a new version that
+// carries both the compiled prompts and the source layers.
+func (s *Store) SaveSpecWithLayers(ctx context.Context, shotID, userID, kind, positive, negative, layersJSON string) (*ShotSpec, error) {
+	now := db.Now()
+	tx, err := s.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	var prevID string
+	var prevVersion int
+	err = tx.QueryRowContext(ctx, `SELECT id, version FROM shot_specs WHERE shot_id=? AND kind=? AND superseded_at IS NULL`, shotID, kind).Scan(&prevID, &prevVersion)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	if err == nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE shot_specs SET superseded_at=? WHERE id=?`, now, prevID); err != nil {
+			return nil, err
+		}
+	}
+	if layersJSON == "" {
+		layersJSON = "[]"
+	}
+	next := &ShotSpec{ID: ids.New(), ShotID: shotID, Kind: kind, PositivePrompt: positive, NegativePrompt: negative, StructuredSpecJSON: "{}", ContinuityJSON: "{}", ModelPreferencesJSON: "{}", Version: prevVersion + 1, CreatedAt: now}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO shot_specs (id, shot_id, kind, positive_prompt, negative_prompt, structured_spec_json, continuity_json, model_preferences_json, prompt_layers_json, version, created_by_user_id, created_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, next.ID, shotID, kind, positive, negative, "{}", "{}", "{}", layersJSON, next.Version, userID, now); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return next, nil
+}
+
 // RecomputeShotReadiness derives readiness from current specs (basic version;
 // blocking/endpoint rules extend this in Phase 3/4).
 func (s *Store) RecomputeShotReadiness(ctx context.Context, shotID string) (string, error) {
