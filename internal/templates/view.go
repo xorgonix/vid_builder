@@ -486,10 +486,23 @@ type ReviewGroup struct {
 
 // ReviewData backs the Review screen.
 type ReviewData struct {
-	Shell   ShellData
-	Project ProjectView
-	Video   VideoView
-	Groups  []ReviewGroup
+	Shell       ShellData
+	Project     ProjectView
+	Video       VideoView
+	Groups      []ReviewGroup
+	Annotations []AnnotationView
+}
+
+// AnnotationView is a review note.
+type AnnotationView struct {
+	ID        string
+	Body      string
+	Status    string
+	Author    string
+	CreatedAt string
+	ShotID    string
+	ShotTitle string
+	AssetID   string
 }
 
 // WorkflowView is a workflow package row.

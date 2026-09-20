@@ -46,7 +46,60 @@ templ reviewBody(data ReviewData) {
 				</div>
 			}
 		</div>
+
+		<div class="card bg-base-100 shadow mt-6">
+			<div class="card-body">
+				<h2 class="card-title text-base">Annotations</h2>
+				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/annotations") } class="flex flex-col sm:flex-row gap-2 items-end">
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<label class="form-control flex-1"><span class="label-text mb-1">Actionable observation</span><input class="input input-bordered input-sm w-full" name="body" placeholder="e.g. continuity: apron colour differs from shot 2" required/></label>
+					<label class="form-control"><span class="label-text mb-1">Shot (optional)</span>
+						<select class="select select-bordered select-sm" name="shot_id">
+							<option value="">—</option>
+							for _, g := range data.Groups {
+								<option value={ g.ShotID }>{ g.ShotTitle } · { g.RoleLabel }</option>
+							}
+						</select>
+					</label>
+					<button class="btn btn-sm btn-primary" type="submit">Add</button>
+				</form>
+				<ul class="divide-y divide-base-300 mt-2">
+					for _, a := range data.Annotations {
+						<li class="py-2 flex items-start gap-2">
+							<span class={ "badge badge-sm", annotationStatusClass(a.Status) }>{ a.Status }</span>
+							<div class="flex-1">
+								<div class="text-sm">{ a.Body }</div>
+								<div class="text-xs opacity-60">{ a.Author }
+									if a.ShotTitle != "" {
+										· { a.ShotTitle }
+									}
+									· { a.CreatedAt }
+								</div>
+							</div>
+							if a.Status == "open" {
+								<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/annotations/" + a.ID) }>
+									<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+									<input type="hidden" name="_method" value="PATCH"/>
+									<input type="hidden" name="status" value="resolved"/>
+									<button class="btn btn-xs" type="submit">Resolve</button>
+								</form>
+							}
+						</li>
+					}
+					if len(data.Annotations) == 0 {
+						<li class="py-2 text-sm opacity-60">No annotations yet.</li>
+					}
+				</ul>
+			</div>
+		</div>
 	</div>
+}
+
+func annotationStatusClass(status string) string {
+	if status == "resolved" {
+		return "badge-success"
+	}
+	return "badge-warning"
 }
 
 templ assetCard(data ReviewData, g ReviewGroup, a AssetView) {

@@ -16,6 +16,8 @@ func (s *Server) handleReview(w http.ResponseWriter, r *http.Request) {
 	shell.ActiveNav = "review"
 	data := templates.ReviewData{Shell: shell, Project: toProjectView(project), Video: toVideoView(video)}
 	data.Groups = s.reviewGroups(r, video.ID)
+	annotations, _ := s.store.ListAnnotationsForVideo(r.Context(), video.ID)
+	data.Annotations = s.annotationViews(r, annotations)
 	if m := r.URL.Query().Get("msg"); m != "" {
 		data.Shell.Flash = m
 		data.Shell.FlashKind = r.URL.Query().Get("kind")

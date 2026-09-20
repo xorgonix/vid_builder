@@ -166,6 +166,8 @@ func (s *Server) Handler() http.Handler {
 				r.Post("/shots/{shotID}/selections", s.handleSelectAsset)
 				r.Post("/assets/{assetID}/approvals", s.handleApprove)
 				r.Post("/assets/{assetID}/assessments", s.handleAssess)
+				r.Post("/annotations", s.handleCreateAnnotation)
+				r.Patch("/annotations/{annotationID}", s.handleUpdateAnnotation)
 				r.Get("/edit", s.handleEdit)
 				r.Post("/edits/{editID}/items", s.handleAddEditItem)
 				r.Patch("/edit-items/{itemID}", s.handleUpdateEditItem)
