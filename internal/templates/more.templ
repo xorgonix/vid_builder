@@ -26,6 +26,12 @@ templ moreBody(data MoreData) {
 					<p class="text-sm opacity-70">LM Studio, ComfyUI and FFmpeg configuration.</p>
 				</div>
 			</a>
+			<a class="card bg-base-100 shadow hover:bg-base-300/40" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/diagnostics") }>
+				<div class="card-body">
+					<h2 class="card-title text-base">Diagnostics</h2>
+					<p class="text-sm opacity-70">Database, media, worker and adapter health.</p>
+				</div>
+			</a>
 			<a class="card bg-base-100 shadow hover:bg-base-300/40" href={ templ.URL(data.Shell.VideoBase() + "/develop") }>
 				<div class="card-body">
 					<h2 class="card-title text-base">Brief history</h2>

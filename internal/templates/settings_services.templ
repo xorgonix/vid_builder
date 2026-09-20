@@ -1,0 +1,78 @@
+package templates
+
+templ LocalServicesPage(data LocalServicesData) {
+	@shell(data.Shell, localServicesBody(data))
+}
+
+templ localServicesBody(data LocalServicesData) {
+	<div class="max-w-3xl mx-auto">
+		<h1 class="text-2xl font-bold mb-1">Local services</h1>
+		<p class="opacity-70 text-sm mb-4">Occasional machine setup. All services are reached over loopback; Mark 2 never exposes ComfyUI publicly.</p>
+		<div class="card bg-base-100 shadow mb-4">
+			<div class="card-body">
+				<table class="table table-sm">
+					<thead><tr><th>Service</th><th>Endpoint</th><th>State</th></tr></thead>
+					<tbody>
+						<tr><td>LM Studio</td><td class="font-mono text-xs">{ data.LLMBase }</td><td>@onOff(data.LLMEnabled)</td></tr>
+						<tr><td>ComfyUI</td><td class="font-mono text-xs">{ data.ComfyBase }</td><td>@onOff(data.ComfyEnable)</td></tr>
+						<tr><td>FFmpeg</td><td class="font-mono text-xs">{ data.FFmpegBin }</td><td><span class="badge badge-ghost badge-sm">on PATH</span></td></tr>
+					</tbody>
+				</table>
+				<p class="text-xs opacity-60 mt-2">Planner model: <span class="font-mono">{ data.LLMModel }</span></p>
+				<form method="post" action="/settings/local-services/test" class="mt-3">
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<button class="btn btn-sm btn-primary" type="submit">Probe all services</button>
+				</form>
+			</div>
+		</div>
+	</div>
+}
+
+templ onOff(on bool) {
+	if on {
+		<span class="badge badge-success badge-sm">enabled</span>
+	} else {
+		<span class="badge badge-ghost badge-sm">disabled</span>
+	}
+}
+
+templ DiagnosticsPage(data DiagnosticsData) {
+	@shell(data.Shell, diagnosticsBody(data))
+}
+
+templ diagnosticsBody(data DiagnosticsData) {
+	<div class="max-w-3xl mx-auto">
+		<h1 class="text-2xl font-bold mb-1">Diagnostics</h1>
+		<p class="opacity-70 text-sm mb-4">Translate technical failure into actionable production language.</p>
+		<div class="grid gap-4 sm:grid-cols-3 mb-4">
+			<div class="stat bg-base-100 rounded-box shadow"><div class="stat-title">Queued jobs</div><div class="stat-value text-2xl">{ data.JobsQueued }</div></div>
+			<div class="stat bg-base-100 rounded-box shadow"><div class="stat-title">Running</div><div class="stat-value text-2xl">{ data.JobsRunning }</div></div>
+			<div class="stat bg-base-100 rounded-box shadow"><div class="stat-title">Failed jobs</div><div class="stat-value text-2xl">{ data.JobsFailed }</div></div>
+		</div>
+		<div class="card bg-base-100 shadow">
+			<div class="card-body">
+				<table class="table table-sm">
+					<tbody>
+						<tr><td>SQLite integrity</td><td>@okBadge(data.DBIntegrity == "ok") { data.DBIntegrity }</td></tr>
+						<tr><td>Foreign-key violations</td><td>@okBadge(data.FKViolations == 0) { itoaT(data.FKViolations) }</td></tr>
+						<tr><td>Journal mode</td><td>{ data.JournalMode }</td></tr>
+						<tr><td>Media root</td><td>@okBadge(data.MediaRootOK)</td></tr>
+						<tr><td>Assets</td><td>{ data.AssetCount }</td></tr>
+						<tr><td>Attempts</td><td>{ data.AttemptCount }</td></tr>
+						<tr><td>Failed observations</td><td>{ data.ObservationsFailed }</td></tr>
+						<tr><td>Platform</td><td>{ data.Platform }</td></tr>
+						<tr><td>Working directory</td><td class="font-mono text-xs">{ data.WorkingDir }</td></tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+}
+
+templ okBadge(ok bool) {
+	if ok {
+		<span class="badge badge-success badge-sm">ok</span>
+	} else {
+		<span class="badge badge-error badge-sm">check</span>
+	}
+}

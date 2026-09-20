@@ -23,6 +23,14 @@ func New(client *llm.Client) *Planner { return &Planner{client: client} }
 // Enabled reports whether the underlying LLM is configured.
 func (p *Planner) Enabled() bool { return p != nil && p.client != nil }
 
+// Health checks the configured LM Studio server and model.
+func (p *Planner) Health(ctx context.Context) error {
+	if !p.Enabled() {
+		return fmt.Errorf("planner: LLM disabled")
+	}
+	return p.client.Ping(ctx)
+}
+
 // Reply asks the planner to respond in conversation (no mutation).
 func (p *Planner) Reply(ctx context.Context, projectContext string, history []llm.Message) (string, error) {
 	if !p.Enabled() {

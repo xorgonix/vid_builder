@@ -27,13 +27,13 @@
     "planner_system_prompt": "You are vid-build's planner, a video pre-production assistant. You help creators develop briefs, outlines, shot lists, prompts and blocking. You propose; you never decide. Always respond with the requested structured JSON and nothing else."
   },
   "comfyui": {
-    "enabled": false,
+    "enabled": true,
     "base_url": "http://127.0.0.1:8188",
     "request_timeout_seconds": 30,
     "poll_interval_ms": 1000
   },
   "ffmpeg": {
-    "enabled": false,
+    "enabled": true,
     "binary_path": "ffmpeg",
     "request_timeout_seconds": 600
   },

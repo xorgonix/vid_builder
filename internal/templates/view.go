@@ -628,6 +628,34 @@ type CampaignPageData struct {
 	CanLaunch bool
 }
 
+// LocalServicesData backs the local-services settings page.
+type LocalServicesData struct {
+	Shell       ShellData
+	LLMModel    string
+	LLMBase     string
+	ComfyBase   string
+	FFmpegBin   string
+	LLMEnabled  bool
+	ComfyEnable bool
+}
+
+// DiagnosticsData backs the diagnostics page.
+type DiagnosticsData struct {
+	Shell              ShellData
+	JobsQueued         int
+	JobsRunning        int
+	JobsFailed         int
+	ObservationsFailed int
+	AssetCount         int
+	AttemptCount       int
+	DBIntegrity        string
+	FKViolations       int
+	JournalMode        string
+	MediaRootOK        bool
+	WorkingDir         string
+	Platform           string
+}
+
 // OutlineData backs the Outline screen.
 type OutlineData struct {
 	Shell    ShellData

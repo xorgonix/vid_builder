@@ -9,7 +9,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -23,6 +25,7 @@ import (
 
 func main() {
 	configPath := flag.String("config", "config.json", "path to config.json")
+	openBrowser := flag.Bool("open", false, "open the application in the default browser after start")
 	flag.Parse()
 
 	cfg, err := config.LoadOrCreate(*configPath)
@@ -76,6 +79,12 @@ func main() {
 
 	go func() {
 		logger.Info("vid-build listening", "addr", "http://"+addr, "mode", cfg.Server.Mode)
+		if *openBrowser {
+			time.Sleep(400 * time.Millisecond)
+			if err := launchBrowser("http://" + addr); err != nil {
+				logger.Warn("could not open browser", "err", err)
+			}
+		}
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("http server", "err", err)
 			os.Exit(1)
@@ -90,6 +99,17 @@ func main() {
 	defer cancel()
 	_ = httpServer.Shutdown(ctx)
 	logger.Info("vid-build stopped")
+}
+
+func launchBrowser(url string) error {
+	switch runtime.GOOS {
+	case "windows":
+		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	case "darwin":
+		return exec.Command("open", url).Start()
+	default:
+		return exec.Command("xdg-open", url).Start()
+	}
 }
 
 func newLogger(cfg *config.Config) *slog.Logger {
