@@ -170,6 +170,23 @@ func (s *Server) handleGenerateForm(w http.ResponseWriter, r *http.Request) {
 		data.Shell.Flash = m
 		data.Shell.FlashKind = r.URL.Query().Get("kind")
 	}
+	// Endpoint-conditioned motion (spec §18.3).
+	if role == "motion" {
+		data.IsMotion = true
+		startA, errS := s.store.GetSelectedAsset(r.Context(), shot.ID, "start_frame")
+		endA, errE := s.store.GetSelectedAsset(r.Context(), shot.ID, "end_frame")
+		startOK := errS == nil && (s.store.EffectiveApproval(r.Context(), startA.ID) == "approve" || s.store.EffectiveApproval(r.Context(), startA.ID) == "approve_with_exception")
+		endOK := errE == nil && (s.store.EffectiveApproval(r.Context(), endA.ID) == "approve" || s.store.EffectiveApproval(r.Context(), endA.ID) == "approve_with_exception")
+		data.EndpointsReady = startOK && endOK
+		if !data.EndpointsReady {
+			data.EndpointNote = "Motion cannot start until both endpoints are selected and approved (or exception-approved)."
+		}
+		if version, err := s.store.GetWorkflowVersion(r.Context(), data.WorkflowID); err == nil {
+			if bs, err := s.store.ListBindings(r.Context(), version.ID); err == nil {
+				data.WorkflowSupportsEndpoints = hasEndpointBindings(bs)
+			}
+		}
+	}
 	s.renderPage(w, r, templates.GeneratePage(data))
 }
 
@@ -239,6 +256,27 @@ func (s *Server) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		"seed_policy": formValueOr(r, "seed_policy", "random"),
 		"checkpoint":  r.FormValue("checkpoint"),
 	}
+
+	// Endpoint-conditioned motion invariant (spec §18.3): no start-only fallback.
+	if role == "motion" && r.FormValue("requires_first_last") != "" {
+		startA, errS := s.store.GetSelectedAsset(r.Context(), shot.ID, "start_frame")
+		endA, errE := s.store.GetSelectedAsset(r.Context(), shot.ID, "end_frame")
+		if errS != nil || errE != nil {
+			http.Redirect(w, r, s.videoBase(r)+"/shots/"+shot.ID+"/generate/motion?msg="+urlMsg("Motion requires both endpoints selected.")+"&kind=error", http.StatusSeeOther)
+			return
+		}
+		if !approvedForMotion(s.store, r, startA.ID) || !approvedForMotion(s.store, r, endA.ID) {
+			http.Redirect(w, r, s.videoBase(r)+"/shots/"+shot.ID+"/generate/motion?msg="+urlMsg("Both endpoints must be approved or exception-approved before motion.")+"&kind=error", http.StatusSeeOther)
+			return
+		}
+		if bs, err := s.store.ListBindings(r.Context(), versionID); err != nil || !hasEndpointBindings(bs) {
+			http.Redirect(w, r, s.videoBase(r)+"/shots/"+shot.ID+"/generate/motion?msg="+urlMsg("The selected workflow does not declare first/last image bindings; choose an endpoint-capable workflow.")+"&kind=error", http.StatusSeeOther)
+			return
+		}
+		payload["requires_first_last"] = true
+		payload["first_frame_asset_id"] = startA.ID
+		payload["last_frame_asset_id"] = endA.ID
+	}
 	raw, _ := json.Marshal(payload)
 	user := UserFrom(r.Context())
 	ws := WorkspaceFrom(r.Context())
@@ -301,6 +339,18 @@ func (s *Server) handleJob(w http.ResponseWriter, r *http.Request) {
 		}
 		if a.ErrorMessage.Valid {
 			av.Error = a.ErrorMessage.String
+		}
+		if a.Status == "succeeded" {
+			if raw, err := s.store.GetAttemptBoundInputs(r.Context(), a.ID); err == nil && raw != "" {
+				var m map[string]any
+				if json.Unmarshal([]byte(raw), &m) == nil {
+					start := asStr(m["endpoint_start_checksum"])
+					end := asStr(m["endpoint_end_checksum"])
+					if start != "" || end != "" {
+						av.Endpoints = "start " + short8(start) + " · end " + short8(end)
+					}
+				}
+			}
 		}
 		data.Attempts = append(data.Attempts, av)
 	}
@@ -401,4 +451,34 @@ func (s *Server) handleWorkflows(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = ws
 	s.renderPage(w, r, templates.WorkflowsPage(data))
+}
+
+func hasEndpointBindings(bindings []store.WorkflowBinding) bool {
+	has := map[string]bool{}
+	for _, b := range bindings {
+		has[b.SemanticField] = true
+	}
+	return has["first_frame_asset"] && has["last_frame_asset"]
+}
+
+func approvedForMotion(st *store.Store, r *http.Request, assetID string) bool {
+	d := st.EffectiveApproval(r.Context(), assetID)
+	return d == "approve" || d == "approve_with_exception"
+}
+
+func asStr(v any) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+func short8(s string) string {
+	if len(s) <= 8 {
+		return s
+	}
+	return s[:8]
 }

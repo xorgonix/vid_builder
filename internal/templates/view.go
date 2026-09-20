@@ -405,25 +405,29 @@ type ProduceData struct {
 
 // GenerateData backs the generation request form.
 type GenerateData struct {
-	Shell           ShellData
-	Project         ProjectView
-	Video           VideoView
-	Shot            ShotNode
-	Role            string
-	RoleLabel       string
-	Positive        string
-	Negative        string
-	Width           int
-	Height          int
-	WorkflowID      string
-	WorkflowName    string
-	Workflows       []WorkflowOption
-	Checkpoints     []string
-	DefaultModel    string
-	ComfyReady      bool
-	ComfyError      string
-	SeedPolicy      string
-	RequirementsMet bool
+	Shell                     ShellData
+	Project                   ProjectView
+	Video                     VideoView
+	Shot                      ShotNode
+	Role                      string
+	RoleLabel                 string
+	Positive                  string
+	Negative                  string
+	Width                     int
+	Height                    int
+	WorkflowID                string
+	WorkflowName              string
+	Workflows                 []WorkflowOption
+	Checkpoints               []string
+	DefaultModel              string
+	ComfyReady                bool
+	ComfyError                string
+	SeedPolicy                string
+	RequirementsMet           bool
+	IsMotion                  bool
+	EndpointsReady            bool
+	EndpointNote              string
+	WorkflowSupportsEndpoints bool
 }
 
 // JobEventView is a job event line.
@@ -444,6 +448,7 @@ type AttemptView struct {
 	Model      string
 	DurationMs string
 	Error      string
+	Endpoints  string
 }
 
 // AssetView is an asset rendered in the UI.

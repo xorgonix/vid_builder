@@ -19,7 +19,7 @@ templ jobBody(data JobPageData) {
 		<h2 class="text-lg font-semibold mt-6 mb-2">Attempts</h2>
 		<div class="overflow-x-auto card bg-base-100 shadow">
 			<table class="table table-sm">
-				<thead><tr><th>#</th><th>Status</th><th>Seed</th><th>Model</th><th>Duration</th><th>Error</th></tr></thead>
+				<thead><tr><th>#</th><th>Status</th><th>Seed</th><th>Model</th><th>Endpoints</th><th>Duration</th><th>Error</th></tr></thead>
 				<tbody>
 					for _, a := range data.Attempts {
 						<tr>
@@ -27,6 +27,7 @@ templ jobBody(data JobPageData) {
 							<td><span class={ "badge badge-sm", jobStateClass(a.Status) }>{ a.Status }</span></td>
 							<td class="font-mono text-xs">{ a.Seed }</td>
 							<td class="text-xs">{ a.Model }</td>
+							<td class="font-mono text-xs">{ a.Endpoints }</td>
 							<td class="text-xs">{ a.DurationMs }</td>
 							<td class="text-xs text-error">{ a.Error }</td>
 						</tr>

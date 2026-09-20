@@ -100,6 +100,20 @@ templ generateBody(data GenerateData) {
 					</label>
 				</div>
 				<div class="alert alert-info text-xs"><span>This freezes the current spec revision. Attempts are immutable; rerendering creates new attempts.</span></div>
+				if data.IsMotion {
+					if data.EndpointsReady {
+						<div class="alert alert-success text-xs"><span>Both endpoints are selected and approved.</span></div>
+					} else {
+						<div class="alert alert-warning text-xs"><span>{ data.EndpointNote }</span></div>
+					}
+					if !data.WorkflowSupportsEndpoints {
+						<div class="alert alert-warning text-xs"><span>The selected workflow does not declare first_frame_asset / last_frame_asset bindings; endpoint-conditioned motion will be refused rather than silently degraded.</span></div>
+					}
+					<label class="label cursor-pointer justify-start gap-2">
+						<input type="checkbox" class="checkbox checkbox-sm" name="requires_first_last" checked="checked"/>
+						<span class="label-text">Require first + last frames (endpoint-conditioned motion)</span>
+					</label>
+				}
 				<div class="card-actions justify-end">
 					<button class="btn btn-primary" type="submit" disabled?={ !data.ComfyReady }>Queue generation request</button>
 				</div>

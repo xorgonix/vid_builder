@@ -89,6 +89,10 @@ type requestPayload struct {
 	SeedPolicy string         `json:"seed_policy"`
 	Checkpoint string         `json:"checkpoint"`
 	Layers     map[string]any `json:"layers"`
+
+	RequiresFirstLast bool   `json:"requires_first_last"`
+	FirstFrameAssetID string `json:"first_frame_asset_id"`
+	LastFrameAssetID  string `json:"last_frame_asset_id"`
 }
 
 func (w *Worker) process(ctx context.Context, job *store.Job) error {
@@ -220,6 +224,48 @@ func (w *Worker) runAttempt(ctx context.Context, job *store.Job, req *store.Gene
 	}
 	if payload.Checkpoint != "" {
 		values["model_name"] = payload.Checkpoint
+	}
+
+	// Endpoint-conditioned motion: both endpoints must be staged as inputs and
+	// the workflow must declare the bindings. There is no silent fallback
+	// (spec §18.3).
+	if payload.RequiresFirstLast {
+		if !hasBinding(bindings, "first_frame_asset") || !hasBinding(bindings, "last_frame_asset") {
+			return fmt.Errorf("workflow does not declare first_frame_asset and last_frame_asset bindings; refusing start-only fallback")
+		}
+		startA, err := w.store.GetAsset(ctx, payload.FirstFrameAssetID)
+		if err != nil {
+			return fmt.Errorf("missing first-frame asset: %w", err)
+		}
+		endA, err := w.store.GetAsset(ctx, payload.LastFrameAssetID)
+		if err != nil {
+			return fmt.Errorf("missing last-frame asset: %w", err)
+		}
+		if startA.Checksum == "" || endA.Checksum == "" {
+			return fmt.Errorf("endpoint asset is missing a verified checksum")
+		}
+		sf, err := w.media.Open(startA.StorageURI)
+		if err != nil {
+			return fmt.Errorf("open first frame: %w", err)
+		}
+		upStart, err := w.comfy.UploadImage(ctx, filepath.Base(startA.StorageURI), sf, "")
+		sf.Close()
+		if err != nil {
+			return fmt.Errorf("stage first frame: %w", err)
+		}
+		ef, err := w.media.Open(endA.StorageURI)
+		if err != nil {
+			return fmt.Errorf("open last frame: %w", err)
+		}
+		upEnd, err := w.comfy.UploadImage(ctx, filepath.Base(endA.StorageURI), ef, "")
+		ef.Close()
+		if err != nil {
+			return fmt.Errorf("stage last frame: %w", err)
+		}
+		values["first_frame_asset"] = upStart.Name
+		values["last_frame_asset"] = upEnd.Name
+		values["endpoint_start_checksum"] = startA.Checksum
+		values["endpoint_end_checksum"] = endA.Checksum
 	}
 
 	graph, err := workflows.CloneGraph(version.GraphJSON)
@@ -395,6 +441,15 @@ func (w *Worker) processExport(ctx context.Context, job *store.Job) error {
 
 func assetsIsImage(mime string) bool {
 	return len(mime) >= 6 && mime[:6] == "image/"
+}
+
+func hasBinding(bindings []workflows.Binding, field string) bool {
+	for _, b := range bindings {
+		if b.SemanticField == field {
+			return true
+		}
+	}
+	return false
 }
 
 // processPackage builds a portable project package (spec §12.3, §20).

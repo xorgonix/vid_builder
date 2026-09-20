@@ -94,6 +94,7 @@ func suggestBindings(graph map[string]any) []store.WorkflowBinding {
 	})
 	var out []store.WorkflowBinding
 	textCount := 0
+	imageCount := 0
 	for _, id := range ids {
 		node, ok := graph[id].(map[string]any)
 		if !ok {
@@ -110,6 +111,15 @@ func suggestBindings(graph map[string]any) []store.WorkflowBinding {
 				field = "first_frame_negative"
 			}
 			out = append(out, store.WorkflowBinding{SemanticField: field, NodeID: id, InputName: "text", ValueType: "string"})
+		case "LoadImage":
+			imageCount++
+			field := "first_frame_asset"
+			if imageCount == 2 {
+				field = "last_frame_asset"
+			} else if imageCount > 2 {
+				field = "reference_asset"
+			}
+			out = append(out, store.WorkflowBinding{SemanticField: field, NodeID: id, InputName: "image", ValueType: "string"})
 		case "EmptyLatentImage":
 			out = append(out,
 				store.WorkflowBinding{SemanticField: "width", NodeID: id, InputName: "width", ValueType: "int"},

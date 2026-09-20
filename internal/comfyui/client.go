@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -213,6 +214,54 @@ func (c *Client) Fetch(ctx context.Context, img OutputImage) (io.ReadCloser, err
 		return nil, fmt.Errorf("comfyui: fetch output: %s", resp.Status)
 	}
 	return resp.Body, nil
+}
+
+// UploadResult is returned by POST /upload/image.
+type UploadResult struct {
+	Name      string `json:"name"`
+	Subfolder string `json:"subfolder"`
+	Type      string `json:"type"`
+}
+
+// UploadImage stages a local file into ComfyUI's input directory and returns
+// the reference to bind into a LoadImage node. Used for first/last endpoints.
+func (c *Client) UploadImage(ctx context.Context, filename string, r io.Reader, subfolder string) (*UploadResult, error) {
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	if subfolder != "" {
+		_ = mw.WriteField("subfolder", subfolder)
+	}
+	_ = mw.WriteField("type", "input")
+	_ = mw.WriteField("overwrite", "true")
+	part, err := mw.CreateFormFile("image", filename)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := io.Copy(part, r); err != nil {
+		return nil, err
+	}
+	if err := mw.Close(); err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base()+"/upload/image", &buf)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("comfyui: upload: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return nil, fmt.Errorf("comfyui: upload failed: %s: %s", resp.Status, string(b))
+	}
+	var out UploadResult
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("comfyui: decode upload: %w", err)
+	}
+	return &out, nil
 }
 
 // Interrupt requests cancellation of the current execution.

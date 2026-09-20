@@ -1031,6 +1031,34 @@ func (s *Store) GetWorkflowPackage(ctx context.Context, id string) (*WorkflowPac
 	return &p, err
 }
 
+// GetSelectedAsset returns the current selected asset for a shot role.
+func (s *Store) GetSelectedAsset(ctx context.Context, shotID, role string) (*Asset, error) {
+	sel, err := s.GetCurrentSelection(ctx, shotID, role)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetAsset(ctx, sel.AssetID)
+}
+
+// EffectiveApproval returns the latest decision for an asset, or "" if none.
+func (s *Store) EffectiveApproval(ctx context.Context, assetID string) string {
+	ap, err := s.LatestApproval(ctx, assetID)
+	if err != nil || ap == nil {
+		return ""
+	}
+	return ap.Decision
+}
+
+// GetAttemptBoundInputs returns the attempt's recorded bound inputs JSON.
+func (s *Store) GetAttemptBoundInputs(ctx context.Context, id string) (string, error) {
+	var raw string
+	err := s.QueryRowContext(ctx, `SELECT bound_inputs_json FROM generation_attempts WHERE id=?`, id).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return raw, err
+}
+
 // EmitDomainEvent appends to the transactional outbox.
 func (s *Store) EmitDomainEvent(ctx context.Context, workspaceID, aggregateType, aggregateID, eventType, payloadJSON string) error {
 	if payloadJSON == "" {
