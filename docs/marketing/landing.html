@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>vid-build — Direct the film. Don't babysit the prompt.</title>
   <meta name="description" content="A local-first studio that turns one idea into a finished, multi-shot video — storyboard-first, human-approved, and honest about compute cost."/>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css"/>
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link href="../vendor/daisyui/daisyui.css" rel="stylesheet" type="text/css"/>
+  <script src="../vendor/tailwind/tailwind-browser.js"></script>
 </head>
 <body class="bg-base-100 text-base-content">
 
@@ -23,6 +23,7 @@
         <li><a href="#features">Features</a></li>
         <li><a href="#why">Why different</a></li>
         <li><a href="#faq">FAQ</a></li>
+        <li><a href="pricing.html">Pricing</a></li>
       </ul>
     </div>
     <div class="navbar-end gap-2">
@@ -36,7 +37,7 @@
     <div class="hero-content flex-col lg:flex-row-reverse gap-10 max-w-6xl">
       <div class="mockup-window bg-base-300 w-full max-w-xl border border-base-300">
         <div class="bg-base-100 p-2">
-          <img src="https://picsum.photos/seed/vidbuild-board/1200/760" alt="vid-build storyboard" class="w-full rounded"/>
+          <img src="../vendor/img/board.svg" alt="vid-build storyboard" class="w-full rounded"/>
         </div>
       </div>
       <div class="max-w-xl">
@@ -310,7 +311,8 @@
         <a class="btn btn-primary" href="#top">Run the studio locally</a>
       </div>
       <div class="mockup-code mt-10 text-left max-w-xl mx-auto">
-        <pre data-prefix="$"><code>git clone &lt;repo&gt; &amp;&amp; cd vid_builder</code></pre>
+        <pre data-prefix="#"><code>git clone &lt;repository-url&gt;   # or use your existing checkout</code></pre>
+        <pre data-prefix="$"><code>cd vid_builder</code></pre>
         <pre data-prefix="$"><code>cp config.example.json config.json</code></pre>
         <pre data-prefix="$"><code>templ generate</code></pre>
         <pre data-prefix="$" class="text-success"><code>go run ./cmd/vidbuild -open</code></pre>
@@ -329,6 +331,7 @@
       <a class="link link-hover" href="#how">How it works</a>
       <a class="link link-hover" href="#features">Features</a>
       <a class="link link-hover" href="#why">Why different</a>
+      <a class="link link-hover" href="pricing.html">Pricing</a>
     </nav>
     <nav>
       <h6 class="footer-title">Audiences</h6>

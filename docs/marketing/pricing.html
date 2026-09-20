@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>vid-build pricing — local-first, priced for how you actually work</title>
+  <meta name="description" content="vid-build pricing: start free on your own machine, add studio coordination and compute convenience when you need them. Early access — prices not final."/>
+  <link href="../vendor/daisyui/daisyui.css" rel="stylesheet" type="text/css"/>
+  <script src="../vendor/tailwind/tailwind-browser.js"></script>
+</head>
+<body class="bg-base-100 text-base-content">
+
+  <div class="navbar bg-base-100/90 backdrop-blur sticky top-0 z-30 border-b border-base-300">
+    <div class="navbar-start">
+      <a class="btn btn-ghost text-lg font-bold gap-2" href="landing.html">
+        vid-build <span class="badge badge-neutral badge-sm">0.01</span>
+      </a>
+    </div>
+    <div class="navbar-center hidden lg:flex">
+      <ul class="menu menu-horizontal px-1">
+        <li><a href="pricing.html">Pricing</a></li>
+        <li><a href="landing.html#features">Features</a></li>
+        <li><a href="landing-teams.html">For studios</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+    <div class="navbar-end">
+      <a class="btn btn-ghost" href="landing.html">Overview</a>
+    </div>
+  </div>
+
+  <section class="py-20 bg-base-200">
+    <div class="max-w-4xl mx-auto px-6 text-center">
+      <span class="badge badge-outline">Early access</span>
+      <h1 class="text-4xl lg:text-5xl font-bold mt-4">Priced for how you actually work</h1>
+      <p class="text-lg text-base-content/80 mt-4">
+        Start free on your own machine. Add coordination and compute convenience only when
+        they earn their place. <strong>Prices are not final during early access</strong> —
+        this page describes what each tier will include.
+      </p>
+    </div>
+  </section>
+
+  <section class="py-16 bg-base-100">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <div class="card bg-base-200">
+          <div class="card-body">
+            <h2 class="card-title">Local</h2>
+            <p class="text-base-content/70">For one creator on one machine.</p>
+            <p class="text-3xl font-bold mt-2">Free</p>
+            <p class="text-sm text-base-content/60">during early access</p>
+            <ul class="mt-4 space-y-2 text-sm">
+              <li>Full studio: Develop → Outline → Board → Produce → Review → Edit</li>
+              <li>Blocking storyboard with no model calls</li>
+              <li>Layered prompt workbench</li>
+              <li>Import and bind your own ComfyUI workflows</li>
+              <li>Human approval with recorded exceptions</li>
+              <li>FFmpeg export with receipts</li>
+              <li>Backup, verify and offline restore</li>
+            </ul>
+            <div class="card-actions mt-6">
+              <a class="btn" href="landing.html#get">Run it locally</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="card bg-base-200 border border-base-300">
+          <div class="card-body">
+            <div class="flex items-center gap-2">
+              <h2 class="card-title">Studio</h2>
+              <span class="badge badge-neutral badge-sm">recommended</span>
+            </div>
+            <p class="text-base-content/70">For small studios and agencies on one network.</p>
+            <p class="text-3xl font-bold mt-2">To be announced</p>
+            <p class="text-sm text-base-content/60">per seat · early-access pricing in validation</p>
+            <ul class="mt-4 space-y-2 text-sm">
+              <li>Everything in Local</li>
+              <li>Workspaces per client with enforced boundaries</li>
+              <li>Roles: owner, editor, reviewer, viewer</li>
+              <li>Reviewer approvals, annotations and assignments</li>
+              <li>LAN review on phone or tablet, per-device sessions</li>
+              <li>Model profiles and project defaults</li>
+              <li>Compute planner and render campaigns</li>
+              <li>Client project packages</li>
+              <li>Priority support</li>
+            </ul>
+            <div class="card-actions mt-6">
+              <a class="btn btn-primary" href="landing-teams.html#contact">Discuss Studio</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="card bg-base-200">
+          <div class="card-body">
+            <h2 class="card-title">Coordinator <span class="badge badge-ghost badge-sm">coming soon</span></h2>
+            <p class="text-base-content/70">For teams spanning sites and rented compute.</p>
+            <p class="text-3xl font-bold mt-2">To be announced</p>
+            <p class="text-sm text-base-content/60">planned</p>
+            <ul class="mt-4 space-y-2 text-sm">
+              <li>Everything in Studio</li>
+              <li>Hosted team coordinator</li>
+              <li>Rented-worker and commercial-API execution</li>
+              <li>Shared render campaigns with reconciliation</li>
+              <li>Workflow library and style kits</li>
+              <li>Deployment and backup assistance</li>
+            </ul>
+            <div class="card-actions mt-6">
+              <a class="btn" href="landing-teams.html#contact">Join the waitlist</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <p class="text-center text-sm text-base-content/60 mt-6">
+        There is no metered per-render charge from us for local work. Rented compute, when
+        introduced, will be billed with transparent reconciliation.
+      </p>
+    </div>
+  </section>
+
+  <section class="py-16 bg-base-200">
+    <div class="max-w-4xl mx-auto px-6">
+      <h2 class="text-2xl font-bold">What's the same in every tier</h2>
+      <div class="overflow-x-auto mt-6">
+        <table class="table">
+          <thead><tr><th>Capability</th><th>Local</th><th>Studio</th><th>Coordinator</th></tr></thead>
+          <tbody>
+            <tr><td>Local-first studio (SQLite, your media)</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+            <tr><td>Storyboard &amp; blocking without model calls</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+            <tr><td>Import &amp; bind your ComfyUI workflows</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+            <tr><td>Human approval with recorded exceptions</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+            <tr><td>Backup, verify, offline restore</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+            <tr><td>Multi-user workspaces &amp; roles</td><td>—</td><td>Yes</td><td>Yes</td></tr>
+            <tr><td>Rented/API execution &amp; shared campaigns</td><td>—</td><td>—</td><td>Yes</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" class="py-16 bg-base-100">
+    <div class="max-w-3xl mx-auto px-6">
+      <h2 class="text-2xl font-bold mb-6">Pricing questions</h2>
+      <div class="flex flex-col gap-2">
+        <details class="collapse collapse-arrow bg-base-200">
+          <summary class="collapse-title font-medium">Is this really free?</summary>
+          <div class="collapse-content text-base-content/70"><p>The Local tier is free during early access. We do not meter your local renders — that would be absurd for software running on your own GPU.</p></div>
+        </details>
+        <details class="collapse collapse-arrow bg-base-200">
+          <summary class="collapse-title font-medium">Why are Studio prices "to be announced"?</summary>
+          <div class="collapse-content text-base-content/70"><p>We are validating pricing with early studios. We would rather publish a real price than a placeholder we would have to change.</p></div>
+        </details>
+        <details class="collapse collapse-arrow bg-base-200">
+          <summary class="collapse-title font-medium">Do you take a cut of rented compute?</summary>
+          <div class="collapse-content text-base-content/70"><p>When the Coordinator tier introduces rented execution, it will be billed with transparent reconciliation — you see the actual provider cost and our fee separately. No hidden markup.</p></div>
+        </details>
+        <details class="collapse collapse-arrow bg-base-200">
+          <summary class="collapse-title font-medium">Can I use my own API keys?</summary>
+          <div class="collapse-content text-base-content/70"><p>Yes. Credentials are referenced, never stored as raw secrets in the database, HTML or receipts.</p></div>
+        </details>
+        <details class="collapse collapse-arrow bg-base-200">
+          <summary class="collapse-title font-medium">What if I cancel?</summary>
+          <div class="collapse-content text-base-content/70"><p>Your projects are yours: a SQLite database and a media folder. They keep working, and you can export project packages at any time.</p></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-20 bg-base-200">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <h2 class="text-3xl font-bold">Start free. Grow into a studio.</h2>
+      <p class="text-base-content/70 mt-3">Run the Local tier today; talk to us when you need coordination.</p>
+      <div class="mt-6 flex flex-wrap gap-3 justify-center">
+        <a class="btn" href="landing.html#get">Run the studio locally</a>
+        <a class="btn btn-ghost" href="landing-teams.html#contact">Talk to us</a>
+      </div>
+      <p class="text-xs text-base-content/50 mt-4">Pricing shown during early access is indicative and not a final offer.</p>
+    </div>
+  </section>
+
+  <footer class="footer sm:footer-horizontal bg-base-100 text-base-content p-10 border-t border-base-300">
+    <aside>
+      <p class="text-lg font-bold">vid-build <span class="badge badge-neutral badge-sm">0.01</span></p>
+      <p class="text-base-content/60">Idea to finished film, one visible change at a time.</p>
+    </aside>
+    <nav>
+      <h6 class="footer-title">Product</h6>
+      <a class="link link-hover" href="landing.html">Overview</a>
+      <a class="link link-hover" href="pricing.html">Pricing</a>
+      <a class="link link-hover" href="landing-teams.html">For studios</a>
+    </nav>
+    <nav>
+      <h6 class="footer-title">Resources</h6>
+      <a class="link link-hover" href="../user-manual.md">User manual</a>
+      <a class="link link-hover" href="../presentations/index.html">Presentations</a>
+      <a class="link link-hover" href="brochure.md">Brochure</a>
+    </nav>
+  </footer>
+
+</body>
+</html>

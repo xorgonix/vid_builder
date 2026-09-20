@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-label="vid-build storyboard: start, change, end">
+  <rect width="1200" height="760" fill="#020617"/>
+  <rect x="0" y="0" width="1200" height="48" fill="#111827"/>
+  <circle cx="28" cy="24" r="7" fill="#ef4444"/><circle cx="52" cy="24" r="7" fill="#f59e0b"/><circle cx="76" cy="24" r="7" fill="#22c55e"/>
+  <text x="110" y="30" fill="#94a3b8" font-family="sans-serif" font-size="18">vid-build · Studio wide</text>
+
+  <g font-family="sans-serif">
+    <text x="60" y="96" fill="#7dd3fc" font-size="16" letter-spacing="2">START</text>
+    <text x="500" y="96" fill="#7dd3fc" font-size="16" letter-spacing="2">CHANGE</text>
+    <text x="900" y="96" fill="#7dd3fc" font-size="16" letter-spacing="2">END</text>
+
+    <rect x="40" y="120" width="360" height="300" rx="10" fill="#0b0f14" stroke="#334155"/>
+    <rect x="70" y="150" width="300" height="240" fill="none" stroke="#38bdf8" stroke-dasharray="8 6"/>
+    <circle cx="170" cy="290" r="30" fill="#f472b6" stroke="#be185d" stroke-width="2"/>
+    <line x1="170" y1="290" x2="238" y2="290" stroke="#fde68a" stroke-width="3" stroke-dasharray="6 4"/>
+    <rect x="270" y="270" width="42" height="42" rx="5" fill="#a78bfa" fill-opacity="0.7"/>
+    <text x="170" y="350" fill="#fbcfe8" font-size="14" text-anchor="middle">Maya · standing</text>
+    <text x="40" y="446" fill="#64748b" font-size="13">wide · eye · gaze to wheel</text>
+
+    <rect x="420" y="120" width="360" height="300" rx="10" fill="#0b0f14" stroke="#334155"/>
+    <text x="450" y="170" fill="#e2e8f0" font-size="16">Detected change</text>
+    <text x="450" y="206" fill="#94a3b8" font-size="14">• Actor changes position</text>
+    <text x="450" y="234" fill="#94a3b8" font-size="14">• Pose: standing → hands working clay</text>
+    <text x="450" y="262" fill="#94a3b8" font-size="14">• Gaze shifts to the wheel</text>
+    <line x1="450" y1="300" x2="600" y2="340" stroke="#f59e0b" stroke-width="3"/>
+    <text x="420" y="446" fill="#64748b" font-size="13">visible payoff required</text>
+
+    <rect x="800" y="120" width="360" height="300" rx="10" fill="#0b0f14" stroke="#334155"/>
+    <rect x="830" y="150" width="300" height="240" fill="none" stroke="#38bdf8" stroke-dasharray="8 6"/>
+    <circle cx="960" cy="290" r="30" fill="#f472b6" stroke="#be185d" stroke-width="2"/>
+    <line x1="960" y1="290" x2="1030" y2="250" stroke="#fde68a" stroke-width="3" stroke-dasharray="6 4"/>
+    <rect x="880" y="270" width="42" height="42" rx="5" fill="#a78bfa" fill-opacity="0.7"/>
+    <text x="960" y="350" fill="#fbcfe8" font-size="14" text-anchor="middle">Maya · working clay</text>
+    <text x="800" y="446" fill="#64748b" font-size="13">wide · eye · hands in frame</text>
+
+    <g transform="translate(40,500)">
+      <rect width="1120" height="60" rx="10" fill="#111827"/>
+      <text x="20" y="37" fill="#94a3b8" font-size="15">Readiness</text>
+      <rect x="130" y="18" width="150" height="24" rx="12" fill="#78350f"/><text x="205" y="36" fill="#fbbf24" font-size="13" text-anchor="middle">blocking_ready</text>
+      <text x="320" y="37" fill="#64748b" font-size="13">4s · purpose: introduce the warm studio and Maya at the wheel</text>
+    </g>
+  </g>
+</svg>
