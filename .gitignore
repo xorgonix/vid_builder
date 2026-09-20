@@ -1,0 +1,77 @@
+# --- Go ---
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+bin/
+dist/
+build/
+
+# --- Wails ---
+frontend/dist/
+frontend/wailsjs/
+# Wails build artifacts
+build/bin/
+
+# --- Node (frontend tooling, if used) ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- templ (Go template compiler) ---
+# generated *_templ.go files ARE committed so plain `go build` / `wails build`
+# work without the templ tool installed
+*_templ.txt
+
+# --- Air / dev reload ---
+tmp/
+*.air.toml
+
+# --- Local app data / media store ---
+data/
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+*.db
+media/
+temp/
+backups/
+exports/output/
+
+# --- Secrets & credentials ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Editor / IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Coverage / test artifacts ----------
+coverage/
+*.coverprofile
+coverage.out
+
+# --- Mark 2 runtime config (contains local settings; never commit) ---
+config.json

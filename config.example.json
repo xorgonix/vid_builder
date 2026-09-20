@@ -1,0 +1,66 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8971,
+    "mode": "local-web",
+    "bootstrap_token_ttl_minutes": 10
+  },
+  "database": {
+    "path": "data/vidbuild.db",
+    "busy_timeout_ms": 5000,
+    "max_pool_conns": 8
+  },
+  "media": {
+    "root_dir": "data/media",
+    "temp_dir": "data/temp",
+    "thumbnail_dir": "data/media/thumbs",
+    "exports_dir": "data/exports"
+  },
+  "llm": {
+    "enabled": true,
+    "base_url": "http://127.0.0.1:1234",
+    "model": "qwen3.5-9b-uncensored-hauhaucs-aggressive",
+    "api_key": "",
+    "temperature": 0.7,
+    "max_tokens": 4096,
+    "request_timeout_seconds": 180,
+    "planner_system_prompt": "You are vid-build's planner, a video pre-production assistant. You help creators develop briefs, outlines, shot lists, prompts and blocking. You propose; you never decide. Always respond with the requested structured JSON and nothing else."
+  },
+  "comfyui": {
+    "enabled": false,
+    "base_url": "http://127.0.0.1:8188",
+    "request_timeout_seconds": 30,
+    "poll_interval_ms": 1000
+  },
+  "ffmpeg": {
+    "enabled": false,
+    "binary_path": "ffmpeg",
+    "request_timeout_seconds": 600
+  },
+  "auth": {
+    "session_ttl_hours": 720,
+    "argon2_memory_kb": 65536,
+    "argon2_iterations": 2,
+    "argon2_parallelism": 2
+  },
+  "security": {
+    "cookie_secure": false,
+    "cookie_name": "vidbuild_session",
+    "rate_limit_per_minute": 20
+  },
+  "worker": {
+    "poll_interval_ms": 1500,
+    "lease_ttl_seconds": 120,
+    "max_attempts": 3
+  },
+  "logging": {
+    "level": "info",
+    "file": "data/logs/vidbuild.log",
+    "console": true
+  },
+  "bootstrap": {
+    "admin_email": "admin@vidbuild.local",
+    "admin_password": "change-me",
+    "admin_name": "Studio Admin"
+  }
+}
