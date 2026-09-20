@@ -1,0 +1,235 @@
+package templates
+
+templ DevelopPage(data DevelopData) {
+	@shell(data.Shell, developBody(data))
+}
+
+templ developBody(data DevelopData) {
+	<div class="max-w-7xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Develop</h1>
+				<p class="opacity-70 text-sm">Convert ambiguity into accepted direction — discussion is evidence, not authority.</p>
+			</div>
+			<div class="flex gap-2">
+				<a class="btn btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/brief/history") }>Brief history</a>
+				<a class="btn btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/outline") }>Outline</a>
+			</div>
+		</div>
+		<div class="grid gap-6 lg:grid-cols-12">
+			<div class="lg:col-span-5 flex flex-col gap-4">
+				<div class="card bg-base-100 shadow" id="project-summary">
+					<div class="card-body">
+						<div class="flex items-center justify-between">
+							<h2 class="card-title text-base">Accepted brief</h2>
+							if data.Brief != nil {
+								<span class="badge badge-success badge-sm">v{ data.Brief.Version }</span>
+							} else {
+								<span class="badge badge-warning badge-sm">incomplete</span>
+							}
+						</div>
+						if data.Brief != nil {
+							<dl class="text-sm grid grid-cols-[8rem_1fr] gap-x-2 gap-y-1">
+								@briefRow("Premise", data.Brief.Premise)
+								@briefRow("Theme", data.Brief.Theme)
+								@briefRow("Audience", data.Brief.Audience)
+								@briefRow("Desired reaction", data.Brief.DesiredReaction)
+								@briefRow("Pace", data.Brief.Pace)
+								@briefRow("Excitement", data.Brief.Excitement)
+								@briefRow("Music", data.Brief.MusicIntent)
+								@briefRow("Sound", data.Brief.SoundIntent)
+								@briefRow("Visual style", data.Brief.VisualStyle)
+								@briefRow("Camera", data.Brief.CameraLanguage)
+								@briefRow("Notes", data.Brief.ProductionNotes)
+							</dl>
+						} else {
+							<p class="text-sm opacity-70">No accepted brief yet. Talk it through, then propose one.</p>
+						}
+						<div class="card-actions justify-end mt-2">
+							<button class="btn btn-sm" onclick="revise_brief.showModal()">Revise manually</button>
+						</div>
+					</div>
+				</div>
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<div class="flex items-center justify-between">
+							<h2 class="card-title text-base">Proposals</h2>
+							<div class="flex gap-1">
+								<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/proposals/brief?thread=" + data.ActiveThread) }>
+									<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+									<button class="btn btn-xs btn-primary" type="submit" disabled?={ !data.PlannerEnabled }>Propose brief</button>
+								</form>
+								<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/proposals/outline?thread=" + data.ActiveThread) }>
+									<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+									<button class="btn btn-xs" type="submit" disabled?={ !data.PlannerEnabled }>Propose outline</button>
+								</form>
+							</div>
+						</div>
+						@proposalList(data)
+					</div>
+				</div>
+			</div>
+			<div class="lg:col-span-7">
+				<div class="card bg-base-100 shadow h-full">
+					<div class="card-body flex flex-col">
+						<div class="flex items-center justify-between">
+							<h2 class="card-title text-base">Discovery conversation</h2>
+							if len(data.Threads) > 1 {
+								<div class="join">
+									for _, t := range data.Threads {
+										<a class={ "btn btn-xs join-item", templ.KV("btn-active", t.ID == data.ActiveThread) } href={ templ.URL(data.Shell.VideoBase() + "/develop?thread=" + t.ID) }>{ t.Title }</a>
+									}
+								</div>
+							}
+						</div>
+						<div class="flex-1 overflow-y-auto max-h-[32rem] flex flex-col gap-3 py-2" id="discovery-messages">
+							if len(data.Messages) == 0 {
+								<p class="text-sm opacity-60">Start by stating the premise, constraints and the questions you want resolved.</p>
+							}
+							for _, m := range data.Messages {
+								<div class={ "chat", roleChatClass(m.Role) }>
+									<div class="chat-header text-xs opacity-60 mb-1">
+										{ roleLabel(m.Role) }
+										if m.ModelID != "" {
+											<span class="badge badge-ghost badge-xs ml-1">{ m.ModelID }</span>
+										}
+									</div>
+									<div class="chat-bubble text-sm whitespace-pre-wrap">{ m.Content }</div>
+								</div>
+							}
+						</div>
+						<div class="border-t border-base-300 pt-3 mt-2">
+							<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/discovery/threads/" + data.ActiveThread + "/messages") } class="flex gap-2">
+								<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+								<textarea class="textarea textarea-bordered flex-1" name="content" rows="2" placeholder="Record a decision, constraint or question…" required></textarea>
+								<div class="flex flex-col gap-1">
+									<button class="btn btn-sm btn-primary" type="submit">Send</button>
+									<button class="btn btn-sm" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/discovery/threads/" + data.ActiveThread + "/ask") } disabled?={ !data.PlannerEnabled }>Ask planner</button>
+								</div>
+							</form>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<dialog id="revise_brief" class="modal">
+			<div class="modal-box max-w-2xl">
+				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/brief/revise") }>
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<h3 class="font-bold text-lg mb-3">Revise brief manually</h3>
+					@briefInput("premise", "Premise", briefField(data.Brief, "premise"))
+					@briefInput("theme", "Theme", briefField(data.Brief, "theme"))
+					@briefInput("audience", "Audience", briefField(data.Brief, "audience"))
+					@briefInput("desired_reaction", "Desired reaction", briefField(data.Brief, "desired_reaction"))
+					@briefInput("pace", "Pace", briefField(data.Brief, "pace"))
+					@briefInput("excitement", "Excitement", briefField(data.Brief, "excitement"))
+					@briefInput("music_intent", "Music intent", briefField(data.Brief, "music_intent"))
+					@briefInput("sound_intent", "Sound intent", briefField(data.Brief, "sound_intent"))
+					@briefInput("visual_style", "Visual style", briefField(data.Brief, "visual_style"))
+					@briefInput("camera_language", "Camera language", briefField(data.Brief, "camera_language"))
+					@briefInput("production_notes", "Production notes", briefField(data.Brief, "production_notes"))
+					<div class="modal-action">
+						<button type="button" class="btn" onclick="revise_brief.close()">Cancel</button>
+						<button type="submit" class="btn btn-primary">Save new version</button>
+					</div>
+				</form>
+			</div>
+		</dialog>
+	</div>
+}
+
+templ proposalList(data DevelopData) {
+	if len(data.Proposals) == 0 {
+		<p class="text-sm opacity-60">No proposals yet.</p>
+	}
+	<ul class="divide-y divide-base-300">
+		for _, p := range data.Proposals {
+			<li class="py-2 flex items-center justify-between gap-2">
+				<a class="link link-hover text-sm" href={ templ.URL(data.Shell.VideoBase() + "/proposals/" + p.ID) }>
+					<span class="badge badge-ghost badge-xs mr-1">{ p.Type }</span>{ p.Summary }
+				</a>
+				<span class={ "badge badge-sm", proposalStatusClass(p.Status) }>{ p.Status }</span>
+			</li>
+		}
+	</ul>
+}
+
+templ briefRow(label, value string) {
+	<dt class="opacity-60">{ label }</dt>
+	if value != "" {
+		<dd class="whitespace-pre-wrap">{ value }</dd>
+	} else {
+		<dd class="opacity-40">—</dd>
+	}
+}
+
+templ briefInput(name, label, value string) {
+	<label class="form-control mb-2">
+		<span class="label-text mb-1">{ label }</span>
+		<textarea class="textarea textarea-bordered w-full" name={ name } rows="2">{ value }</textarea>
+	</label>
+}
+
+func roleChatClass(role string) string {
+	switch role {
+	case "planner":
+		return "chat-start"
+	default:
+		return "chat-end"
+	}
+}
+
+func roleLabel(role string) string {
+	switch role {
+	case "planner":
+		return "Planner"
+	case "system":
+		return "System"
+	default:
+		return "Creator"
+	}
+}
+
+func proposalStatusClass(status string) string {
+	switch status {
+	case "applied":
+		return "badge-success"
+	case "rejected":
+		return "badge-error"
+	case "partially_applied":
+		return "badge-warning"
+	default:
+		return "badge-info"
+	}
+}
+
+func briefField(b *BriefView, key string) string {
+	if b == nil {
+		return ""
+	}
+	switch key {
+	case "premise":
+		return b.Premise
+	case "theme":
+		return b.Theme
+	case "audience":
+		return b.Audience
+	case "desired_reaction":
+		return b.DesiredReaction
+	case "pace":
+		return b.Pace
+	case "excitement":
+		return b.Excitement
+	case "music_intent":
+		return b.MusicIntent
+	case "sound_intent":
+		return b.SoundIntent
+	case "visual_style":
+		return b.VisualStyle
+	case "camera_language":
+		return b.CameraLanguage
+	case "production_notes":
+		return b.ProductionNotes
+	}
+	return ""
+}

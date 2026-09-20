@@ -31,6 +31,14 @@ type EntityRef struct {
 	Title string
 }
 
+// VideoBase returns the workspace/project/video URL prefix, or "".
+func (s ShellData) VideoBase() string {
+	if s.CurrentWorkspace == nil || s.Project == nil || s.Video == nil {
+		return ""
+	}
+	return "/w/" + s.CurrentWorkspace.ID + "/projects/" + s.Project.ID + "/videos/" + s.Video.ID
+}
+
 // NavItems returns the primary navigation for the current context.
 func (s ShellData) NavItems() []NavItem {
 	if s.CurrentWorkspace == nil || s.Project == nil {
@@ -128,4 +136,140 @@ type VideoData struct {
 	Scenes       int
 	Shots        int
 	BriefCurrent bool
+}
+
+// BriefView is an accepted brief rendered in the UI.
+type BriefView struct {
+	Version         int
+	Premise         string
+	Theme           string
+	Audience        string
+	DesiredReaction string
+	Pace            string
+	Excitement      string
+	MusicIntent     string
+	SoundIntent     string
+	VisualStyle     string
+	CameraLanguage  string
+	ProductionNotes string
+}
+
+// MessageView is one discovery message.
+type MessageView struct {
+	Role      string
+	Content   string
+	ModelID   string
+	CreatedAt string
+}
+
+// ThreadView is a discovery thread summary.
+type ThreadView struct {
+	ID           string
+	Title        string
+	MessageCount int
+}
+
+// ProposalView is a proposal summary.
+type ProposalView struct {
+	ID        string
+	Type      string
+	Summary   string
+	Status    string
+	CreatedAt string
+}
+
+// DevelopData backs the Develop screen.
+type DevelopData struct {
+	Shell          ShellData
+	Project        ProjectView
+	Video          VideoView
+	Brief          *BriefView
+	Threads        []ThreadView
+	ActiveThread   string
+	Messages       []MessageView
+	Proposals      []ProposalView
+	PlannerEnabled bool
+	Error          string
+}
+
+// FieldView is one selectable proposal field for the apply form.
+type FieldView struct {
+	Key     string
+	Label   string
+	Value   string
+	Checked bool
+}
+
+// ProposalData backs the proposal diff/apply screen.
+type ProposalData struct {
+	Shell       ShellData
+	Project     ProjectView
+	Video       VideoView
+	Proposal    ProposalView
+	Fields      []FieldView
+	Outline     *OutlineView
+	IsOutline   bool
+	IsBrief     bool
+	OutlineJSON string
+}
+
+// OutlineView is a proposed outline payload.
+type OutlineView struct {
+	Summary  string
+	Sections []SectionNode
+}
+
+// BriefHistoryData backs the brief history drawer/page.
+type BriefHistoryData struct {
+	Shell    ShellData
+	Project  ProjectView
+	Video    VideoView
+	Versions []BriefView
+}
+
+// OutlineData backs the Outline screen.
+type OutlineData struct {
+	Shell    ShellData
+	Project  ProjectView
+	Video    VideoView
+	Sections []SectionNode
+}
+
+// SectionNode is a section with its scenes.
+type SectionNode struct {
+	ID       string
+	Title    string
+	Purpose  string
+	Position int
+	Revision int
+	BudgetMs int
+	Scenes   []SceneNode
+}
+
+// SceneNode is a scene with its shots.
+type SceneNode struct {
+	ID       string
+	Title    string
+	Synopsis string
+	Purpose  string
+	Pace     string
+	Reaction string
+	Position int
+	Revision int
+	BudgetMs int
+	Shots    []ShotNode
+}
+
+// ShotNode is a shot row in the outline.
+type ShotNode struct {
+	ID         string
+	Title      string
+	Purpose    string
+	Treatment  string
+	Position   int
+	Revision   int
+	DurationMs int
+	Status     string
+	Readiness  string
+	SpecsReady int
 }

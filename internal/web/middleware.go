@@ -197,3 +197,15 @@ func actorID(r *http.Request) string {
 func isHX(r *http.Request) bool {
 	return strings.EqualFold(r.Header.Get("HX-Request"), "true")
 }
+
+// methodOverride lets HTML forms issue PATCH/DELETE via a hidden _method field.
+func (s *Server) methodOverride(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			if m := strings.ToUpper(r.FormValue("_method")); m == http.MethodPatch || m == http.MethodDelete || m == http.MethodPut {
+				r.Method = m
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}

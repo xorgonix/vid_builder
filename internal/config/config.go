@@ -112,7 +112,7 @@ func Default() *Config {
 		LLM: LLMConfig{
 			Enabled: true, BaseURL: "http://127.0.0.1:1234",
 			Model:       "qwen3.5-9b-uncensored-hauhaucs-aggressive",
-			Temperature: 0.7, MaxTokens: 4096, RequestTimeoutSec: 180,
+			Temperature: 0.7, MaxTokens: 8192, RequestTimeoutSec: 180,
 			PlannerSystemPrompt: "You are vid-build's planner, a video pre-production assistant. You help creators develop briefs, outlines, shot lists, prompts and blocking. You propose; you never decide. Always respond with the requested structured JSON and nothing else.",
 		},
 		ComfyUI:  ComfyUIConfig{Enabled: false, BaseURL: "http://127.0.0.1:8188", RequestTimeoutSec: 30, PollIntervalMs: 1000},

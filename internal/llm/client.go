@@ -111,13 +111,15 @@ func (c *Client) ChatJSON(ctx context.Context, system string, msgs []Message, sc
 	return obj, nil
 }
 
-// extractJSON pulls the first balanced JSON object out of text.
+// extractJSON pulls the first JSON object out of text. It tolerates code
+// fences and prefix prose, and best-effort repairs truncated output by closing
+// any unterminated string and unclosed objects/arrays.
 func extractJSON(text string) (json.RawMessage, string) {
 	start := strings.Index(text, "{")
 	if start < 0 {
 		return nil, ""
 	}
-	depth := 0
+	var stack []byte
 	inStr := false
 	esc := false
 	for i := start; i < len(text); i++ {
@@ -140,15 +142,26 @@ func extractJSON(text string) (json.RawMessage, string) {
 		case '"':
 			inStr = true
 		case '{':
-			depth++
-		case '}':
-			depth--
-			if depth == 0 {
+			stack = append(stack, '}')
+		case '[':
+			stack = append(stack, ']')
+		case '}', ']':
+			if len(stack) > 0 && stack[len(stack)-1] == ch {
+				stack = stack[:len(stack)-1]
+			}
+			if len(stack) == 0 {
 				return json.RawMessage(text[start : i+1]), text[i+1:]
 			}
 		}
 	}
-	return nil, ""
+	repaired := text[start:]
+	if inStr {
+		repaired += "\""
+	}
+	for i := len(stack) - 1; i >= 0; i-- {
+		repaired += string(stack[i])
+	}
+	return json.RawMessage(repaired), ""
 }
 
 // Ping checks the LM Studio server is reachable and the configured model exists.

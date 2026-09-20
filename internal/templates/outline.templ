@@ -1,0 +1,226 @@
+package templates
+
+templ OutlinePage(data OutlineData) {
+	@shell(data.Shell, outlineBody(data))
+}
+
+templ outlineBody(data OutlineData) {
+	<div class="max-w-6xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Outline</h1>
+				<p class="opacity-70 text-sm">Shape what the video says before deciding how every moment looks.</p>
+			</div>
+			<div class="flex gap-2">
+				<a class="btn btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/develop") }>Develop</a>
+				<button class="btn btn-sm btn-primary" onclick="add_section.showModal()">Add section</button>
+			</div>
+		</div>
+		<div class="flex flex-col gap-4" id="video-outline">
+			for _, sec := range data.Sections {
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<div class="flex items-center justify-between gap-2">
+							<div>
+								<h2 class="card-title text-base">{ sec.Title }</h2>
+								if sec.Purpose != "" {
+									<p class="text-xs opacity-70">{ sec.Purpose }</p>
+								}
+							</div>
+							<div class="flex items-center gap-1">
+								<span class="badge badge-ghost badge-sm">{ sec.BudgetMs / 1000 }s</span>
+								<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/sections/" + sec.ID + "/move") }>
+									<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+									<input type="hidden" name="direction" value="-1"/>
+									<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move section up">↑</button>
+								</form>
+								<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/sections/" + sec.ID + "/move") }>
+									<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+									<input type="hidden" name="direction" value="1"/>
+									<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move section down">↓</button>
+								</form>
+								<details class="dropdown dropdown-end">
+									<summary class="btn btn-xs btn-ghost">Edit</summary>
+									<div class="dropdown-content bg-base-100 rounded-box shadow w-80 p-3 z-40">
+										<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/sections/" + sec.ID) }>
+											<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+											<input type="hidden" name="_method" value="PATCH"/>
+											<input type="hidden" name="revision" value={ itoaT(sec.Revision) }/>
+											<input class="input input-bordered input-sm w-full mb-2" name="title" value={ sec.Title }/>
+											<textarea class="textarea textarea-bordered w-full mb-2" name="purpose" rows="2">{ sec.Purpose }</textarea>
+											<input class="input input-bordered input-sm w-full mb-2" type="number" name="budget_s" value={ itoaT(sec.BudgetMs / 1000) } placeholder="budget seconds"/>
+											<button class="btn btn-sm btn-primary w-full" type="submit">Save</button>
+										</form>
+										<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/sections/" + sec.ID) } class="mt-2">
+											<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+											<input type="hidden" name="_method" value="DELETE"/>
+											<button class="btn btn-sm btn-error btn-outline w-full" type="submit">Delete section</button>
+										</form>
+									</div>
+								</details>
+							</div>
+						</div>
+						<div class="flex flex-col gap-3 mt-2">
+							for _, sc := range sec.Scenes {
+								@sceneBlock(data, sec, sc)
+							}
+						</div>
+						<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/sections/" + sec.ID + "/scenes") } class="mt-3 flex gap-2 items-end">
+							<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+							<input class="input input-bordered input-sm flex-1" name="title" placeholder="New scene title" required/>
+							<input class="input input-bordered input-sm flex-1" name="purpose" placeholder="Purpose"/>
+							<button class="btn btn-sm" type="submit">Add scene</button>
+						</form>
+					</div>
+				</div>
+			}
+			if len(data.Sections) <= 1 {
+				<div class="alert">
+					<span>Add sections and scenes, or propose an outline from Develop to populate this structure.</span>
+				</div>
+			}
+		</div>
+		<dialog id="add_section" class="modal">
+			<div class="modal-box">
+				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/sections") }>
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<h3 class="font-bold text-lg mb-3">Add section</h3>
+					<input class="input input-bordered w-full mb-2" name="title" placeholder="Section title" required/>
+					<textarea class="textarea textarea-bordered w-full mb-2" name="purpose" placeholder="What does this division accomplish?"></textarea>
+					<input class="input input-bordered w-full mb-3" type="number" name="budget_s" placeholder="Duration budget (seconds)"/>
+					<div class="modal-action">
+						<button type="button" class="btn" onclick="add_section.close()">Cancel</button>
+						<button type="submit" class="btn btn-primary">Add</button>
+					</div>
+				</form>
+			</div>
+		</dialog>
+	</div>
+}
+
+templ sceneBlock(data OutlineData, sec SectionNode, sc SceneNode) {
+	<div class="border border-base-300 rounded-box p-3">
+		<div class="flex items-center justify-between gap-2">
+			<div>
+				<div class="font-medium">{ sc.Title }</div>
+				if sc.Synopsis != "" {
+					<p class="text-xs opacity-70">{ sc.Synopsis }</p>
+				}
+				<div class="flex gap-1 mt-1">
+					if sc.Pace != "" {
+						<span class="badge badge-ghost badge-xs">{ sc.Pace }</span>
+					}
+					<span class="badge badge-ghost badge-xs">{ sc.BudgetMs / 1000 }s</span>
+				</div>
+			</div>
+			<div class="flex items-center gap-1">
+				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/scenes/" + sc.ID + "/move") }>
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<input type="hidden" name="direction" value="-1"/>
+					<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move scene up">↑</button>
+				</form>
+				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/scenes/" + sc.ID + "/move") }>
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<input type="hidden" name="direction" value="1"/>
+					<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move scene down">↓</button>
+				</form>
+				<details class="dropdown dropdown-end">
+					<summary class="btn btn-xs btn-ghost">Edit</summary>
+					<div class="dropdown-content bg-base-100 rounded-box shadow w-80 p-3 z-40">
+						<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/scenes/" + sc.ID) }>
+							<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+							<input type="hidden" name="_method" value="PATCH"/>
+							<input type="hidden" name="revision" value={ itoaT(sc.Revision) }/>
+							<input class="input input-bordered input-sm w-full mb-2" name="title" value={ sc.Title }/>
+							<textarea class="textarea textarea-bordered w-full mb-2" name="synopsis" rows="2">{ sc.Synopsis }</textarea>
+							<textarea class="textarea textarea-bordered w-full mb-2" name="purpose" rows="2">{ sc.Purpose }</textarea>
+							<input class="input input-bordered input-sm w-full mb-2" name="pace" value={ sc.Pace } placeholder="pace"/>
+							<input class="input input-bordered input-sm w-full mb-2" name="reaction" value={ sc.Reaction } placeholder="audience reaction"/>
+							<button class="btn btn-sm btn-primary w-full" type="submit">Save</button>
+						</form>
+						<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/scenes/" + sc.ID) } class="mt-2">
+							<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+							<input type="hidden" name="_method" value="DELETE"/>
+							<button class="btn btn-sm btn-error btn-outline w-full" type="submit">Delete scene</button>
+						</form>
+					</div>
+				</details>
+			</div>
+		</div>
+		<div class="mt-2">
+			<table class="table table-sm">
+				<thead>
+					<tr><th>#</th><th>Shot</th><th>Purpose</th><th>Duration</th><th>Readiness</th><th></th></tr>
+				</thead>
+				<tbody>
+					for _, sh := range sc.Shots {
+						<tr>
+							<td>{ sh.Position }</td>
+							<td class="font-medium">{ sh.Title }</td>
+							<td class="text-xs opacity-80">{ sh.Purpose }</td>
+							<td class="text-xs">{ sh.DurationMs / 1000 }s</td>
+							<td><span class={ "badge badge-sm", readinessClass(sh.Readiness) }>{ sh.Readiness }</span></td>
+							<td>
+								<div class="flex gap-1">
+									<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + sh.ID) }>Open</a>
+									<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + sh.ID + "/move") }>
+										<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+										<input type="hidden" name="direction" value="-1"/>
+										<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move shot up">↑</button>
+									</form>
+									<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + sh.ID + "/move") }>
+										<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+										<input type="hidden" name="direction" value="1"/>
+										<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move shot down">↓</button>
+									</form>
+								</div>
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/scenes/" + sc.ID + "/shots") } class="mt-2 flex gap-2 items-end">
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<input class="input input-bordered input-sm flex-1" name="title" placeholder="New shot title" required/>
+				<input class="input input-bordered input-sm flex-1" name="purpose" placeholder="What should visibly change?"/>
+				<input class="input input-bordered input-sm w-24" type="number" name="duration_s" placeholder="sec"/>
+				<button class="btn btn-sm btn-primary" type="submit">Add shot</button>
+			</form>
+		</div>
+	</div>
+}
+
+func readinessClass(readiness string) string {
+	switch readiness {
+	case "complete":
+		return "badge-success"
+	case "video_ready", "endpoint_ready":
+		return "badge-info"
+	case "concept_ready", "blocking_ready":
+		return "badge-warning"
+	default:
+		return "badge-ghost"
+	}
+}
+
+func itoaT(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	var buf [20]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	if neg {
+		i--
+		buf[i] = '-'
+	}
+	return string(buf[i:])
+}

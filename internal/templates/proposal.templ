@@ -1,0 +1,117 @@
+package templates
+
+templ ProposalPage(data ProposalData) {
+	@shell(data.Shell, proposalBody(data))
+}
+
+templ proposalBody(data ProposalData) {
+	<div class="max-w-4xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Proposal</h1>
+				<p class="opacity-70 text-sm">
+					<span class="badge badge-ghost badge-sm mr-1">{ data.Proposal.Type }</span>
+					<span class={ "badge badge-sm", proposalStatusClass(data.Proposal.Status) }>{ data.Proposal.Status }</span>
+				</p>
+			</div>
+			<a class="btn btn-sm btn-ghost" href={ templ.URL(data.Shell.VideoBase() + "/develop") }>Back to Develop</a>
+		</div>
+		<div class="alert alert-info mb-4">
+			<span>AI proposes; you decide. Select the fields you accept, then apply. Nothing changes until you apply it.</span>
+		</div>
+		if data.IsBrief {
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/apply") } class="card bg-base-100 shadow">
+				<div class="card-body">
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					for _, f := range data.Fields {
+						<div class="form-control border-b border-base-300 py-2">
+							<label class="label cursor-pointer justify-start gap-2 mb-1">
+								<input type="checkbox" class="checkbox checkbox-sm" name={ "c_" + f.Key } checked?={ f.Checked }/>
+								<span class="label-text font-semibold">{ f.Label }</span>
+							</label>
+							<textarea class="textarea textarea-bordered w-full" name={ "f_" + f.Key } rows="2">{ f.Value }</textarea>
+						</div>
+					}
+					<div class="card-actions justify-end mt-3">
+						<button class="btn btn-ghost" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/reject") }>Reject</button>
+						<button class="btn btn-primary" type="submit">Apply selected fields</button>
+					</div>
+				</div>
+			</form>
+		}
+		if data.IsOutline {
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/apply") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<p class="opacity-80 text-sm">{ data.Outline.Summary }</p>
+						@outlinePreview(data.Outline)
+						<div class="card-actions justify-end mt-3">
+							<button class="btn btn-ghost" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/reject") }>Reject</button>
+							<button class="btn btn-primary" type="submit">Apply whole outline</button>
+						</div>
+					</div>
+				</div>
+			</form>
+		}
+	</div>
+}
+
+templ outlinePreview(view *OutlineView) {
+	if view == nil {
+		return
+	}
+	<div class="flex flex-col gap-3 mt-2">
+		for _, sec := range view.Sections {
+			<div class="border border-base-300 rounded-box p-3">
+				<div class="font-semibold">{ sec.Title } <span class="text-xs opacity-60">{ sec.BudgetMs / 1000 }s</span></div>
+				<p class="text-xs opacity-70">{ sec.Purpose }</p>
+				for _, sc := range sec.Scenes {
+					<div class="ml-4 mt-2 border-l border-base-300 pl-3">
+						<div class="text-sm font-medium">{ sc.Title } <span class="badge badge-ghost badge-xs">{ sc.Pace }</span></div>
+						<p class="text-xs opacity-70">{ sc.Synopsis }</p>
+						<ul class="mt-1 flex flex-col gap-1">
+							for _, sh := range sc.Shots {
+								<li class="text-xs">• <span class="font-medium">{ sh.Title }</span> — { sh.Purpose } <span class="opacity-60">({ sh.DurationMs / 1000 }s)</span></li>
+							}
+						</ul>
+					</div>
+				}
+			</div>
+		}
+	</div>
+}
+
+templ BriefHistoryPage(data BriefHistoryData) {
+	@shell(data.Shell, briefHistoryBody(data))
+}
+
+templ briefHistoryBody(data BriefHistoryData) {
+	<div class="max-w-4xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<h1 class="text-2xl font-bold">Brief history</h1>
+			<a class="btn btn-sm btn-ghost" href={ templ.URL(data.Shell.VideoBase() + "/develop") }>Back to Develop</a>
+		</div>
+		<div class="flex flex-col gap-3">
+			for _, v := range data.Versions {
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<div class="flex items-center gap-2">
+							<span class="badge badge-ghost">v{ v.Version }</span>
+							if v.Version == 1 {
+								<span class="badge badge-primary badge-sm">first</span>
+							}
+						</div>
+						<dl class="text-sm grid grid-cols-[8rem_1fr] gap-x-2 gap-y-1 mt-2">
+							@briefRow("Premise", v.Premise)
+							@briefRow("Theme", v.Theme)
+							@briefRow("Audience", v.Audience)
+							@briefRow("Desired reaction", v.DesiredReaction)
+							@briefRow("Visual style", v.VisualStyle)
+						</dl>
+					</div>
+				</div>
+			}
+		</div>
+	</div>
+}

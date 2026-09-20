@@ -22,7 +22,7 @@
     "model": "qwen3.5-9b-uncensored-hauhaucs-aggressive",
     "api_key": "",
     "temperature": 0.7,
-    "max_tokens": 4096,
+    "max_tokens": 8192,
     "request_timeout_seconds": 180,
     "planner_system_prompt": "You are vid-build's planner, a video pre-production assistant. You help creators develop briefs, outlines, shot lists, prompts and blocking. You propose; you never decide. Always respond with the requested structured JSON and nothing else."
   },

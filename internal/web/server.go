@@ -10,6 +10,8 @@ import (
 
 	"vidbuild/internal/auth"
 	"vidbuild/internal/config"
+	"vidbuild/internal/llm"
+	"vidbuild/internal/planner"
 	"vidbuild/internal/store"
 )
 
@@ -21,13 +23,14 @@ type Server struct {
 	store     *store.Store
 	log       *slog.Logger
 	dummyHash string
+	planner   *planner.Planner
 }
 
 // New constructs a Server.
 func New(cfg *config.Config, st *store.Store, log *slog.Logger) *Server {
 	params := auth.DefaultParams(cfg.Auth.Argon2MemoryKB, cfg.Auth.Argon2Iterations, cfg.Auth.Argon2Parallelism)
 	dummy, _ := auth.HashPassword("vid-build-timing-equalizer", params)
-	return &Server{cfg: cfg, store: st, log: log, dummyHash: dummy}
+	return &Server{cfg: cfg, store: st, log: log, dummyHash: dummy, planner: planner.New(llm.New(cfg.LLM))}
 }
 
 // Bootstrap creates the first administrator and personal workspace when empty.
@@ -57,6 +60,7 @@ func (s *Server) Handler() http.Handler {
 	r.Use(s.recover)
 	r.Use(s.requestLog)
 	r.Use(s.loadSession)
+	r.Use(s.methodOverride)
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -86,7 +90,33 @@ func (s *Server) Handler() http.Handler {
 			r.With(s.requireRole("owner", "editor")).Post("/projects", s.handleProjectCreate)
 			r.Get("/projects/{p}", s.handleProjectDashboard)
 			r.With(s.requireRole("owner", "editor")).Post("/projects/{p}/videos", s.handleVideoCreate)
-			r.Get("/projects/{p}/videos/{v}", s.handleVideo)
+			r.Route("/projects/{p}/videos/{v}", func(r chi.Router) {
+				r.Get("/", s.handleVideo)
+				r.Get("/develop", s.handleDevelop)
+				r.Post("/discovery/threads", s.handleCreateThread)
+				r.Post("/discovery/threads/{threadID}/messages", s.handlePostMessage)
+				r.Post("/discovery/threads/{threadID}/ask", s.handleAskPlanner)
+				r.Post("/proposals/brief", s.handleProposeBrief)
+				r.Post("/proposals/outline", s.handleProposeOutline)
+				r.Get("/proposals/{proposalID}", s.handleProposalView)
+				r.Post("/proposals/{proposalID}/apply", s.handleProposalApply)
+				r.Post("/proposals/{proposalID}/reject", s.handleProposalReject)
+				r.Post("/brief/revise", s.handleBriefRevise)
+				r.Get("/brief/history", s.handleBriefHistory)
+				r.Get("/outline", s.handleOutline)
+				r.Post("/sections", s.handleCreateSection)
+				r.Patch("/sections/{sectionID}", s.handleUpdateSection)
+				r.Delete("/sections/{sectionID}", s.handleDeleteSection)
+				r.Post("/sections/{sectionID}/move", s.handleMoveSection)
+				r.Post("/sections/{sectionID}/scenes", s.handleCreateScene)
+				r.Patch("/scenes/{sceneID}", s.handleUpdateScene)
+				r.Delete("/scenes/{sceneID}", s.handleDeleteScene)
+				r.Post("/scenes/{sceneID}/move", s.handleMoveScene)
+				r.Post("/scenes/{sceneID}/shots", s.handleCreateShot)
+				r.Patch("/shots/{shotID}", s.handleUpdateShot)
+				r.Delete("/shots/{shotID}", s.handleDeleteShot)
+				r.Post("/shots/{shotID}/move", s.handleMoveShot)
+			})
 			r.Get("/settings", s.handleWorkspaceSettings)
 		})
 	})
