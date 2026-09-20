@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>vid-build for studios — runs on your hardware, keeps your paper trail</title>
+  <meta name="description" content="vid-build for small studios and agencies: workspaces and roles, evidence-based approvals, client-safe local processing, and compute cost you can actually reconcile."/>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-base-100 text-base-content">
+
+  <div class="navbar bg-base-100/90 backdrop-blur sticky top-0 z-30 border-b border-base-300">
+    <div class="navbar-start">
+      <a class="btn btn-ghost text-lg font-bold gap-2" href="landing.html">
+        vid-build <span class="badge badge-neutral badge-sm">for studios</span>
+      </a>
+    </div>
+    <div class="navbar-center hidden lg:flex">
+      <ul class="menu menu-horizontal px-1">
+        <li><a href="#team">Teams</a></li>
+        <li><a href="#trust">Client-safe</a></li>
+        <li><a href="#cost">Compute cost</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+    <div class="navbar-end gap-2">
+      <a class="btn btn-ghost" href="landing.html">Product</a>
+      <a class="btn btn-primary" href="#contact">Bring it to your studio</a>
+    </div>
+  </div>
+
+  <section class="hero min-h-[78vh] bg-base-200">
+    <div class="hero-content flex-col lg:flex-row gap-10 max-w-6xl">
+      <div class="mockup-window bg-base-300 w-full max-w-xl border border-base-300">
+        <div class="bg-base-100 p-2">
+          <img src="https://picsum.photos/seed/vidbuild-review/1200/760" alt="vid-build review and approval" class="w-full rounded"/>
+        </div>
+      </div>
+      <div class="max-w-xl">
+        <p class="text-sm uppercase tracking-widest text-base-content/60 mb-2">For small studios and agencies</p>
+        <h1 class="text-4xl lg:text-5xl font-bold leading-tight">
+          A production spine your whole team can trust.
+        </h1>
+        <p class="py-4 text-lg text-base-content/80">
+          vid-build gives a studio the discipline clients expect — a brief, a shot plan, a
+          storyboard, approved frames and an export — with every decision attributed and
+          every dollar of compute accounted for. It runs on your hardware.
+        </p>
+        <div class="flex flex-wrap gap-3">
+          <a class="btn btn-primary" href="#contact">Bring it to your studio</a>
+          <a class="btn" href="#team">See how teams use it</a>
+        </div>
+        <p class="pt-4 text-sm text-base-content/60">Workspaces · roles · review &amp; approval · client-safe processing</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-20 bg-base-100">
+    <div class="max-w-4xl mx-auto px-6">
+      <h2 class="text-3xl font-bold">The studio problems nobody tooled for</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+        <div class="card bg-base-200"><div class="card-body">
+          <h3 class="card-title">Approvals live in chat threads</h3>
+          <p class="text-base-content/70">No record of who approved which take, or why. Redoing work becomes guesswork.</p>
+        </div></div>
+        <div class="card bg-base-200"><div class="card-body">
+          <h3 class="card-title">Version chaos</h3>
+          <p class="text-base-content/70">Ten numbered files, no lineage from decision to render. Reproducing a shot is archaeology.</p>
+        </div></div>
+        <div class="card bg-base-200"><div class="card-body">
+          <h3 class="card-title">Client material on someone else's cloud</h3>
+          <p class="text-base-content/70">Privacy-sensitive work shouldn't leave the building to get a first frame.</p>
+        </div></div>
+        <div class="card bg-base-200"><div class="card-body">
+          <h3 class="card-title">Render spend with no story</h3>
+          <p class="text-base-content/70">GPU hours vanish into a black box. You can't quote, plan or reconcile.</p>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="team" class="py-20 bg-base-200">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-3xl font-bold">How a team works in vid-build</h2>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 mt-10">
+        <div>
+          <ul class="steps steps-vertical w-full">
+            <li class="step step-primary">Workspaces per client</li>
+            <li class="step step-primary">Roles and least privilege</li>
+            <li class="step step-primary">Reviewer approves with a reason</li>
+            <li class="step">Edit, export, package</li>
+          </ul>
+        </div>
+        <div class="flex flex-col gap-4">
+          <div class="card bg-base-100"><div class="card-body">
+            <h3 class="card-title">Workspaces are the boundary</h3>
+            <p class="text-base-content/70">Personal work and each client live in separate workspaces. Authorization is enforced in the services, so nothing crosses a boundary by accident.</p>
+          </div></div>
+          <div class="card bg-base-100"><div class="card-body">
+            <h3 class="card-title">Roles, not shared logins</h3>
+            <p class="text-base-content/70">Owners, editors, reviewers and viewers. Reviewers comment, assess and approve; editors build. Every action is attributed to a person.</p>
+          </div></div>
+          <div class="card bg-base-100"><div class="card-body">
+            <h3 class="card-title">Approval is a decision, not a vibe</h3>
+            <p class="text-base-content/70">Approve, reject, or approve with a recorded exception. Model assessments are advisory and never approve on a human's behalf.</p>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="trust" class="py-20 bg-base-100">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-3xl font-bold">Client-safe by construction</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+        <div class="stat bg-base-200 rounded-box">
+          <div class="stat-title">Runs locally</div>
+          <div class="stat-desc text-base-content/70">Work stays on your hardware; models are reached over loopback.</div>
+        </div>
+        <div class="stat bg-base-200 rounded-box">
+          <div class="stat-title">No ComfyUI exposure</div>
+          <div class="stat-desc text-base-content/70">Phones and tablets pair to vid-build, never to the model server.</div>
+        </div>
+        <div class="stat bg-base-200 rounded-box">
+          <div class="stat-title">Portable handover</div>
+          <div class="stat-desc text-base-content/70">Export a client project package: schema, rows, media manifest and files.</div>
+        </div>
+        <div class="stat bg-base-200 rounded-box">
+          <div class="stat-title">Recoverable</div>
+          <div class="stat-desc text-base-content/70">Coordinated backups, a verify step that re-hashes media, and offline restore.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="cost" class="py-20 bg-base-200">
+    <div class="max-w-5xl mx-auto px-6">
+      <h2 class="text-3xl font-bold">Compute you can quote and reconcile</h2>
+      <p class="text-base-content/70 mt-2">The same frozen request can run on a local GPU, a rented worker or an API.</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+        <div class="card bg-base-100"><div class="card-body">
+          <h3 class="card-title">Estimate from evidence</h3>
+          <p class="text-base-content/70">Estimates come from your measured runs, not vendor benchmarks. Two GPUs are modelled as independent workers — VRAM is never summed.</p>
+        </div></div>
+        <div class="card bg-base-100"><div class="card-body">
+          <h3 class="card-title">Preflight before you commit</h3>
+          <p class="text-base-content/70">A campaign verifies target, models, assets and capacity, and will not launch in an invalid state.</p>
+        </div></div>
+        <div class="card bg-base-100"><div class="card-body">
+          <h3 class="card-title">Reconcile actuals</h3>
+          <p class="text-base-content/70">Record what you actually spent so the next quote is better — without rewriting history.</p>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-20 bg-base-100">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-3xl font-bold">Everything a studio needs to ship</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
+        <div class="card bg-base-200"><div class="card-body">
+          <h3 class="card-title">Project Bible</h3>
+          <p class="text-base-content/70">Characters, locations and style rules that keep a series consistent — with a usage view before you change them.</p>
+        </div></div>
+        <div class="card bg-base-200"><div class="card-body">
+          <h3 class="card-title">Evidence-based review</h3>
+          <p class="text-base-content/70">Full-size comparison with per-candidate receipts: model, seed, workflow, time. Receipts answer "how was this made?".</p>
+        </div></div>
+        <div class="card bg-base-200"><div class="card-body">
+          <h3 class="card-title">Annotations</h3>
+          <p class="text-base-content/70">Actionable review notes, attachable to a shot, resolvable, and attributed.</p>
+        </div></div>
+        <div class="card bg-base-200"><div class="card-body">
+          <h3 class="card-title">Your workflows, versioned</h3>
+          <p class="text-base-content/70">Import a tested ComfyUI API graph as an immutable version; confirm bindings; validate against the target before production.</p>
+        </div></div>
+        <div class="card bg-base-200"><div class="card-body">
+          <h3 class="card-title">Export with a receipt</h3>
+          <p class="text-base-content/70">Assemble approved clips into an MP4 whose receipt links back to the edit revision and source assets.</p>
+        </div></div>
+        <div class="card bg-base-200"><div class="card-body">
+          <h3 class="card-title">Relaxed review on device</h3>
+          <p class="text-base-content/70">Pair a tablet over LAN for couch review and approvals; revoke devices individually.</p>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" class="py-20 bg-base-200">
+    <div class="max-w-3xl mx-auto px-6">
+      <h2 class="text-3xl font-bold mb-6">Questions studios ask</h2>
+      <div class="flex flex-col gap-2">
+        <details class="collapse collapse-arrow bg-base-100">
+          <summary class="collapse-title font-medium">Does it run as a server for a team?</summary>
+          <div class="collapse-content text-base-content/70"><p>Yes. The same application runs as a real web app with workspaces, roles and per-device sessions, or as a local-first desktop tool.</p></div>
+        </details>
+        <details class="collapse collapse-arrow bg-base-100">
+          <summary class="collapse-title font-medium">Can reviewers use their own devices?</summary>
+          <div class="collapse-content text-base-content/70"><p>Owners pair devices over LAN with a short-lived, single-use code. Each device gets its own revocable session.</p></div>
+        </details>
+        <details class="collapse collapse-arrow bg-base-100">
+          <summary class="collapse-title font-medium">What happens to our data?</summary>
+          <div class="collapse-content text-base-content/70"><p>It stays with you: a single SQLite database and a media folder with checksums. Nothing is uploaded to us.</p></div>
+        </details>
+        <details class="collapse collapse-arrow bg-base-100">
+          <summary class="collapse-title font-medium">Can we hand a project to a client?</summary>
+          <div class="collapse-content text-base-content/70"><p>Queue a portable project package (schema version, project rows, referenced media, checksums and an import manifest) and hand it over.</p></div>
+        </details>
+        <details class="collapse collapse-arrow bg-base-100">
+          <summary class="collapse-title font-medium">Do we have to abandon our ComfyUI setup?</summary>
+          <div class="collapse-content text-base-content/70"><p>No. Keep authoring in ComfyUI. vid-build imports your graphs and binds only the inputs you confirm.</p></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section id="contact" class="py-24 bg-base-100">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <h2 class="text-3xl lg:text-4xl font-bold">Bring a spine to your studio's AI production.</h2>
+      <p class="text-base-content/70 mt-3">Start local, add team coordination when you need it. [contact link placeholder]</p>
+      <div class="mt-6 flex flex-wrap gap-3 justify-center">
+        <a class="btn btn-primary" href="mailto:hello@example.com">Talk to us</a>
+        <a class="btn" href="landing.html">Explore the product</a>
+      </div>
+      <p class="text-xs text-base-content/50 mt-4">Replace the placeholder contact details before publishing.</p>
+    </div>
+  </section>
+
+  <footer class="footer sm:footer-horizontal bg-base-200 text-base-content p-10 border-t border-base-300">
+    <aside>
+      <p class="text-lg font-bold">vid-build <span class="badge badge-neutral badge-sm">for studios</span></p>
+      <p class="text-base-content/60">Runs on your hardware. Keeps your paper trail.</p>
+    </aside>
+    <nav>
+      <h6 class="footer-title">Product</h6>
+      <a class="link link-hover" href="landing.html">Overview</a>
+      <a class="link link-hover" href="#team">Teams</a>
+      <a class="link link-hover" href="#cost">Compute cost</a>
+    </nav>
+    <nav>
+      <h6 class="footer-title">Resources</h6>
+      <a class="link link-hover" href="../user-manual.md">User manual</a>
+      <a class="link link-hover" href="../presentations/index.html">Presentations</a>
+      <a class="link link-hover" href="brochure.md">Brochure</a>
+    </nav>
+  </footer>
+
+</body>
+</html>

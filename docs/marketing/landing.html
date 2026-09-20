@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>vid-build — Direct the film. Don't babysit the prompt.</title>
+  <meta name="description" content="A local-first studio that turns one idea into a finished, multi-shot video — storyboard-first, human-approved, and honest about compute cost."/>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-base-100 text-base-content">
+
+  <!-- Nav -->
+  <div class="navbar bg-base-100/90 backdrop-blur sticky top-0 z-30 border-b border-base-300">
+    <div class="navbar-start">
+      <a class="btn btn-ghost text-lg font-bold gap-2" href="#top">
+        vid-build <span class="badge badge-neutral badge-sm">0.01</span>
+      </a>
+    </div>
+    <div class="navbar-center hidden lg:flex">
+      <ul class="menu menu-horizontal px-1">
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#why">Why different</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+    <div class="navbar-end gap-2">
+      <a class="btn btn-ghost" href="landing-teams.html">For studios</a>
+      <a class="btn btn-primary" href="#get">Run it locally</a>
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <section id="top" class="hero min-h-[80vh] bg-base-200">
+    <div class="hero-content flex-col lg:flex-row-reverse gap-10 max-w-6xl">
+      <div class="mockup-window bg-base-300 w-full max-w-xl border border-base-300">
+        <div class="bg-base-100 p-2">
+          <img src="https://picsum.photos/seed/vidbuild-board/1200/760" alt="vid-build storyboard" class="w-full rounded"/>
+        </div>
+      </div>
+      <div class="max-w-xl">
+        <p class="text-sm uppercase tracking-widest text-base-content/60 mb-2">For creators who take video seriously</p>
+        <h1 class="text-4xl lg:text-5xl font-bold leading-tight">
+          Direct the film.<br/>Don't babysit the prompt.
+        </h1>
+        <p class="py-4 text-lg text-base-content/80">
+          vid-build is a local-first studio that takes one idea to a finished, multi-shot
+          video. Storyboard it before you render it. Keep every decision on the record.
+          Run it all on your own machine.
+        </p>
+        <div class="flex flex-wrap gap-3">
+          <a class="btn btn-primary" href="#get">Run the studio locally</a>
+          <a class="btn" href="#how">See how it works</a>
+        </div>
+        <p class="pt-4 text-sm text-base-content/60">
+          Local-first · your models, your data · no cloud lock-in
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Problem -->
+  <section class="py-20 bg-base-100">
+    <div class="max-w-4xl mx-auto px-6">
+      <h2 class="text-3xl font-bold">AI video is powerful. The work around it isn't.</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+        <div class="card bg-base-200">
+          <div class="card-body">
+            <h3 class="card-title">The idea lives everywhere and nowhere</h3>
+            <p class="text-base-content/70">A note, a doc, a dozen prompt tabs, a folder of numbered PNGs.</p>
+          </div>
+        </div>
+        <div class="card bg-base-200">
+          <div class="card-body">
+            <h3 class="card-title">You pay for pixels before you know it works</h3>
+            <p class="text-base-content/70">Rendering is the most expensive way to find a story problem.</p>
+          </div>
+        </div>
+        <div class="card bg-base-200">
+          <div class="card-body">
+            <h3 class="card-title">Every result is a slot machine</h3>
+            <p class="text-base-content/70">You get an output, not the recipe. Reproducing last week's take is luck.</p>
+          </div>
+        </div>
+        <div class="card bg-base-200">
+          <div class="card-body">
+            <h3 class="card-title">Cost is a surprise</h3>
+            <p class="text-base-content/70">Local GPU, rented GPU or API? Most tools won't help you decide or reconcile.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Three pillars -->
+  <section class="py-20 bg-base-200">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-3xl font-bold text-center">Making video is production, not prompting</h2>
+      <p class="text-center text-base-content/70 mt-2 max-w-2xl mx-auto">Three commitments shape every screen.</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
+        <div class="card bg-base-100">
+          <div class="card-body">
+            <span class="badge badge-neutral">1</span>
+            <h3 class="card-title mt-2">You are the director</h3>
+            <p class="text-base-content/70">The studio asks what a shot accomplishes and what visibly changes. Model names and samplers are production settings — not direction.</p>
+          </div>
+        </div>
+        <div class="card bg-base-100">
+          <div class="card-body">
+            <span class="badge badge-neutral">2</span>
+            <h3 class="card-title mt-2">See the film before the pixels</h3>
+            <p class="text-base-content/70">Structured blocking sketches render instantly as SVG — no model call, no cost. Storyboard the whole film before spending a GPU-second.</p>
+          </div>
+        </div>
+        <div class="card bg-base-100">
+          <div class="card-body">
+            <span class="badge badge-neutral">3</span>
+            <h3 class="card-title mt-2">AI proposes. You approve.</h3>
+            <p class="text-base-content/70">Briefs, outlines, shots, assessments and cost estimates never become authoritative on their own. Nothing expensive happens silently.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section id="how" class="py-20 bg-base-100">
+    <div class="max-w-5xl mx-auto px-6">
+      <h2 class="text-3xl font-bold">How it works</h2>
+      <p class="text-base-content/70 mt-2">One path, increasing commitment. Move freely — the studio shows what's actually ready.</p>
+      <ul class="steps steps-vertical lg:steps-horizontal mt-10 w-full">
+        <li class="step step-primary">Develop</li>
+        <li class="step step-primary">Outline</li>
+        <li class="step step-primary">Board</li>
+        <li class="step">Produce</li>
+        <li class="step">Review</li>
+        <li class="step">Edit</li>
+        <li class="step">Compute</li>
+      </ul>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
+        <div class="card bg-base-200">
+          <div class="card-body">
+            <h3 class="card-title">Develop &amp; Outline</h3>
+            <p class="text-base-content/70">Turn an idea into an accepted brief, then a section → scene → shot plan. Every shot has a purpose and a visible change.</p>
+          </div>
+        </div>
+        <div class="card bg-base-200">
+          <div class="card-body">
+            <h3 class="card-title">Board, Blocking &amp; Produce</h3>
+            <p class="text-base-content/70">Stage every shot cheaply, then freeze a specification into a generation request — candidates, quality, and where it runs.</p>
+          </div>
+        </div>
+        <div class="card bg-base-200">
+          <div class="card-body">
+            <h3 class="card-title">Review, Edit &amp; Compute</h3>
+            <p class="text-base-content/70">Compare candidates with receipts, approve the best, assemble the cut, and plan where the costly work really runs.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="py-20 bg-base-200">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-3xl font-bold">What you get</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
+        <div class="card bg-base-100"><div class="card-body">
+          <h3 class="card-title">Storyboard-first</h3>
+          <p class="text-base-content/70">Start · Change · End cards. The end must visibly pay off the start; the studio tells you when it doesn't.</p>
+        </div></div>
+        <div class="card bg-base-100"><div class="card-body">
+          <h3 class="card-title">Blocking editor</h3>
+          <p class="text-base-content/70">Move subjects, gaze, props and camera; get a change analysis. Saved as structured data, not throwaway images.</p>
+        </div></div>
+        <div class="card bg-base-100"><div class="card-body">
+          <h3 class="card-title">Prompt layers</h3>
+          <p class="text-base-content/70">Style, character, location, motion — inherit, append, replace, suppress or lock. See the exact compiled prompt first.</p>
+        </div></div>
+        <div class="card bg-base-100"><div class="card-body">
+          <h3 class="card-title">Bring your own workflows</h3>
+          <p class="text-base-content/70">Author and test graphs in ComfyUI; import them as immutable versions. vid-build binds only the inputs you confirm.</p>
+        </div></div>
+        <div class="card bg-base-100"><div class="card-body">
+          <h3 class="card-title">Evidence-based review</h3>
+          <p class="text-base-content/70">Full-size comparison with a receipt per candidate: model, seed, workflow, time. Select, approve, or approve with a recorded exception.</p>
+        </div></div>
+        <div class="card bg-base-100"><div class="card-body">
+          <h3 class="card-title">Compute you control</h3>
+          <p class="text-base-content/70">Estimates from your measured runs. Bundle work into a campaign, preflight it, then reconcile what you actually spent.</p>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why different -->
+  <section id="why" class="py-20 bg-base-100">
+    <div class="max-w-4xl mx-auto px-6">
+      <h2 class="text-3xl font-bold">Why it's different</h2>
+      <div class="overflow-x-auto mt-8">
+        <table class="table">
+          <thead>
+            <tr><th>Everyone else</th><th>vid-build</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="text-base-content/60">Prompt box, one take</td><td>Storyboard before rendering</td></tr>
+            <tr><td class="text-base-content/60">Black-box model</td><td>Your own tested ComfyUI workflows</td></tr>
+            <tr><td class="text-base-content/60">Selection = whatever generated</td><td>Explicit select + human approval</td></tr>
+            <tr><td class="text-base-content/60">Cost is a surprise</td><td>Measured estimates and reconciliation</td></tr>
+            <tr><td class="text-base-content/60">Cloud lock-in</td><td>Local-first, portable project packages</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Local-first -->
+  <section class="py-20 bg-base-200">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-3xl font-bold">Local-first by design</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+        <div class="stat bg-base-100 rounded-box">
+          <div class="stat-title">Your machine</div>
+          <div class="stat-desc text-base-content/70">Runs on your workstation. Nothing is uploaded to us.</div>
+        </div>
+        <div class="stat bg-base-100 rounded-box">
+          <div class="stat-title">Your models</div>
+          <div class="stat-desc text-base-content/70">LM Studio and ComfyUI over loopback. Graphs stay yours.</div>
+        </div>
+        <div class="stat bg-base-100 rounded-box">
+          <div class="stat-title">Your data</div>
+          <div class="stat-desc text-base-content/70">One SQLite database and a media folder with checksums.</div>
+        </div>
+        <div class="stat bg-base-100 rounded-box">
+          <div class="stat-title">Your control</div>
+          <div class="stat-desc text-base-content/70">Backups, verify, offline restore, portable project packages.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Honest proof -->
+  <section class="py-20 bg-base-100">
+    <div class="max-w-4xl mx-auto px-6">
+      <div class="card bg-base-200">
+        <div class="card-body">
+          <span class="badge badge-neutral w-fit">Honest status</span>
+          <h2 class="card-title text-2xl mt-2">A working vertical slice — not a mockup</h2>
+          <p class="text-base-content/80">
+            The full path works today: create a project, develop a brief, outline, block,
+            generate on a live ComfyUI, review and approve, edit, and export an MP4. It has
+            been exercised end-to-end against a real local stack (LM Studio planner, ComfyUI
+            on an RTX 3090, FFmpeg).
+          </p>
+          <p class="text-base-content/60 text-sm">
+            Still maturing: desktop packaging, rented/API execution adapters, audio. We would
+            rather tell you what works than what sounds impressive.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="py-20 bg-base-200">
+    <div class="max-w-3xl mx-auto px-6">
+      <h2 class="text-3xl font-bold mb-6">Questions</h2>
+      <div class="flex flex-col gap-2">
+        <details class="collapse collapse-arrow bg-base-100">
+          <summary class="collapse-title font-medium">Do I need ComfyUI?</summary>
+          <div class="collapse-content text-base-content/70">
+            <p>No. You can develop, outline, storyboard and block without it. ComfyUI is needed only for generated frames.</p>
+          </div>
+        </details>
+        <details class="collapse collapse-arrow bg-base-100">
+          <summary class="collapse-title font-medium">Do I need to be online?</summary>
+          <div class="collapse-content text-base-content/70">
+            <p>No. vid-build is local-first. It talks to your machine's services over loopback.</p>
+          </div>
+        </details>
+        <details class="collapse collapse-arrow bg-base-100">
+          <summary class="collapse-title font-medium">Will it replace my ComfyUI workflows?</summary>
+          <div class="collapse-content text-base-content/70">
+            <p>No — the opposite. You author and test graphs in ComfyUI; vid-build imports them as immutable versions and binds only the inputs you confirm.</p>
+          </div>
+        </details>
+        <details class="collapse collapse-arrow bg-base-100">
+          <summary class="collapse-title font-medium">Can it make the film automatically?</summary>
+          <div class="collapse-content text-base-content/70">
+            <p>Deliberately not. It is built so a human decides, selects and approves. That is the feature.</p>
+          </div>
+        </details>
+        <details class="collapse collapse-arrow bg-base-100">
+          <summary class="collapse-title font-medium">Is my client material safe?</summary>
+          <div class="collapse-content text-base-content/70">
+            <p>It stays on your machine. Local ComfyUI is reached over loopback and never exposed; LAN review pairs devices to vid-build, not to your model server.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section id="get" class="py-24 bg-base-100">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <h2 class="text-3xl lg:text-4xl font-bold">Storyboard your next film before you spend a GPU-second.</h2>
+      <p class="text-base-content/70 mt-3">Local-first, human-approved, and honest about compute.</p>
+      <div class="mt-6">
+        <a class="btn btn-primary" href="#top">Run the studio locally</a>
+      </div>
+      <div class="mockup-code mt-10 text-left max-w-xl mx-auto">
+        <pre data-prefix="$"><code>git clone &lt;repo&gt; &amp;&amp; cd vid_builder</code></pre>
+        <pre data-prefix="$"><code>cp config.example.json config.json</code></pre>
+        <pre data-prefix="$"><code>templ generate</code></pre>
+        <pre data-prefix="$" class="text-success"><code>go run ./cmd/vidbuild -open</code></pre>
+      </div>
+      <p class="text-xs text-base-content/50 mt-4">Requires Go 1.26+. LM Studio, ComfyUI and FFmpeg are optional.</p>
+    </div>
+  </section>
+
+  <footer class="footer sm:footer-horizontal bg-base-200 text-base-content p-10 border-t border-base-300">
+    <aside>
+      <p class="text-lg font-bold">vid-build <span class="badge badge-neutral badge-sm">0.01</span></p>
+      <p class="text-base-content/60">Idea to finished film, one visible change at a time.</p>
+    </aside>
+    <nav>
+      <h6 class="footer-title">Product</h6>
+      <a class="link link-hover" href="#how">How it works</a>
+      <a class="link link-hover" href="#features">Features</a>
+      <a class="link link-hover" href="#why">Why different</a>
+    </nav>
+    <nav>
+      <h6 class="footer-title">Audiences</h6>
+      <a class="link link-hover" href="landing-teams.html">For studios &amp; teams</a>
+      <a class="link link-hover" href="../presentations/index.html">Presentations</a>
+      <a class="link link-hover" href="../user-manual.md">User manual</a>
+    </nav>
+    <nav>
+      <h6 class="footer-title">Trust</h6>
+      <a class="link link-hover" href="#faq">Local-first &amp; privacy</a>
+      <a class="link link-hover" href="#faq">FAQ</a>
+    </nav>
+  </footer>
+
+</body>
+</html>
