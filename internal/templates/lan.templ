@@ -1,0 +1,65 @@
+package templates
+
+templ LanPage(data LanData) {
+	@shell(data.Shell, lanBody(data))
+}
+
+templ lanBody(data LanData) {
+	<div class="max-w-3xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">LAN access</h1>
+				<p class="opacity-70 text-sm">Let a paired phone or tablet review and storyboard. Mark 2 talks to local ComfyUI; the device never does.</p>
+			</div>
+			<a class="btn btn-sm" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/settings") }>Settings</a>
+		</div>
+
+		<div class="card bg-base-100 shadow mb-4">
+			<div class="card-body">
+				<div class="flex items-center gap-2">
+					<span class="opacity-60">Status</span>
+					if data.Enabled {
+						<span class="badge badge-success">LAN access active</span>
+					} else {
+						<span class="badge badge-ghost">loopback only</span>
+					}
+				</div>
+				<p class="text-xs opacity-70 mt-1">LAN is disabled by default and binds a separate listener. Enabling it does not change the primary loopback listener.</p>
+				<div class="card-actions mt-3">
+					if data.Enabled {
+						<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/settings/lan/regenerate") }>
+							<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+							<button class="btn btn-sm" type="submit">New pairing code</button>
+						</form>
+						<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/settings/lan/disable") }>
+							<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+							<button class="btn btn-sm btn-error btn-outline" type="submit">Disable and revoke</button>
+						</form>
+					} else {
+						<form method="post" action={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/settings/lan/enable") }>
+							<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+							<button class="btn btn-sm btn-primary" type="submit">Enable LAN access</button>
+						</form>
+					}
+				</div>
+			</div>
+		</div>
+
+		if data.Enabled {
+			<div class="card bg-base-100 shadow">
+				<div class="card-body">
+					<h2 class="card-title text-base">Pair a device</h2>
+					<p class="text-sm">On the phone or tablet, open this address and enter the code (valid until { data.Until }, single use):</p>
+					<div class="flex flex-col gap-2 mt-2">
+						<div class="join">
+							<input class="input input-bordered join-item w-full font-mono" readonly="readonly" value={ data.Address + "/pair" }/>
+						</div>
+						<div class="text-3xl font-mono tracking-widest text-center py-2 bg-base-200 rounded-box">{ data.Code }</div>
+						<a class="btn btn-sm" href={ templ.URL(data.Address + "/pair?code=" + data.Code) } target="_blank" rel="noopener">Open pairing link</a>
+					</div>
+					<p class="text-xs opacity-60 mt-2">Each device receives its own session. Revoke devices under Account → Active sessions.</p>
+				</div>
+			</div>
+		}
+	</div>
+}

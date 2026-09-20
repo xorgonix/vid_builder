@@ -107,6 +107,15 @@ go run ./cmd/vidbuild-restore -backup data/backups/backup-YYYYMMDD-HHMMSS -yes
 Media files stay in the media store and are verified against the manifest rather
 than copied.
 
+## LAN access (phone/tablet review)
+
+LAN access is **off by default** and binds a separate listener (`server.lan_bind_host`,
+`server.lan_port`). An owner enables it under **Workspace → Settings → LAN access**,
+which issues a short-lived, single-use pairing code. The device opens the shown
+address, redeems the code, and receives its **own revocable session** (visible under
+Account → Active sessions). Disabling revokes the listener and all outstanding codes.
+The device talks only to Mark 2; local ComfyUI is never exposed.
+
 ## Security
 
 Argon2id passwords, opaque session tokens (only hashes stored), per-session CSRF

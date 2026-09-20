@@ -681,3 +681,22 @@ CREATE TABLE IF NOT EXISTS exports (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_exports_edit ON exports (edit_id);
+
+-- LAN pairing and durable app settings (spec §21.3A)
+CREATE TABLE IF NOT EXISTS pairing_tokens (
+    id                 TEXT PRIMARY KEY,
+    code_hash          TEXT NOT NULL,
+    user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    workspace_id       TEXT,
+    device_label       TEXT NOT NULL DEFAULT '',
+    created_by_user_id TEXT,
+    created_at         TEXT NOT NULL,
+    expires_at         TEXT NOT NULL,
+    used_at            TEXT
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS app_settings (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+) STRICT;

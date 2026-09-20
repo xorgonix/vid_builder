@@ -30,7 +30,7 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 	caps := Capabilities{
 		Desktop:        false,
 		LocalGPU:       s.cfg.ComfyUI.Enabled,
-		LANAccess:      s.cfg.Server.Mode == "lan",
+		LANAccess:      s.lan.enabled(),
 		ComfyUIEnabled: s.cfg.ComfyUI.Enabled,
 	}
 	w.Header().Set("Content-Type", "application/json")

@@ -617,6 +617,15 @@ type ModelProfilesData struct {
 	ComfyReady  bool
 }
 
+// LanData backs the LAN access screen.
+type LanData struct {
+	Shell   ShellData
+	Enabled bool
+	Address string
+	Code    string
+	Until   string
+}
+
 // MemberView is a workspace member row.
 type MemberView struct {
 	UserID      string

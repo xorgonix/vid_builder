@@ -27,6 +27,7 @@ type Server struct {
 	log       *slog.Logger
 	dummyHash string
 	planner   *planner.Planner
+	lan       lanState
 }
 
 // New constructs a Server.
@@ -91,6 +92,7 @@ func (s *Server) Handler() http.Handler {
 
 	r.Get("/login", s.handleLoginForm)
 	r.With(s.loginCSRFCheck).Post("/login", s.handleLoginPost)
+	r.Get("/pair", s.handlePair)
 
 	r.Group(func(r chi.Router) {
 		r.Use(s.requireAuth)
@@ -208,6 +210,10 @@ func (s *Server) Handler() http.Handler {
 			r.With(s.requireRole("owner", "editor")).Post("/projects/{p}/style-rules", s.handleCreateStyleRule)
 			r.Get("/settings", s.handleWorkspaceSettings)
 			r.Get("/members", s.handleMembers)
+			r.With(s.requireRole("owner")).Get("/settings/lan", s.handleLanStatus)
+			r.With(s.requireRole("owner")).Post("/settings/lan/enable", s.handleLanEnable)
+			r.With(s.requireRole("owner")).Post("/settings/lan/disable", s.handleLanDisable)
+			r.With(s.requireRole("owner")).Post("/settings/lan/regenerate", s.handleLanRegenerate)
 			r.With(s.requireRole("owner")).Post("/members", s.handleAddMember)
 			r.With(s.requireRole("owner")).Patch("/members/{userID}", s.handleUpdateMember)
 			r.With(s.requireRole("owner")).Delete("/members/{userID}", s.handleRemoveMember)

@@ -38,6 +38,8 @@ type ServerConfig struct {
 	Port                 int    `json:"port"`
 	Mode                 string `json:"mode"` // desktop | local-web | lan | server
 	BootstrapTokenTTLMin int    `json:"bootstrap_token_ttl_minutes"`
+	LANBindHost          string `json:"lan_bind_host"`
+	LANPort              int    `json:"lan_port"`
 }
 
 type DatabaseConfig struct {
@@ -109,7 +111,7 @@ type LoggingConfig struct {
 // config.json so a missing file can be recreated or validated.
 func Default() *Config {
 	return &Config{
-		Server:   ServerConfig{Host: "127.0.0.1", Port: 8971, Mode: "local-web", BootstrapTokenTTLMin: 10},
+		Server:   ServerConfig{Host: "127.0.0.1", Port: 8971, Mode: "local-web", BootstrapTokenTTLMin: 10, LANBindHost: "0.0.0.0", LANPort: 8972},
 		Database: DatabaseConfig{Path: "data/vidbuild.db", BusyTimeoutMs: 5000, MaxPoolConns: 8},
 		Media:    MediaConfig{RootDir: "data/media", TempDir: "data/temp", ThumbnailDir: "data/media/thumbs", ExportsDir: "data/exports"},
 		LLM: LLMConfig{

@@ -3,7 +3,9 @@
     "host": "127.0.0.1",
     "port": 8971,
     "mode": "local-web",
-    "bootstrap_token_ttl_minutes": 10
+    "bootstrap_token_ttl_minutes": 10,
+    "lan_bind_host": "0.0.0.0",
+    "lan_port": 8972
   },
   "database": {
     "path": "data/vidbuild.db",

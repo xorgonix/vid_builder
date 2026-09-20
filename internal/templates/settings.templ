@@ -47,6 +47,13 @@ templ settingsBody(data ShellData, view SettingsView) {
 					<a class="btn btn-sm mt-2" href={ templ.URL("/w/" + data.CurrentWorkspace.ID + "/model-profiles") }>Manage profiles</a>
 				</div>
 			</div>
+			<div class="card bg-base-100 shadow">
+				<div class="card-body">
+					<h2 class="card-title text-base">LAN access</h2>
+					<p class="text-sm opacity-70">Pair a phone or tablet for review and storyboarding. Disabled by default.</p>
+					<a class="btn btn-sm mt-2" href={ templ.URL("/w/" + data.CurrentWorkspace.ID + "/settings/lan") }>Manage LAN access</a>
+				</div>
+			</div>
 		</div>
 	</div>
 }

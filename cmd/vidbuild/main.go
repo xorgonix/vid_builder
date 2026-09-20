@@ -64,6 +64,7 @@ func main() {
 	if err := srv.SeedBundledWorkflow(ctx); err != nil {
 		logger.Error("seed bundled workflow", "err", err)
 	}
+	srv.LoadLAN(ctx)
 
 	appCtx, stopWorker := context.WithCancel(context.Background())
 	defer stopWorker()
