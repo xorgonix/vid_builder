@@ -20,6 +20,19 @@ func nullString(v string) sql.NullString {
 // itoa renders an int as a string.
 func itoa(n int) string { return strconv.Itoa(n) }
 
+// parseInt64 parses an int64 with a fallback.
+func parseInt64(s string, def int64) int64 {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return def
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return def
+	}
+	return n
+}
+
 // withQuery appends a query string to a URL, choosing ? or & as needed.
 func withQuery(base, query string) string {
 	if query == "" {

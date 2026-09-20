@@ -226,6 +226,7 @@ func (s *Server) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID: ws.ID, ProjectID: project.ID, VideoID: video.ID, ShotID: shot.ID, ShotSpecID: spec.ID,
 		SpecVersion: spec.Version, OutputRole: role, QualityTier: formValueOr(r, "tier", "concept"),
 		CandidateCount: candidates, WorkflowVersionID: version.ID, RequestJSON: string(raw),
+		Enqueue: formValueOr(r, "execution", "local") != "campaign",
 	}, user.ID)
 	if err != nil {
 		s.log.Error("create request", "err", err)
@@ -233,7 +234,11 @@ func (s *Server) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = s.store.Audit(r.Context(), ws.ID, user.ID, "generation.request", "generation_request", req.ID, "created generation request", "{}")
-	http.Redirect(w, r, s.videoBase(r)+"/jobs/"+job.ID, http.StatusSeeOther)
+	if job != nil {
+		http.Redirect(w, r, s.videoBase(r)+"/jobs/"+job.ID, http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, s.videoBase(r)+"/compute?msg="+urlMsg("Request saved for campaign planning.")+"&kind=success", http.StatusSeeOther)
 }
 
 func (s *Server) handleJob(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,183 @@
+package templates
+
+templ ComputePage(data ComputeData) {
+	@shell(data.Shell, computeBody(data))
+}
+
+templ computeBody(data ComputeData) {
+	<div class="max-w-6xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Compute Planner</h1>
+				<p class="opacity-70 text-sm">Where, when and at what approximate cost should ready work run?</p>
+			</div>
+			<a class="btn btn-sm" href={ templ.URL("/w/" + data.Shell.CurrentWorkspace.ID + "/execution-targets") }>Execution targets</a>
+		</div>
+
+		<h2 class="text-lg font-semibold mb-2">Blocked/ready requests ({ len(data.Drafts) })</h2>
+		<div class="overflow-x-auto card bg-base-100 shadow mb-6">
+			<table class="table table-sm">
+				<thead><tr><th>Shot</th><th>Role</th><th>Quality</th><th>Candidates</th><th>Status</th></tr></thead>
+				<tbody>
+					for _, d := range data.Drafts {
+						<tr><td>{ d.ShotTitle }</td><td>{ d.Role }</td><td>{ d.Tier }</td><td>{ d.Candidates }</td><td><span class="badge badge-sm badge-warning">{ d.Status }</span></td></tr>
+					}
+					if len(data.Drafts) == 0 {
+						<tr><td colspan="5" class="opacity-60">No planned requests. Create one from Produce with execution “campaign later”.</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+
+		<h2 class="text-lg font-semibold mb-2">Target comparison</h2>
+		<div class="overflow-x-auto card bg-base-100 shadow mb-6">
+			<table class="table table-sm">
+				<thead><tr><th>Target</th><th>Kind</th><th>Enabled</th><th>Observed avg</th><th>Samples</th><th>Estimated total</th><th>Source</th></tr></thead>
+				<tbody>
+					for _, t := range data.Targets {
+						<tr>
+							<td>{ t.Name }</td>
+							<td>{ t.Kind }</td>
+							<td>@boolBadge(t.Enabled)</td>
+							<td>{ t.AvgMs / 1000 }s / candidate</td>
+							<td>{ t.Samples }</td>
+							<td>{ t.EstimatedMs / 1000 }s</td>
+							<td class="text-xs opacity-60">{ t.Note }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		<div class="alert alert-info mb-6"><span>Two GPUs are modelled as independent workers unless combined execution is explicitly supported. VRAM is never added together.</span></div>
+
+		<h2 class="text-lg font-semibold mb-2">Campaigns</h2>
+		<div class="card bg-base-100 shadow mb-6">
+			<div class="card-body">
+				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/campaigns") } class="flex gap-2 items-end flex-wrap">
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<label class="form-control"><span class="label-text mb-1">Name</span><input class="input input-bordered input-sm" name="name" value="Render campaign" required/></label>
+					<label class="form-control"><span class="label-text mb-1">Target</span>
+						<select class="select select-bordered select-sm" name="target_id">
+							for _, t := range data.Targets {
+								<option value={ t.ID }>{ t.Name }</option>
+							}
+						</select>
+					</label>
+					<button class="btn btn-sm btn-primary" type="submit" disabled?={ len(data.Drafts) == 0 }>Create draft campaign</button>
+				</form>
+			</div>
+		</div>
+		<div class="overflow-x-auto card bg-base-100 shadow">
+			<table class="table table-sm">
+				<thead><tr><th>Name</th><th>Status</th><th>Target</th><th>Items</th><th>Estimated</th><th>Actual</th><th></th></tr></thead>
+				<tbody>
+					for _, c := range data.Campaigns {
+						<tr>
+							<td>{ c.Name }</td>
+							<td><span class={ "badge badge-sm", jobStateClass(c.Status) }>{ c.Status }</span></td>
+							<td>{ c.TargetName }</td>
+							<td>{ c.Items }</td>
+							<td>{ c.EstimatedMs / 1000 }s</td>
+							<td>{ c.ActualMs / 1000 }s</td>
+							<td><a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/campaigns/" + c.ID) }>Open</a></td>
+						</tr>
+					}
+					if len(data.Campaigns) == 0 {
+						<tr><td colspan="7" class="opacity-60">No campaigns yet.</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}
+
+templ CampaignPage(data CampaignPageData) {
+	@shell(data.Shell, campaignBody(data))
+}
+
+templ campaignBody(data CampaignPageData) {
+	<div class="max-w-4xl mx-auto" id="campaign-summary">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">{ data.Campaign.Name }</h1>
+				<p class="opacity-70 text-sm">Target: { data.Campaign.TargetName } · status <span class={ "badge badge-sm", jobStateClass(data.Campaign.Status) }>{ data.Campaign.Status }</span></p>
+			</div>
+			<a class="btn btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/compute") }>Compute</a>
+		</div>
+		<div class="flex flex-wrap gap-2 mb-4">
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/campaigns/" + data.Campaign.ID + "/preflight") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<button class="btn btn-sm" type="submit">Preflight</button>
+			</form>
+			if data.CanLaunch {
+				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/campaigns/" + data.Campaign.ID + "/launch") }>
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<button class="btn btn-sm btn-primary" type="submit">Launch</button>
+				</form>
+			}
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/campaigns/" + data.Campaign.ID + "/pause") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<button class="btn btn-sm" type="submit">Pause</button>
+			</form>
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/campaigns/" + data.Campaign.ID + "/cancel") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<button class="btn btn-sm btn-error btn-outline" type="submit">Cancel</button>
+			</form>
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/campaigns/" + data.Campaign.ID + "/reconcile") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<button class="btn btn-sm" type="submit">Reconcile actuals</button>
+			</form>
+		</div>
+		<div class="overflow-x-auto card bg-base-100 shadow">
+			<table class="table table-sm">
+				<thead><tr><th>Shot</th><th>Role</th><th>Candidates</th><th>Status</th><th>Estimated</th></tr></thead>
+				<tbody>
+					for _, it := range data.Items {
+						<tr><td>{ it.ShotTitle }</td><td>{ it.Role }</td><td>{ it.Candidates }</td><td><span class={ "badge badge-sm", jobStateClass(it.Status) }>{ it.Status }</span></td><td>{ it.EstimatedMs / 1000 }s</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}
+
+templ TargetsPage(data ShellData, targets []TargetEstimate) {
+	@shell(data, targetsBody(data, targets))
+}
+
+templ targetsBody(data ShellData, targets []TargetEstimate) {
+	<div class="max-w-4xl mx-auto">
+		<h1 class="text-2xl font-bold mb-1">Execution targets</h1>
+		<p class="opacity-70 text-sm mb-4">Occasional production configuration. Credentials are stored in the OS secret store; only a reference is kept here.</p>
+		<div class="overflow-x-auto card bg-base-100 shadow mb-4">
+			<table class="table table-sm">
+				<thead><tr><th>Name</th><th>Kind</th><th>Enabled</th><th>Observed avg</th><th>Samples</th></tr></thead>
+				<tbody>
+					for _, t := range targets {
+						<tr><td>{ t.Name }</td><td>{ t.Kind }</td><td>@boolBadge(t.Enabled)</td><td>{ t.AvgMs / 1000 }s</td><td>{ t.Samples }</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		<form method="post" action={ templ.URL("/w/" + data.CurrentWorkspace.ID + "/execution-targets") } class="flex gap-2 items-end">
+			<input type="hidden" name="_csrf" value={ data.CSRFToken }/>
+			<label class="form-control"><span class="label-text mb-1">Name</span><input class="input input-bordered input-sm" name="name" placeholder="Rented 2× RTX 5090" required/></label>
+			<label class="form-control"><span class="label-text mb-1">Kind</span>
+				<select class="select select-bordered select-sm" name="kind">
+					<option value="remote_agent">Remote agent</option>
+					<option value="hosted_comfy">Hosted ComfyUI</option>
+					<option value="commercial_api">Commercial API</option>
+				</select>
+			</label>
+			<button class="btn btn-sm" type="submit">Record target</button>
+		</form>
+	</div>
+}
+
+templ boolBadge(ok bool) {
+	if ok {
+		<span class="badge badge-success badge-sm">yes</span>
+	} else {
+		<span class="badge badge-ghost badge-sm">no</span>
+	}
+}

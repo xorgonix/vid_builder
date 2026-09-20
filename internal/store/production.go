@@ -347,6 +347,8 @@ type RequestInput struct {
 	WorkflowVersionID string
 	RequestJSON       string
 	CompilationJSON   string
+	Enqueue           bool
+	CampaignID        string
 }
 
 // CreateGenerationRequest inserts a request plus candidate attempts and a job.
@@ -368,6 +370,10 @@ func (s *Store) CreateGenerationRequest(ctx context.Context, in RequestInput, us
 	if compilationJSON == "" {
 		compilationJSON = "{}"
 	}
+	status := "draft"
+	if in.Enqueue {
+		status = "queued"
+	}
 	tx, err := s.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, nil, nil, err
@@ -376,7 +382,7 @@ func (s *Store) CreateGenerationRequest(ctx context.Context, in RequestInput, us
 
 	if _, err := tx.ExecContext(ctx, `INSERT INTO generation_requests (id, project_id, video_id, shot_id, shot_spec_id, spec_version, workflow_version_id, output_role, quality_tier, candidate_count, status, request_json, prompt_compilation_json, created_by_user_id, created_at, updated_at)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		req.ID, in.ProjectID, in.VideoID, in.ShotID, in.ShotSpecID, in.SpecVersion, nullStr(in.WorkflowVersionID), in.OutputRole, in.QualityTier, in.CandidateCount, "queued", requestJSON, compilationJSON, userID, now, now); err != nil {
+		req.ID, in.ProjectID, in.VideoID, in.ShotID, in.ShotSpecID, in.SpecVersion, nullStr(in.WorkflowVersionID), in.OutputRole, in.QualityTier, in.CandidateCount, status, requestJSON, compilationJSON, userID, now, now); err != nil {
 		return nil, nil, nil, fmt.Errorf("insert request: %w", err)
 	}
 	attempts := make([]GenerationAttempt, 0, in.CandidateCount)
@@ -391,19 +397,45 @@ func (s *Store) CreateGenerationRequest(ctx context.Context, in RequestInput, us
 		}
 		attempts = append(attempts, a)
 	}
-	job := &Job{ID: ids.New(), WorkspaceID: in.WorkspaceID, JobType: "generate", AggregateType: "generation_request", AggregateID: req.ID, State: "queued", Priority: 0, RequestJSON: "{}", CreatedAt: now}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO jobs (id, workspace_id, job_type, aggregate_type, aggregate_id, state, priority, request_json, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?)`, job.ID, job.WorkspaceID, job.JobType, job.AggregateType, job.AggregateID, "queued", 0, "{}", now); err != nil {
-		return nil, nil, nil, fmt.Errorf("insert job: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO job_events (id, job_id, sequence, phase, level, message, progress_basis_points, created_at)
-		VALUES (?,?,0,'queued','info','Generation request queued',0,?)`, ids.New(), job.ID, now); err != nil {
-		return nil, nil, nil, fmt.Errorf("insert job event: %w", err)
+	var job *Job
+	if in.Enqueue {
+		job = &Job{ID: ids.New(), WorkspaceID: in.WorkspaceID, JobType: "generate", AggregateType: "generation_request", AggregateID: req.ID, State: "queued", Priority: 0, RequestJSON: "{}", CreatedAt: now}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO jobs (id, workspace_id, job_type, aggregate_type, aggregate_id, state, priority, request_json, created_at)
+			VALUES (?,?,?,?,?,?,?,?,?)`, job.ID, job.WorkspaceID, job.JobType, job.AggregateType, job.AggregateID, "queued", 0, "{}", now); err != nil {
+			return nil, nil, nil, fmt.Errorf("insert job: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO job_events (id, job_id, sequence, phase, level, message, progress_basis_points, created_at)
+			VALUES (?,?,0,'queued','info','Generation request queued',0,?)`, ids.New(), job.ID, now); err != nil {
+			return nil, nil, nil, fmt.Errorf("insert job event: %w", err)
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, nil, nil, err
 	}
+	req.Status = status
 	return req, attempts, job, nil
+}
+
+// EnqueueGenerationJob creates a generate job for an existing request.
+func (s *Store) EnqueueGenerationJob(ctx context.Context, workspaceID, requestID, campaignID string) (*Job, error) {
+	now := db.Now()
+	j := &Job{ID: ids.New(), WorkspaceID: workspaceID, JobType: "generate", AggregateType: "generation_request", AggregateID: requestID, State: "queued", CreatedAt: now}
+	var camp any
+	if campaignID != "" {
+		camp = campaignID
+	}
+	if _, err := s.ExecContext(ctx, `INSERT INTO jobs (id, workspace_id, campaign_id, job_type, aggregate_type, aggregate_id, state, priority, request_json, created_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?)`, j.ID, workspaceID, camp, "generate", "generation_request", requestID, "queued", 0, "{}", now); err != nil {
+		return nil, err
+	}
+	if _, err := s.ExecContext(ctx, `INSERT INTO job_events (id, job_id, sequence, phase, level, message, progress_basis_points, created_at)
+		VALUES (?,?,0,'queued','info','Generation request queued by campaign',0,?)`, ids.New(), j.ID, now); err != nil {
+		return nil, err
+	}
+	if err := s.SetRequestStatus(ctx, requestID, "queued"); err != nil {
+		return nil, err
+	}
+	return j, nil
 }
 
 func nullStr(v string) any {
@@ -791,6 +823,22 @@ func (s *Store) RecordObservation(ctx context.Context, attemptID, targetID, mode
 	_, err := s.ExecContext(ctx, `INSERT INTO execution_observations (id, generation_attempt_id, execution_target_id, model_id, workflow_version_id, elapsed_ms, startup_ms, peak_vram_mb, cost_micros, success, created_at)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?)`, ids.New(), attemptID, nullStr(targetID), nullStr(modelID), nullStr(workflowVersionID), elapsedMs, startupMs, peakVRAM, costMicros, succ, db.Now())
 	return err
+}
+
+// CreateExecutionTarget records a target's metadata (no raw secret is stored).
+func (s *Store) CreateExecutionTarget(ctx context.Context, workspaceID, userID, name, kind string) (*ExecutionTarget, error) {
+	switch kind {
+	case "local_comfy", "remote_agent", "hosted_comfy", "commercial_api", "local_tool":
+	default:
+		kind = "remote_agent"
+	}
+	now := db.Now()
+	t := &ExecutionTarget{ID: ids.New(), WorkspaceID: workspaceID, Name: name, Kind: kind, Capabilities: "{}", Pricing: "{}", Enabled: true, Revision: 1}
+	if _, err := s.ExecContext(ctx, `INSERT INTO execution_targets (id, workspace_id, name, kind, capabilities_json, pricing_json, enabled, created_by_user_id, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,1,?,?,?)`, t.ID, workspaceID, name, kind, "{}", "{}", userID, now, now); err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 // GetJobForRequest returns the job that runs a generation request.

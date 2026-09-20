@@ -261,7 +261,7 @@ func generateBody(data GenerateData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\"></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Candidates</span><input class=\"input input-bordered\" type=\"number\" min=\"1\" max=\"8\" name=\"candidates\" value=\"1\"></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Quality tier</span> <select class=\"select select-bordered\" name=\"tier\"><option value=\"concept\">Concept</option> <option value=\"final\">Final</option></select></label></div><div class=\"grid grid-cols-1 sm:grid-cols-3 gap-2\"><label class=\"form-control\"><span class=\"label-text mb-1\">Seed policy</span> <select class=\"select select-bordered\" name=\"seed_policy\"><option value=\"random\">Random</option> <option value=\"stable\">Stable variants</option> <option value=\"explicit\">Explicit</option></select></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Seed</span><input class=\"input input-bordered\" type=\"number\" name=\"seed\" value=\"0\"></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Checkpoint</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\"></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Candidates</span><input class=\"input input-bordered\" type=\"number\" min=\"1\" max=\"8\" name=\"candidates\" value=\"1\"></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Quality tier</span> <select class=\"select select-bordered\" name=\"tier\"><option value=\"concept\">Concept</option> <option value=\"final\">Final</option></select></label></div><div class=\"grid grid-cols-1 sm:grid-cols-3 gap-2\"><label class=\"form-control\"><span class=\"label-text mb-1\">Seed policy</span> <select class=\"select select-bordered\" name=\"seed_policy\"><option value=\"random\">Random</option> <option value=\"stable\">Stable variants</option> <option value=\"explicit\">Explicit</option></select></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Seed</span><input class=\"input input-bordered\" type=\"number\" name=\"seed\" value=\"0\"></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Execution</span> <select class=\"select select-bordered\" name=\"execution\"><option value=\"local\">Local now</option> <option value=\"campaign\">Campaign later</option></select></label></div><div class=\"grid grid-cols-1 gap-2\"><label class=\"form-control\"><span class=\"label-text mb-1\">Checkpoint</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -279,7 +279,7 @@ func generateBody(data GenerateData) templ.Component {
 					var templ_7745c5c3_Var17 string
 					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(cp)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/generate.templ`, Line: 66, Col: 28}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/generate.templ`, Line: 75, Col: 28}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 					if templ_7745c5c3_Err != nil {
@@ -292,7 +292,7 @@ func generateBody(data GenerateData) templ.Component {
 					var templ_7745c5c3_Var18 string
 					templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(cp)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/generate.templ`, Line: 66, Col: 55}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/generate.templ`, Line: 75, Col: 55}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 					if templ_7745c5c3_Err != nil {
@@ -310,7 +310,7 @@ func generateBody(data GenerateData) templ.Component {
 					var templ_7745c5c3_Var19 string
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(cp)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/generate.templ`, Line: 68, Col: 28}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/generate.templ`, Line: 77, Col: 28}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 					if templ_7745c5c3_Err != nil {
@@ -323,7 +323,7 @@ func generateBody(data GenerateData) templ.Component {
 					var templ_7745c5c3_Var20 string
 					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(cp)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/generate.templ`, Line: 68, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/generate.templ`, Line: 77, Col: 35}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
@@ -347,7 +347,7 @@ func generateBody(data GenerateData) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue(data.DefaultModel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/generate.templ`, Line: 73, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/generate.templ`, Line: 82, Col: 86}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 			if templ_7745c5c3_Err != nil {

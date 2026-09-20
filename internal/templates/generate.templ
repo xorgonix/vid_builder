@@ -58,6 +58,15 @@ templ generateBody(data GenerateData) {
 					</label>
 					<label class="form-control"><span class="label-text mb-1">Seed</span><input class="input input-bordered" type="number" name="seed" value="0"/></label>
 					<label class="form-control">
+						<span class="label-text mb-1">Execution</span>
+						<select class="select select-bordered" name="execution">
+							<option value="local">Local now</option>
+							<option value="campaign">Campaign later</option>
+						</select>
+					</label>
+				</div>
+				<div class="grid grid-cols-1 gap-2">
+					<label class="form-control">
 						<span class="label-text mb-1">Checkpoint</span>
 						if len(data.Checkpoints) > 0 {
 							<select class="select select-bordered" name="checkpoint">

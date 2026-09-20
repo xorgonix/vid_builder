@@ -572,6 +572,62 @@ type ExportData struct {
 	Asset  *AssetView
 }
 
+// TargetEstimate compares an execution target's measured performance.
+type TargetEstimate struct {
+	ID          string
+	Name        string
+	Kind        string
+	Enabled     bool
+	AvgMs       int64
+	Samples     int
+	EstimatedMs int64
+	Currency    string
+	Note        string
+}
+
+// CampaignView is a campaign row.
+type CampaignView struct {
+	ID          string
+	Name        string
+	Status      string
+	TargetName  string
+	Items       int
+	EstimatedMs int64
+	ActualMs    int64
+	CreatedAt   string
+}
+
+// ComputeData backs the compute planner.
+type ComputeData struct {
+	Shell     ShellData
+	Project   ProjectView
+	Video     VideoView
+	Drafts    []RequestView
+	Targets   []TargetEstimate
+	Campaigns []CampaignView
+}
+
+// CampaignItemView is one scheduled request.
+type CampaignItemView struct {
+	RequestID   string
+	ShotTitle   string
+	Role        string
+	Candidates  int
+	Status      string
+	EstimatedMs int64
+}
+
+// CampaignPageData backs a campaign detail page.
+type CampaignPageData struct {
+	Shell     ShellData
+	Project   ProjectView
+	Video     VideoView
+	Campaign  CampaignView
+	Items     []CampaignItemView
+	Target    TargetEstimate
+	CanLaunch bool
+}
+
 // OutlineData backs the Outline screen.
 type OutlineData struct {
 	Shell    ShellData
