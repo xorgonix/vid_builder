@@ -509,6 +509,69 @@ type WorkflowsData struct {
 	Workflows []WorkflowView
 }
 
+// EditItemView is one clip in an edit.
+type EditItemView struct {
+	ID            string
+	ShotID        string
+	ShotTitle     string
+	AssetID       string
+	AssetURL      string
+	Kind          string
+	Position      int
+	DurationMs    int
+	TransitionIn  string
+	TransitionOut string
+	Revision      int
+}
+
+// SelectionOption is a selected asset that can be added to the edit.
+type SelectionOption struct {
+	ShotID    string
+	ShotTitle string
+	Role      string
+	RoleLabel string
+	AssetID   string
+	AssetURL  string
+}
+
+// EditData backs the Edit screen.
+type EditData struct {
+	Shell    ShellData
+	Project  ProjectView
+	Video    VideoView
+	Edit     EditView
+	Items    []EditItemView
+	Options  []SelectionOption
+	TotalMs  int
+	Warnings []string
+	Exports  []ExportView
+}
+
+// EditView is an edit header.
+type EditView struct {
+	ID       string
+	Name     string
+	Status   string
+	Revision int
+}
+
+// ExportView is an export row.
+type ExportView struct {
+	ID        string
+	Status    string
+	CreatedAt string
+	AssetID   string
+	Error     string
+}
+
+// ExportData backs the export receipt page.
+type ExportData struct {
+	Shell  ShellData
+	Export ExportView
+	JobID  string
+	Asset  *AssetView
+}
+
 // OutlineData backs the Outline screen.
 type OutlineData struct {
 	Shell    ShellData

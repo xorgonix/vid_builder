@@ -22,6 +22,27 @@ func DimensionsForFormat(format string) (int, int) {
 	}
 }
 
+// GetProjectByID fetches a project by id without workspace scope (worker use).
+func (s *Store) GetProjectByID(ctx context.Context, id string) (*Project, error) {
+	row := s.QueryRowContext(ctx, `SELECT id, workspace_id, title, description, status, revision, created_at, updated_at FROM projects WHERE id=?`, id)
+	var p Project
+	err := row.Scan(&p.ID, &p.WorkspaceID, &p.Title, &p.Description, &p.Status, &p.Revision, &p.CreatedAt, &p.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &p, err
+}
+
+// GetVideoByID fetches a video by id without project scope (worker use).
+func (s *Store) GetVideoByID(ctx context.Context, id string) (*Video, error) {
+	row := s.QueryRowContext(ctx, `SELECT id, project_id, title, purpose, audience, desired_reaction, format, width, height, fps_num, fps_den, target_duration_ms, status, position, revision, created_at, updated_at FROM videos WHERE id=?`, id)
+	v, err := scanVideo(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return v, err
+}
+
 // ListProjects returns non-archived projects for a workspace.
 func (s *Store) ListProjects(ctx context.Context, workspaceID string) ([]Project, error) {
 	rows, err := s.QueryContext(ctx, `SELECT id, workspace_id, title, description, status, revision, created_at, updated_at

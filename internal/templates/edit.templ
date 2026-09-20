@@ -1,0 +1,170 @@
+package templates
+
+templ EditPage(data EditData) {
+	@shell(data.Shell, editBody(data))
+}
+
+templ editBody(data EditData) {
+	<div class="max-w-6xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Edit · { data.Edit.Name }</h1>
+				<p class="opacity-70 text-sm">Assemble selected clips. Generation order does not determine editorial order.</p>
+			</div>
+			<div class="flex gap-2 items-center">
+				<span class="badge badge-ghost">total { data.TotalMs / 1000 }s</span>
+				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/edits/" + data.Edit.ID + "/validate") }>
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<button class="btn btn-sm" type="submit">Validate</button>
+				</form>
+				<a class="btn btn-sm btn-primary" href={ templ.URL(data.Shell.VideoBase() + "/edits/" + data.Edit.ID + "/export") }>Export</a>
+			</div>
+		</div>
+
+		<div class="grid gap-6 lg:grid-cols-12">
+			<div class="lg:col-span-8 flex flex-col gap-3">
+				for _, it := range data.Items {
+					<div class="card bg-base-100 shadow">
+						<div class="card-body p-3 flex-row items-center gap-3">
+							<div class="text-xs opacity-50 w-6 text-center">{ it.Position + 1 }</div>
+							<img src={ templ.URL(it.AssetURL) } alt="clip" class="w-32 rounded"/>
+							<div class="flex-1">
+								<div class="font-medium">{ it.ShotTitle }</div>
+								<div class="text-xs opacity-60">{ it.Kind } · { it.DurationMs / 1000 }s</div>
+								<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/edit-items/" + it.ID) } class="flex gap-2 mt-2 items-end flex-wrap">
+									<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+									<input type="hidden" name="_method" value="PATCH"/>
+									<input type="hidden" name="revision" value={ itoaT(it.Revision) }/>
+									<label class="form-control"><span class="label-text text-xs">Duration (s)</span><input class="input input-bordered input-xs w-24" type="number" name="duration_s" value={ itoaT(it.DurationMs / 1000) }/></label>
+									<label class="form-control"><span class="label-text text-xs">In</span>
+										@transitionSelect("transition_in", it.TransitionIn)
+									</label>
+									<label class="form-control"><span class="label-text text-xs">Out</span>
+										@transitionSelect("transition_out", it.TransitionOut)
+									</label>
+									<button class="btn btn-xs" type="submit">Save</button>
+								</form>
+							</div>
+							<div class="flex flex-col gap-1">
+								<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/edit-items/" + it.ID + "/move") }>
+									<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+									<input type="hidden" name="direction" value="-1"/>
+									<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move clip up">↑</button>
+								</form>
+								<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/edit-items/" + it.ID + "/move") }>
+									<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+									<input type="hidden" name="direction" value="1"/>
+									<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move clip down">↓</button>
+								</form>
+								<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/edit-items/" + it.ID) }>
+									<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+									<input type="hidden" name="_method" value="DELETE"/>
+									<button class="btn btn-xs btn-error btn-outline" type="submit">Remove</button>
+								</form>
+							</div>
+						</div>
+					</div>
+				}
+				if len(data.Items) == 0 {
+					<div class="alert"><span>No clips yet. Add a selected asset from the right column.</span></div>
+				}
+			</div>
+
+			<div class="lg:col-span-4">
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<h2 class="card-title text-base">Selected assets</h2>
+						if len(data.Options) == 0 {
+							<p class="text-sm opacity-60">No selections yet. Approve and select assets in Review first.</p>
+						}
+						<ul class="flex flex-col gap-2">
+							for _, o := range data.Options {
+								<li class="flex items-center gap-2 border-b border-base-300 pb-2">
+									<img src={ templ.URL(o.AssetURL) } alt="candidate" class="w-16 rounded"/>
+									<div class="flex-1 text-sm">
+										<div class="font-medium">{ o.ShotTitle }</div>
+										<div class="text-xs opacity-60">{ o.RoleLabel }</div>
+									</div>
+									<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/edits/" + data.Edit.ID + "/items") }>
+										<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+										<input type="hidden" name="asset_id" value={ o.AssetID }/>
+										<input type="hidden" name="shot_id" value={ o.ShotID }/>
+										<button class="btn btn-xs btn-primary" type="submit">Add</button>
+									</form>
+								</li>
+							}
+						</ul>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+templ transitionSelect(name, current string) {
+	<select class="select select-bordered select-xs" name={ name }>
+		@transitionOption(name, current, "cut")
+		@transitionOption(name, current, "fade")
+		@transitionOption(name, current, "dissolve")
+	</select>
+}
+
+templ transitionOption(name, current, value string) {
+	if current == value {
+		<option value={ value } selected="selected">{ value }</option>
+	} else {
+		<option value={ value }>{ value }</option>
+	}
+}
+
+templ ExportFormPage(data EditData) {
+	@shell(data.Shell, exportFormBody(data))
+}
+
+templ exportFormBody(data EditData) {
+	<div class="max-w-2xl mx-auto">
+		<h1 class="text-2xl font-bold mb-1">Export · { data.Edit.Name }</h1>
+		<p class="opacity-70 text-sm mb-4">Queue FFmpeg assembly. Validation runs first; every clip is preserved through mixed transitions.</p>
+		<div class="card bg-base-100 shadow">
+			<div class="card-body">
+				<div class="alert alert-info"><span>Estimated total duration: { data.TotalMs / 1000 }s · format based on video { data.Video.Width }×{ data.Video.Height }.</span></div>
+				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/edits/" + data.Edit.ID + "/exports") } class="mt-3">
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<div class="card-actions justify-end">
+						<a class="btn btn-ghost" href={ templ.URL(data.Shell.VideoBase() + "/edit") }>Cancel</a>
+						<button class="btn btn-primary" type="submit">Queue export</button>
+					</div>
+				</form>
+			</div>
+		</div>
+	</div>
+}
+
+templ ExportPage(data ExportData) {
+	@shell(data.Shell, exportBody(data))
+}
+
+templ exportBody(data ExportData) {
+	<div class="max-w-3xl mx-auto">
+		<h1 class="text-2xl font-bold mb-1">Export</h1>
+		<div class="flex items-center gap-2 mb-4">
+			<span class={ "badge", jobStateClass(data.Export.Status) }>{ data.Export.Status }</span>
+			if data.JobID != "" {
+				<a class="link link-hover text-sm font-mono" href={ templ.URL(data.Shell.VideoBase() + "/jobs/" + data.JobID) }>job { shortID(data.JobID) }</a>
+			}
+		</div>
+		if data.Export.Error != "" {
+			<div class="alert alert-error mb-4"><span>{ data.Export.Error }</span></div>
+		}
+		if data.Asset != nil {
+			<video controls class="w-full rounded-box border border-base-300" src={ templ.URL(data.Asset.URL) }></video>
+			<div class="text-xs opacity-60 font-mono mt-2">sha256 { data.Asset.Checksum } · { data.Asset.SizeBytes } bytes</div>
+			<a class="btn btn-sm mt-3" href={ templ.URL(data.Asset.URL) } download>Download</a>
+		} else {
+			<div class="alert"><span>Export is { data.Export.Status }. This page refreshes while the job runs.</span></div>
+			if data.JobID != "" {
+				<meta http-equiv="refresh" content="3"/>
+			}
+		}
+	</div>
+}

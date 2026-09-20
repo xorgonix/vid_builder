@@ -10,10 +10,13 @@ import (
 	"io"
 	"log/slog"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"time"
 
 	"vidbuild/internal/comfyui"
 	"vidbuild/internal/config"
+	"vidbuild/internal/exporter"
 	"vidbuild/internal/media"
 	"vidbuild/internal/store"
 	"vidbuild/internal/workflows"
@@ -88,6 +91,17 @@ type requestPayload struct {
 }
 
 func (w *Worker) process(ctx context.Context, job *store.Job) error {
+	switch job.JobType {
+	case "generate":
+		return w.processGeneration(ctx, job)
+	case "export":
+		return w.processExport(ctx, job)
+	default:
+		return fmt.Errorf("worker: unsupported job type %q", job.JobType)
+	}
+}
+
+func (w *Worker) processGeneration(ctx context.Context, job *store.Job) error {
 	if job.JobType != "generate" {
 		return fmt.Errorf("worker: unsupported job type %q", job.JobType)
 	}
@@ -275,4 +289,107 @@ func nullString(v string) (out *string) {
 		return nil
 	}
 	return &v
+}
+
+// processExport assembles an edit into a single video (spec §15.7).
+func (w *Worker) processExport(ctx context.Context, job *store.Job) error {
+	exp, err := w.store.GetExport(ctx, job.AggregateID)
+	if err != nil {
+		return fmt.Errorf("worker: load export: %w", err)
+	}
+	edit, err := w.store.GetEditByID(ctx, exp.EditID)
+	if err != nil {
+		_ = w.store.FailExport(ctx, exp.ID, "edit not found")
+		return fmt.Errorf("worker: load edit: %w", err)
+	}
+	video, err := w.store.GetVideoByID(ctx, edit.VideoID)
+	if err != nil {
+		_ = w.store.FailExport(ctx, exp.ID, "video not found")
+		return fmt.Errorf("worker: load video: %w", err)
+	}
+	project, err := w.store.GetProjectByID(ctx, video.ProjectID)
+	if err != nil {
+		_ = w.store.FailExport(ctx, exp.ID, "project not found")
+		return fmt.Errorf("worker: load project: %w", err)
+	}
+	items, err := w.store.ListEditItems(ctx, edit.ID)
+	if err != nil {
+		return err
+	}
+	if len(items) == 0 {
+		_ = w.store.FailExport(ctx, exp.ID, "edit has no items")
+		return fmt.Errorf("worker: edit has no items")
+	}
+	_ = w.store.UpdateJobState(ctx, job.ID, "running", "validate", "info", "Resolving edit items", 1000)
+
+	clips := make([]exporter.Clip, 0, len(items))
+	for _, it := range items {
+		asset, err := w.store.GetAsset(ctx, it.AssetID)
+		if err != nil {
+			_ = w.store.FailExport(ctx, exp.ID, "missing edit asset")
+			return fmt.Errorf("worker: missing asset %s: %w", it.AssetID, err)
+		}
+		path, err := w.media.Resolve(asset.StorageURI)
+		if err != nil {
+			_ = w.store.FailExport(ctx, exp.ID, "unsafe asset path")
+			return fmt.Errorf("worker: resolve asset: %w", err)
+		}
+		clips = append(clips, exporter.Clip{
+			Path: path, IsImage: asset.Kind == "image" || assetsIsImage(asset.MimeType),
+			DurationMs: it.DurationMs, TransitionIn: it.TransitionIn, TransitionOut: it.TransitionOut,
+		})
+	}
+
+	ex := exporter.New(w.cfg.FFmpeg.BinaryPath, video.Width, video.Height, video.FPSNum, w.cfg.FFmpeg.RequestTimeoutSec)
+	if err := ex.Available(ctx); err != nil {
+		_ = w.store.FailExport(ctx, exp.ID, err.Error())
+		return err
+	}
+	tempDir := w.cfg.Media.TempDir
+	if !filepath.IsAbs(tempDir) {
+		if abs, err := filepath.Abs(tempDir); err == nil {
+			tempDir = abs
+		}
+	}
+	_ = os.MkdirAll(tempDir, 0o755)
+	outPath := filepath.Join(tempDir, "export-"+exp.ID+".mp4")
+
+	_ = w.store.UpdateJobState(ctx, job.ID, "running", "render", "info", "Assembling with FFmpeg", 4000)
+	if err := ex.Assemble(ctx, clips, outPath); err != nil {
+		_ = w.store.FailExport(ctx, exp.ID, err.Error())
+		return err
+	}
+
+	f, err := os.Open(outPath)
+	if err != nil {
+		_ = w.store.FailExport(ctx, exp.ID, "open output failed")
+		return err
+	}
+	defer f.Close()
+	relDir := fmt.Sprintf("%s/%s/videos/%s/exports", project.WorkspaceID, project.ID, video.ID)
+	uri, checksum, size, err := w.media.Put(relDir, "export-"+exp.ID+".mp4", f)
+	if err != nil {
+		_ = w.store.FailExport(ctx, exp.ID, err.Error())
+		return err
+	}
+	_ = os.Remove(outPath)
+
+	assetID, err := w.store.CreateAsset(ctx, store.Asset{
+		WorkspaceID: project.WorkspaceID, ProjectID: project.ID,
+		Kind: "export", Role: "edit", StorageURI: uri, MimeType: "video/mp4", SizeBytes: size, Checksum: checksum,
+	})
+	if err != nil {
+		_ = w.store.FailExport(ctx, exp.ID, err.Error())
+		return err
+	}
+	if err := w.store.CompleteExport(ctx, exp.ID, assetID); err != nil {
+		return err
+	}
+	_ = w.store.SetEditStatus(ctx, edit.ID, "exported")
+	_ = w.store.EmitDomainEvent(ctx, project.WorkspaceID, "edit", edit.ID, "edit.changed", "{}")
+	return w.store.UpdateJobState(ctx, job.ID, "succeeded", "persist", "info", "Export written", 10000)
+}
+
+func assetsIsImage(mime string) bool {
+	return len(mime) >= 6 && mime[:6] == "image/"
 }

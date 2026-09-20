@@ -666,3 +666,18 @@ CREATE INDEX IF NOT EXISTS idx_snapshots_target ON target_capability_snapshots (
 CREATE INDEX IF NOT EXISTS idx_observations_attempt ON execution_observations (generation_attempt_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs (state, priority);
 CREATE INDEX IF NOT EXISTS idx_assets_attempt ON assets (generation_attempt_id);
+
+CREATE TABLE IF NOT EXISTS exports (
+    id                  TEXT PRIMARY KEY,
+    edit_id             TEXT NOT NULL REFERENCES edits(id) ON DELETE CASCADE,
+    job_id              TEXT,
+    asset_id            TEXT,
+    profile_json        TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(profile_json)),
+    status              TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','queued','running','complete','failed','cancelled')),
+    created_by_user_id  TEXT,
+    created_at          TEXT NOT NULL,
+    updated_at          TEXT NOT NULL DEFAULT '',
+    error_message       TEXT
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_exports_edit ON exports (edit_id);
