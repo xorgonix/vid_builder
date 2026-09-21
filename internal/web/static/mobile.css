@@ -1,0 +1,21 @@
+/* vid-build mobile touch affordances (spec §12). The app is already responsive;
+   this only improves touch targets, text entry and safe areas. */
+@media (pointer: coarse) {
+  .btn-xs { min-height: 2rem; padding-left: 0.6rem; padding-right: 0.6rem; }
+  .input-xs, .select-xs, .textarea-xs { min-height: 2rem; }
+  textarea, input, select { font-size: 16px; }
+  .dropdown-content { max-width: calc(100vw - 2rem); }
+}
+
+body {
+  padding-bottom: env(safe-area-inset-bottom);
+  touch-action: manipulation;
+}
+
+.animatic-captions {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.dictation-active {
+  outline: 2px solid var(--color-primary, #38bdf8);
+}

@@ -93,6 +93,9 @@ func (s *Server) Handler() http.Handler {
 	r.Get("/login", s.handleLoginForm)
 	r.With(s.loginCSRFCheck).Post("/login", s.handleLoginPost)
 	r.Get("/pair", s.handlePair)
+	r.Get("/manifest.webmanifest", s.handleManifest)
+	r.Get("/sw.js", s.handleServiceWorker)
+	r.Get("/offline", s.handleOffline)
 
 	r.Group(func(r chi.Router) {
 		r.Use(s.requireAuth)

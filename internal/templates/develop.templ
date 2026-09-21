@@ -5,6 +5,7 @@ templ DevelopPage(data DevelopData) {
 }
 
 templ developBody(data DevelopData) {
+	<script src="/static/dictation.js" defer></script>
 	<div class="max-w-7xl mx-auto">
 		<div class="flex items-center justify-between mb-4">
 			<div>
@@ -101,10 +102,11 @@ templ developBody(data DevelopData) {
 						<div class="border-t border-base-300 pt-3 mt-2">
 							<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/discovery/threads/" + data.ActiveThread + "/messages") } class="flex gap-2">
 								<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
-								<textarea class="textarea textarea-bordered flex-1" name="content" rows="2" placeholder="Record a decision, constraint or question…" required></textarea>
+								<textarea id="concept-note" class="textarea textarea-bordered flex-1" name="content" rows="2" placeholder="Record a decision, constraint or question…" required></textarea>
 								<div class="flex flex-col gap-1">
 									<button class="btn btn-sm btn-primary" type="submit">Send</button>
 									<button class="btn btn-sm" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/discovery/threads/" + data.ActiveThread + "/ask") } disabled?={ !data.PlannerEnabled }>Ask planner</button>
+									<button class="btn btn-sm btn-ghost" type="button" data-dictate-target="concept-note" title="Dictate with speech recognition">Dictate</button>
 								</div>
 							</form>
 						</div>
