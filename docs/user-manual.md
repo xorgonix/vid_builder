@@ -368,6 +368,27 @@ directly, so blocking still works with JavaScript disabled.
 two preview sketches. **Apply blocking** saves the proposals you tick as blocking
 versions. Nothing is applied until you say so.
 
+### 9.4 Continuity — state across cuts
+
+**Continuity** (`.../shots/{shot}/state`) carries *state*, not pixels, across a cut.
+
+- **Start state** and **End state** are versioned semantic documents (characters with
+  stable project-bible IDs, props, setting, time, weather, emotion, knowledge, open
+  questions). Each save creates a new version; the previous one is superseded, never lost.
+- **Transition into the next shot** stores one of twelve required transition types, an
+  optional duration, the **motivation** that makes the cut caused by the previous shot,
+  an **inherit** block (identity, costume, condition, emotion, knowledge, props,
+  positions, location, lighting, weather), a **recompose** block (allowed, shot size,
+  angle, camera side) and notes.
+- **Derive next start state** proposes the following shot's start state from this shot's
+  end state and the handoff. The proposal distinguishes what is **inherited**, what is
+  **intentionally changed** and what is **unresolved**, and it never writes the
+  neighbour's state until you apply it.
+
+The **Board** gains a **Continuity** mode showing each shot's outgoing transition,
+inherited facts, screen direction and warnings (no transition, no motivation, no end
+state recorded).
+
 ---
 
 ## 10. Prompt workbench
