@@ -1,0 +1,4 @@
+in the file called SPECS\mark2-v3.1-specification.md  is a system spec. please create the program in the root directory:"D:\Dev\video_wails"  put all
+ runtime vars in a config.json.  include the config.json in teh .gitignore file. lm studio is running on port: 1234  the model to use is
+ qwen3.5-9b-uncensored-hauhaucs-aggressiv.  name the system vid-build 0.01  not mark 2 or version 3 or anythign like that. be sure to use tmpl.
+ anyway after you've read the specifications a couple of times and they're very comfortable with it sit down and workout a strategy to implement it and then create a detailed plan including all of your To Do lists And then when you're ready create a repo and commit and and after every phase do another commit Please loop through everything unless there's an issue at which point ask anything you want

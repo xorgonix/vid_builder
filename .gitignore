@@ -75,3 +75,5 @@ coverage.out
 
 # --- Mark 2 runtime config (contains local settings; never commit) ---
 config.json
+
+dev-files.txt
