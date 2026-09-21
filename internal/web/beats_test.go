@@ -52,6 +52,14 @@ func TestBeatRoutes(t *testing.T) {
 		t.Fatalf("created beat not persisted: %+v", created)
 	}
 
+	page := testutil.MustStatus(t, c.Get(base+"/outline"), http.StatusOK)
+	if !strings.Contains(page, "Beat: The turn") {
+		t.Fatalf("outline does not render the explicit beat")
+	}
+	if !strings.Contains(page, "Beat: Scene") {
+		t.Fatalf("outline should show the promoted beat alongside the new one")
+	}
+
 	// Blank title is rejected with a flash, not a 500.
 	resp = c.PostForm(base+"/scenes/"+scene.ID+"/beats", url.Values{"title": {"   "}})
 	testutil.MustStatus(t, resp, http.StatusSeeOther)

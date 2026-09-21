@@ -887,7 +887,7 @@ type SectionNode struct {
 	Scenes   []SceneNode
 }
 
-// SceneNode is a scene with its shots.
+// SceneNode is a scene with its beats (and a flat shot list for previews).
 type SceneNode struct {
 	ID       string
 	Title    string
@@ -899,6 +899,24 @@ type SceneNode struct {
 	Revision int
 	BudgetMs int
 	Shots    []ShotNode
+	Beats    []BeatNode
+}
+
+// BeatNode is a dramatic beat with its shots in the outline hierarchy.
+type BeatNode struct {
+	ID             string
+	Title          string
+	Purpose        string
+	Trigger        string
+	Action         string
+	Reaction       string
+	ResultingState string
+	AudienceEffect string
+	Position       int
+	Revision       int
+	BudgetMs       int
+	Implicit       bool
+	Shots          []ShotNode
 }
 
 // ShotNode is a shot row in the outline.

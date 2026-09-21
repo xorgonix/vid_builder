@@ -147,47 +147,139 @@ templ sceneBlock(data OutlineData, sec SectionNode, sc SceneNode) {
 				</details>
 			</div>
 		</div>
-		<div class="mt-2">
-			<table class="table table-sm">
-				<thead>
-					<tr><th>#</th><th>Shot</th><th>Purpose</th><th>Duration</th><th>Readiness</th><th></th></tr>
-				</thead>
-				<tbody>
-					for _, sh := range sc.Shots {
-						<tr>
-							<td>{ sh.Position }</td>
-							<td class="font-medium">{ sh.Title }</td>
-							<td class="text-xs opacity-80">{ sh.Purpose }</td>
-							<td class="text-xs">{ sh.DurationMs / 1000 }s</td>
-							<td><span class={ "badge badge-sm", readinessClass(sh.Readiness) }>{ sh.Readiness }</span></td>
-							<td>
-								<div class="flex gap-1">
-									<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + sh.ID) }>Open</a>
-									<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + sh.ID + "/move") }>
-										<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
-										<input type="hidden" name="direction" value="-1"/>
-										<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move shot up">↑</button>
-									</form>
-									<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + sh.ID + "/move") }>
-										<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
-										<input type="hidden" name="direction" value="1"/>
-										<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move shot down">↓</button>
-									</form>
-								</div>
-							</td>
-						</tr>
-					}
-				</tbody>
-			</table>
-			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/scenes/" + sc.ID + "/shots") } class="mt-2 flex gap-2 items-end">
+		<div class="mt-2 flex flex-col gap-2">
+			for _, bt := range sc.Beats {
+				@beatBlock(data, sc, bt)
+			}
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/scenes/" + sc.ID + "/beats") } class="flex gap-2 items-end">
 				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
-				<input class="input input-bordered input-sm flex-1" name="title" placeholder="New shot title" required/>
-				<input class="input input-bordered input-sm flex-1" name="purpose" placeholder="What should visibly change?"/>
-				<input class="input input-bordered input-sm w-24" type="number" name="duration_s" placeholder="sec"/>
-				<button class="btn btn-sm btn-primary" type="submit">Add shot</button>
+				<input class="input input-bordered input-sm flex-1" name="title" placeholder="New beat title" required/>
+				<input class="input input-bordered input-sm flex-1" name="action" placeholder="What happens?"/>
+				<input class="input input-bordered input-sm w-24" type="number" name="budget_s" placeholder="sec"/>
+				<button class="btn btn-sm" type="submit">Add beat</button>
 			</form>
 		</div>
 	</div>
+}
+
+// beatBlock renders one beat. An implicit beat is hidden as a container so
+// simple projects look unchanged (spec §5.1).
+templ beatBlock(data OutlineData, sc SceneNode, bt BeatNode) {
+	if bt.Implicit {
+		@shotsTable(data, bt.Shots)
+		@addShotForm(data, sc)
+	} else {
+		<div class="border border-base-300 rounded-box p-2">
+			<div class="flex items-center justify-between gap-2">
+				<div>
+					<div class="text-sm font-medium">Beat: { bt.Title }</div>
+					if bt.Purpose != "" {
+						<p class="text-xs opacity-70">{ bt.Purpose }</p>
+					}
+					<div class="flex flex-wrap gap-1 mt-1">
+						if bt.Trigger != "" {
+							<span class="badge badge-ghost badge-xs">trigger: { bt.Trigger }</span>
+						}
+						if bt.Action != "" {
+							<span class="badge badge-ghost badge-xs">action: { bt.Action }</span>
+						}
+						if bt.Reaction != "" {
+							<span class="badge badge-ghost badge-xs">reaction: { bt.Reaction }</span>
+						}
+						if bt.ResultingState != "" {
+							<span class="badge badge-ghost badge-xs">state: { bt.ResultingState }</span>
+						}
+						if bt.AudienceEffect != "" {
+							<span class="badge badge-ghost badge-xs">effect: { bt.AudienceEffect }</span>
+						}
+						<span class="badge badge-ghost badge-xs">{ bt.BudgetMs / 1000 }s</span>
+					</div>
+				</div>
+				<div class="flex items-center gap-1">
+					<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/beats/" + bt.ID + "/move") }>
+						<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+						<input type="hidden" name="direction" value="-1"/>
+						<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move beat up">↑</button>
+					</form>
+					<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/beats/" + bt.ID + "/move") }>
+						<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+						<input type="hidden" name="direction" value="1"/>
+						<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move beat down">↓</button>
+					</form>
+					<details class="dropdown dropdown-end">
+						<summary class="btn btn-xs btn-ghost">Edit</summary>
+						<div class="dropdown-content bg-base-100 rounded-box shadow w-80 p-3 z-40">
+							<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/beats/" + bt.ID) }>
+								<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+								<input type="hidden" name="_method" value="PATCH"/>
+								<input type="hidden" name="revision" value={ itoaT(bt.Revision) }/>
+								<input class="input input-bordered input-sm w-full mb-2" name="title" value={ bt.Title }/>
+								<textarea class="textarea textarea-bordered w-full mb-2" name="purpose" rows="2" placeholder="purpose">{ bt.Purpose }</textarea>
+								<input class="input input-bordered input-sm w-full mb-2" name="trigger" value={ bt.Trigger } placeholder="trigger"/>
+								<input class="input input-bordered input-sm w-full mb-2" name="action" value={ bt.Action } placeholder="action"/>
+								<input class="input input-bordered input-sm w-full mb-2" name="reaction" value={ bt.Reaction } placeholder="reaction"/>
+								<input class="input input-bordered input-sm w-full mb-2" name="resulting_state" value={ bt.ResultingState } placeholder="resulting state"/>
+								<input class="input input-bordered input-sm w-full mb-2" name="audience_effect" value={ bt.AudienceEffect } placeholder="audience effect"/>
+								<input class="input input-bordered input-sm w-full mb-2" type="number" name="budget_s" value={ itoaT(bt.BudgetMs / 1000) } placeholder="budget seconds"/>
+								<button class="btn btn-sm btn-primary w-full" type="submit">Save</button>
+							</form>
+							<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/beats/" + bt.ID) } class="mt-2">
+								<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+								<input type="hidden" name="_method" value="DELETE"/>
+								<button class="btn btn-sm btn-error btn-outline w-full" type="submit">Delete beat</button>
+							</form>
+						</div>
+					</details>
+				</div>
+			</div>
+			@shotsTable(data, bt.Shots)
+			@addShotForm(data, sc)
+		</div>
+	}
+}
+
+templ shotsTable(data OutlineData, shots []ShotNode) {
+	<table class="table table-sm">
+		<thead>
+			<tr><th>#</th><th>Shot</th><th>Purpose</th><th>Duration</th><th>Readiness</th><th></th></tr>
+		</thead>
+		<tbody>
+			for _, sh := range shots {
+				<tr>
+					<td>{ sh.Position }</td>
+					<td class="font-medium">{ sh.Title }</td>
+					<td class="text-xs opacity-80">{ sh.Purpose }</td>
+					<td class="text-xs">{ sh.DurationMs / 1000 }s</td>
+					<td><span class={ "badge badge-sm", readinessClass(sh.Readiness) }>{ sh.Readiness }</span></td>
+					<td>
+						<div class="flex gap-1">
+							<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + sh.ID) }>Open</a>
+							<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + sh.ID + "/move") }>
+								<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+								<input type="hidden" name="direction" value="-1"/>
+								<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move shot up">↑</button>
+							</form>
+							<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + sh.ID + "/move") }>
+								<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+								<input type="hidden" name="direction" value="1"/>
+								<button class="btn btn-xs btn-ghost" type="submit" aria-label="Move shot down">↓</button>
+							</form>
+						</div>
+					</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+templ addShotForm(data OutlineData, sc SceneNode) {
+	<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/scenes/" + sc.ID + "/shots") } class="mt-2 flex gap-2 items-end">
+		<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+		<input class="input input-bordered input-sm flex-1" name="title" placeholder="New shot title" required/>
+		<input class="input input-bordered input-sm flex-1" name="purpose" placeholder="What should visibly change?"/>
+		<input class="input input-bordered input-sm w-24" type="number" name="duration_s" placeholder="sec"/>
+		<button class="btn btn-sm btn-primary" type="submit">Add shot</button>
+	</form>
 }
 
 func readinessClass(readiness string) string {

@@ -4,8 +4,24 @@ import (
 	"net/http"
 	"strings"
 
+	"vidbuild/internal/store"
 	"vidbuild/internal/templates"
 )
+
+// shotNodeFor builds an outline shot row including specification readiness.
+func (s *Server) shotNodeFor(r *http.Request, sh store.Shot) templates.ShotNode {
+	ready := 0
+	for _, kind := range []string{"start_frame", "end_frame", "motion"} {
+		if sp, err := s.store.GetCurrentSpec(r.Context(), sh.ID, kind); err == nil && sp != nil && (sp.PositivePrompt != "" || sp.StructuredSpecJSON != "{}") {
+			ready++
+		}
+	}
+	return templates.ShotNode{
+		ID: sh.ID, Title: sh.Title, Purpose: sh.Purpose, Treatment: sh.Treatment,
+		Position: sh.Position, Revision: sh.Revision, DurationMs: sh.DurationTargetMs,
+		Status: sh.Status, Readiness: sh.Readiness, SpecsReady: ready,
+	}
+}
 
 func (s *Server) handleOutline(w http.ResponseWriter, r *http.Request) {
 	project, video, shell, ok := s.loadVideoCtx(w, r)
@@ -23,22 +39,22 @@ func (s *Server) handleOutline(w http.ResponseWriter, r *http.Request) {
 		scenes, _ := s.store.ListScenes(r.Context(), sec.ID)
 		for _, sc := range scenes {
 			sceneNode := templates.SceneNode{ID: sc.ID, Title: sc.Title, Synopsis: sc.Synopsis, Purpose: sc.Purpose, Pace: sc.Pace, Reaction: sc.AudienceReaction, Position: sc.Position, Revision: sc.Revision, BudgetMs: sc.DurationBudgetMs}
-			shots, _ := s.store.ListShots(r.Context(), sc.ID)
-			for _, sh := range shots {
-				if sh.Status == "archived" {
-					continue
+			beats, _ := s.store.SceneBeats(r.Context(), sc.ID)
+			for _, bw := range beats {
+				beatNode := templates.BeatNode{
+					ID: bw.Beat.ID, Title: bw.Beat.Title, Purpose: bw.Beat.Purpose,
+					Trigger: bw.Beat.Trigger, Action: bw.Beat.Action, Reaction: bw.Beat.Reaction,
+					ResultingState: bw.Beat.ResultingState, AudienceEffect: bw.Beat.IntendedAudienceEffect,
+					Position: bw.Beat.Position, Revision: bw.Beat.Revision, BudgetMs: bw.Beat.DurationBudgetMs,
+					Implicit: bw.Beat.Implicit,
 				}
-				ready := 0
-				for _, kind := range []string{"start_frame", "end_frame", "motion"} {
-					if sp, err := s.store.GetCurrentSpec(r.Context(), sh.ID, kind); err == nil && sp != nil && (sp.PositivePrompt != "" || sp.StructuredSpecJSON != "{}") {
-						ready++
+				for _, sh := range bw.Shots {
+					if sh.Status == "archived" {
+						continue
 					}
+					beatNode.Shots = append(beatNode.Shots, s.shotNodeFor(r, sh))
 				}
-				sceneNode.Shots = append(sceneNode.Shots, templates.ShotNode{
-					ID: sh.ID, Title: sh.Title, Purpose: sh.Purpose, Treatment: sh.Treatment,
-					Position: sh.Position, Revision: sh.Revision, DurationMs: sh.DurationTargetMs,
-					Status: sh.Status, Readiness: sh.Readiness, SpecsReady: ready,
-				})
+				sceneNode.Beats = append(sceneNode.Beats, beatNode)
 			}
 			node.Scenes = append(node.Scenes, sceneNode)
 		}
