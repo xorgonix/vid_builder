@@ -809,6 +809,23 @@ store and are verified against the manifest.
 The device talks only to vid-build. It never receives ComfyUI credentials or filesystem
 paths, and local ComfyUI is never exposed.
 
+### 21.1 Installable shell and offline drafts
+
+The web interface is an installable PWA (web manifest, icons, service worker). The service
+worker caches only the app shell and safe static assets; it never caches mutations,
+generated media, playback data or job polling.
+
+When the desktop is unreachable, **safe creative drafts** are queued on the device in an
+IndexedDB store: concept notes, annotations, shot text edits and blocking drafts. They sync
+automatically when the connection returns, or from **Offline drafts** (`.../drafts`) via
+**Sync now**.
+
+- Shot text edits carry the base revision. If the shot changed on the server meanwhile, you
+  get a **three-way conflict view** (base / server current / your draft) instead of an
+  overwrite.
+- Everything else — production, approvals, deletions, membership and workflow
+  configuration — requires a live server connection and is refused offline.
+
 ---
 
 ## 22. Settings and local services
