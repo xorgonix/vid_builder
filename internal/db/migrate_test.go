@@ -147,6 +147,10 @@ func TestMigrateUpgradesV01Database(t *testing.T) {
 		VALUES ('s1','nonexistent','motion',1,'u1',?)`, now); err == nil {
 		// foreign keys may be off in raw connection for this table; ignore.
 	}
+	if _, err := raw.Exec(`INSERT INTO proposals (id,project_id,video_id,proposal_type,payload_json,summary,status,proposed_by_type,created_at)
+		VALUES ('pr1','p1',NULL,'project_brief','{}','legacy proposal','proposed','model',?)`, now); err != nil {
+		t.Fatalf("seed proposal: %v", err)
+	}
 	raw.Close()
 
 	// Now upgrade via the real entrypoint.
@@ -178,6 +182,19 @@ func TestMigrateUpgradesV01Database(t *testing.T) {
 	}
 	if _, err := d.Exec(`UPDATE proposals SET decision_reason='', regenerated_from_id=NULL WHERE 1=0`); err != nil {
 		t.Fatalf("proposals decision columns not present after upgrade: %v", err)
+	}
+	// The proposals table rebuild must preserve rows and accept 'continuity'.
+	var n int
+	if err := d.QueryRow(`SELECT COUNT(*) FROM proposals WHERE id='pr1'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("legacy proposal lost in rebuild (n=%d, err=%v)", n, err)
+	}
+	if _, err := d.Exec(`INSERT INTO proposals (id,project_id,video_id,proposal_type,payload_json,summary,status,proposed_by_type,created_at)
+		VALUES ('pr2','p1',NULL,'continuity','{}','c','proposed','model','` + now + `')`); err != nil {
+		t.Fatalf("continuity proposal type not accepted after rebuild: %v", err)
+	}
+	var states int
+	if err := d.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='shot_states'`).Scan(&states); err != nil || states != 1 {
+		t.Fatalf("shot_states table missing after upgrade (n=%d, err=%v)", states, err)
 	}
 }
 
