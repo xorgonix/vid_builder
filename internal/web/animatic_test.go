@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -50,6 +51,19 @@ func TestAnimaticPageAndData(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("animatic data status = %d", resp.StatusCode)
 	}
+	raw, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read animatic data: %v", err)
+	}
+	// Contract (spec §14.5): the playback document must not leak filesystem
+	// paths or production credentials.
+	lower := strings.ToLower(string(raw))
+	for _, forbidden := range []string{"storage_uri", "storageuri", `c:\\`, "/data/", "password", "secret", "api_key", "cookie"} {
+		if strings.Contains(lower, forbidden) {
+			t.Fatalf("animatic data leaked %q: %.200s", forbidden, string(raw))
+		}
+	}
 	var doc struct {
 		VideoID         string `json:"video_id"`
 		TotalDurationMs int    `json:"total_duration_ms"`
@@ -65,10 +79,9 @@ func TestAnimaticPageAndData(t *testing.T) {
 			} `json:"cues"`
 		} `json:"shots"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatalf("decode animatic data: %v", err)
 	}
-	resp.Body.Close()
 	if doc.VideoID != video.ID || len(doc.Shots) != 2 {
 		t.Fatalf("unexpected animatic document: %+v", doc)
 	}

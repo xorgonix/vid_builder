@@ -37,6 +37,9 @@ func (s *Server) handleEdit(w http.ResponseWriter, r *http.Request) {
 	items, _ := s.store.ListEditItems(r.Context(), edit.ID)
 	for _, it := range items {
 		iv := templates.EditItemView{ID: it.ID, AssetID: it.AssetID, Position: it.Position, DurationMs: it.DurationMs, TransitionIn: it.TransitionIn, TransitionOut: it.TransitionOut, Revision: it.Revision, AssetURL: "/assets/" + it.AssetID}
+		if a, err := s.store.GetAsset(r.Context(), it.AssetID); err == nil {
+			iv.Kind = a.Kind
+		}
 		if it.ShotID.Valid {
 			iv.ShotID = it.ShotID.String
 			if shot, err := s.store.GetShot(r.Context(), it.ShotID.String); err == nil {

@@ -76,6 +76,12 @@ templ generateBody(data GenerateData) {
 						</select>
 					</label>
 				</div>
+				if data.Role == "motion" {
+					<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+						<label class="form-control"><span class="label-text mb-1">Frames (video)</span><input class="input input-bordered" type="number" min="1" step="4" name="frame_count" value="25"/></label>
+						<label class="form-control"><span class="label-text mb-1">FPS (video)</span><input class="input input-bordered" type="number" min="1" max="60" name="fps" value="8"/></label>
+					</div>
+				}
 				<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
 					<label class="form-control">
 						<span class="label-text mb-1">Seed policy</span>

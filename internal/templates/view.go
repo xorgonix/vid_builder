@@ -3,6 +3,7 @@ package templates
 
 import (
 	"strconv"
+	"strings"
 
 	"vidbuild/internal/animatic"
 	"vidbuild/internal/continuity"
@@ -10,6 +11,12 @@ import (
 
 // trimFloat formats a float without trailing zeros for form values.
 func trimFloat(f float64) string { return strconv.FormatFloat(f, 'g', -1, 64) }
+
+// IsVideoAsset reports whether an asset should render as playable video rather
+// than a still image (Wan and other video workflows produce video/webm).
+func IsVideoAsset(a AssetView) bool {
+	return a.Kind == "video" || strings.HasPrefix(a.MimeType, "video/")
+}
 
 // ShellData is the shared chrome data for every authenticated page.
 type ShellData struct {

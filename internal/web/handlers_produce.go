@@ -273,6 +273,22 @@ func (s *Server) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		"seed_policy": formValueOr(r, "seed_policy", "random"),
 		"checkpoint":  r.FormValue("checkpoint"),
 	}
+	// Video/motion controls. Only sent when the creator sets them; the workflow's
+	// own defaults stay authoritative otherwise.
+	if frames := parseInt(r.FormValue("frame_count"), 0); frames > 0 {
+		payload["frame_count"] = frames
+	}
+	if fps := parseFloatOr(r.FormValue("fps"), 0); fps > 0 {
+		payload["fps"] = fps
+	}
+	if role == "motion" {
+		payload["motion_positive"] = spec.PositivePrompt
+		payload["motion_negative"] = spec.NegativePrompt
+		if endSpec, err := s.store.GetCurrentSpec(r.Context(), shot.ID, "end_frame"); err == nil && endSpec != nil {
+			payload["last_frame_positive"] = endSpec.PositivePrompt
+			payload["last_frame_negative"] = endSpec.NegativePrompt
+		}
+	}
 	// A selected model profile is explicit: its checkpoint wins.
 	profileID := r.FormValue("model_profile_id")
 	if profileID != "" {

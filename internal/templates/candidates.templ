@@ -32,7 +32,11 @@ templ candidatesBody(data CandidatesData) {
 							</div>
 						</div>
 						<a href={ templ.URL(a.URL) } target="_blank" rel="noopener">
-							<img src={ templ.URL(ImgSrc(a)) } alt={ "Candidate " + shortID(a.ID) } class="w-full rounded"/>
+							if IsVideoAsset(a) {
+								<video controls preload="metadata" src={ templ.URL(a.URL) } class="w-full rounded"></video>
+							} else {
+								<img src={ templ.URL(ImgSrc(a)) } alt={ "Candidate " + shortID(a.ID) } class="w-full rounded"/>
+							}
 						</a>
 						<table class="table table-xs mt-1">
 							<tbody>

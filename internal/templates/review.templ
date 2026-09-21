@@ -106,7 +106,11 @@ func annotationStatusClass(status string) string {
 templ assetCard(data ReviewData, g ReviewGroup, a AssetView) {
 	<div class={ "rounded-box border p-2 flex flex-col gap-2", selectedBorder(g.SelectedID == a.ID) }>
 		<a href={ templ.URL(a.URL) } target="_blank" rel="noopener">
-			<img src={ templ.URL(ImgSrc(a)) } alt={ "Candidate " + shortID(a.ID) } class="w-full rounded"/>
+			if IsVideoAsset(a) {
+				<video controls preload="metadata" src={ templ.URL(a.URL) } class="w-full rounded"></video>
+			} else {
+				<img src={ templ.URL(ImgSrc(a)) } alt={ "Candidate " + shortID(a.ID) } class="w-full rounded"/>
+			}
 		</a>
 		<div class="text-xs opacity-70 font-mono break-all">
 			<div>seed { a.Seed } · { a.Model }</div>

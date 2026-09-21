@@ -99,6 +99,15 @@ type requestPayload struct {
 	Checkpoint string         `json:"checkpoint"`
 	Layers     map[string]any `json:"layers"`
 
+	// Video/motion controls (used by video workflows such as the bundled Wan
+	// first/last package). Zero values leave the workflow defaults in place.
+	FrameCount     int     `json:"frame_count"`
+	FPS            float64 `json:"fps"`
+	MotionPositive string  `json:"motion_positive"`
+	MotionNegative string  `json:"motion_negative"`
+	LastPositive   string  `json:"last_frame_positive"`
+	LastNegative   string  `json:"last_frame_negative"`
+
 	RequiresFirstLast bool   `json:"requires_first_last"`
 	FirstFrameAssetID string `json:"first_frame_asset_id"`
 	LastFrameAssetID  string `json:"last_frame_asset_id"`
@@ -243,16 +252,7 @@ func (w *Worker) runAttempt(ctx context.Context, job *store.Job, req *store.Gene
 	}
 	_ = w.store.UpdateJobState(ctx, job.ID, "running", "compile", "info", "Compiling bound graph", 2000)
 
-	values := map[string]any{
-		"first_frame_positive": payload.Positive,
-		"first_frame_negative": payload.Negative,
-		"width":                payload.Width,
-		"height":               payload.Height,
-		"seed":                 seed,
-	}
-	if payload.Checkpoint != "" {
-		values["model_name"] = payload.Checkpoint
-	}
+	values := bindingValues(payload, seed)
 
 	// Endpoint-conditioned motion: both endpoints must be staged as inputs and
 	// the workflow must declare the bindings. There is no silent fallback
@@ -368,6 +368,41 @@ func nullString(v string) (out *string) {
 		return nil
 	}
 	return &v
+}
+
+// bindingValues maps a frozen request payload onto the semantic field vocabulary.
+// Optional video/motion controls are only included when set, so a workflow's own
+// defaults remain authoritative (spec §18.3: no silent fallback).
+func bindingValues(payload requestPayload, seed int64) map[string]any {
+	values := map[string]any{
+		"first_frame_positive": payload.Positive,
+		"first_frame_negative": payload.Negative,
+		"width":                payload.Width,
+		"height":               payload.Height,
+		"seed":                 seed,
+	}
+	if payload.Checkpoint != "" {
+		values["model_name"] = payload.Checkpoint
+	}
+	if payload.FrameCount > 0 {
+		values["frame_count"] = payload.FrameCount
+	}
+	if payload.FPS > 0 {
+		values["fps"] = payload.FPS
+	}
+	if payload.MotionPositive != "" {
+		values["motion_positive"] = payload.MotionPositive
+	}
+	if payload.MotionNegative != "" {
+		values["motion_negative"] = payload.MotionNegative
+	}
+	if payload.LastPositive != "" {
+		values["last_frame_positive"] = payload.LastPositive
+	}
+	if payload.LastNegative != "" {
+		values["last_frame_negative"] = payload.LastNegative
+	}
+	return values
 }
 
 // outputMedia classifies a ComfyUI output filename into an asset kind and mime
