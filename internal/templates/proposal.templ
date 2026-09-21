@@ -101,8 +101,10 @@ templ proposalBody(data ProposalData) {
 								</div>
 							</div>
 						}
-						<div class="card-actions justify-end mt-3">
+						<div class="card-actions items-center justify-end mt-3">
+							<input class="input input-bordered input-sm mr-auto w-56" name="reason" placeholder="Rejection reason (optional)"/>
 							<button class="btn btn-ghost" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/reject") }>Reject</button>
+							<button class="btn" type="submit" name="apply_all" value="1">Apply all</button>
 							<button class="btn btn-primary" type="submit">Apply selected beats</button>
 						</div>
 					</div>
@@ -129,18 +131,42 @@ templ proposalBody(data ProposalData) {
 								<p class="text-xs opacity-70">Must notice: { sh.MustNotice } · Start: { sh.StartState } · Change: { sh.VisibleChange } · End: { sh.EndState }</p>
 							</div>
 						}
-						<div class="card-actions justify-end mt-3">
+						<div class="card-actions items-center justify-end mt-3">
+							<input class="input input-bordered input-sm mr-auto w-56" name="reason" placeholder="Rejection reason (optional)"/>
 							<button class="btn btn-ghost" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/reject") }>Reject</button>
+							<button class="btn" type="submit" name="apply_all" value="1">Apply all</button>
 							<button class="btn btn-primary" type="submit">Apply selected shots</button>
 						</div>
 					</div>
 				</div>
 			</form>
 		}
+		if len(data.Current) > 0 {
+			<div class="card bg-base-200 shadow mt-3">
+				<div class="card-body">
+					<h2 class="card-title text-sm">Current structure (compare before applying)</h2>
+					<ul class="text-xs opacity-80 flex flex-col gap-1">
+						for _, line := range data.Current {
+							<li>• { line }</li>
+						}
+					</ul>
+				</div>
+			</div>
+		}
+		if data.IsOutline || data.IsBeats || data.IsShots || data.IsBrief {
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/regenerate") } class="card bg-base-100 shadow mt-3">
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<div class="card-body">
+					<h2 class="card-title text-sm">Regenerate from feedback</h2>
+					<textarea class="textarea textarea-bordered w-full" name="feedback" rows="2" placeholder="What should change? (optional but recommended)"></textarea>
+					<div class="card-actions justify-end mt-2">
+						<button class="btn btn-sm" type="submit">Regenerate</button>
+					</div>
+				</div>
+			</form>
+		}
 	</div>
 }
-
-// shotTreatmentText mirrors the treatment folded into a shot on apply.
 func shotTreatmentText(sh BreakdownShotView) string {
 	out := ""
 	if sh.Framing != "" {

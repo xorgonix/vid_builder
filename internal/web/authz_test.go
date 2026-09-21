@@ -78,6 +78,7 @@ func TestAuthorizationMatrix(t *testing.T) {
 		{"propose outline", "POST", v("/proposals/outline"), edit},
 		{"apply proposal", "POST", v("/proposals/missing/apply"), edit},
 		{"reject proposal", "POST", v("/proposals/missing/reject"), edit},
+		{"regenerate proposal", "POST", v("/proposals/missing/regenerate"), edit},
 		{"revise brief", "POST", v("/brief/revise"), edit},
 		{"create section", "POST", v("/sections"), edit},
 		{"update section", "PATCH", v("/sections/missing"), edit},

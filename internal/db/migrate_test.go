@@ -176,6 +176,9 @@ func TestMigrateUpgradesV01Database(t *testing.T) {
 	if _, err := d.Exec(`UPDATE projects SET default_model_profile_id=NULL WHERE 1=0`); err != nil {
 		t.Fatalf("projects.default_model_profile_id not present after upgrade: %v", err)
 	}
+	if _, err := d.Exec(`UPDATE proposals SET decision_reason='', regenerated_from_id=NULL WHERE 1=0`); err != nil {
+		t.Fatalf("proposals decision columns not present after upgrade: %v", err)
+	}
 }
 
 // TestMigrateBackfillsBeats proves the beats migration attaches one implicit

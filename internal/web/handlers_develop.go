@@ -307,6 +307,39 @@ func (s *Server) handleProposalView(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
+	switch proposal.ProposalType {
+	case "scene_plan":
+		if data.SceneID != "" {
+			beats, _ := s.store.ListBeats(r.Context(), data.SceneID)
+			for _, b := range beats {
+				line := b.Title
+				if b.Action != "" {
+					line += " — " + b.Action
+				}
+				data.Current = append(data.Current, line)
+			}
+		}
+	case "shot_plan":
+		if data.BeatID != "" {
+			shots, _ := s.store.ListShotsInBeat(r.Context(), data.BeatID)
+			for _, sh := range shots {
+				line := sh.Title
+				if sh.Purpose != "" {
+					line += " — " + sh.Purpose
+				}
+				data.Current = append(data.Current, line)
+			}
+		}
+	case "video_outline":
+		sections, _ := s.store.ListSections(r.Context(), video.ID)
+		for _, sec := range sections {
+			data.Current = append(data.Current, "Section: "+sec.Title)
+			scenes, _ := s.store.ListScenes(r.Context(), sec.ID)
+			for _, sc := range scenes {
+				data.Current = append(data.Current, "    Scene: "+sc.Title)
+			}
+		}
+	}
 	s.renderPage(w, r, templates.ProposalPage(data))
 }
 
@@ -454,8 +487,9 @@ func (s *Server) handleProposalApply(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		applied := 0
+		applyAll := r.FormValue("apply_all") != ""
 		for i, b := range payload.Beats {
-			if r.FormValue("c_beat_"+itoa(i)) == "" {
+			if !applyAll && r.FormValue("c_beat_"+itoa(i)) == "" {
 				continue
 			}
 			if _, err := s.store.CreateBeat(r.Context(), payload.SceneID,
@@ -490,8 +524,9 @@ func (s *Server) handleProposalApply(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		applied := 0
+		applyAll := r.FormValue("apply_all") != ""
 		for i, sh := range payload.Shots {
-			if r.FormValue("c_shot_"+itoa(i)) == "" {
+			if !applyAll && r.FormValue("c_shot_"+itoa(i)) == "" {
 				continue
 			}
 			treatment := formValueOr(r, "f_shot_treatment_"+itoa(i), breakdownTreatment(sh))
@@ -559,9 +594,117 @@ func (s *Server) handleProposalReject(w http.ResponseWriter, r *http.Request) {
 	}
 	proposalID := chiURLParam(r, "proposalID")
 	user := UserFrom(r.Context())
-	_ = s.store.DecideProposal(r.Context(), proposalID, "rejected", user.ID)
-	_ = s.store.Audit(r.Context(), project.WorkspaceID, user.ID, "proposal.rejected", "proposal", proposalID, "rejected proposal", "{}")
+	_ = r.ParseForm()
+	reason := strings.TrimSpace(r.FormValue("reason"))
+	_ = s.store.DecideProposalWithReason(r.Context(), proposalID, "rejected", reason, user.ID)
+	meta, _ := json.Marshal(map[string]string{"reason": reason})
+	_ = s.store.Audit(r.Context(), project.WorkspaceID, user.ID, "proposal.rejected", "proposal", proposalID, "rejected proposal", string(meta))
 	http.Redirect(w, r, withQuery(s.developURL(r, ""), flashQuery("Proposal rejected.", "info")), http.StatusSeeOther)
+}
+
+// handleProposalRegenerate re-runs the planner for the same target with explicit
+// creator feedback and links the new proposal to the old one (spec §8.6).
+func (s *Server) handleProposalRegenerate(w http.ResponseWriter, r *http.Request) {
+	project, video, _, ok := s.loadVideoCtx(w, r)
+	if !ok {
+		return
+	}
+	proposal, err := s.store.GetProposal(r.Context(), chiURLParam(r, "proposalID"))
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	_ = r.ParseForm()
+	feedback := strings.TrimSpace(r.FormValue("feedback"))
+	user := UserFrom(r.Context())
+	ctxText := s.plannerContext(r, project, video)
+
+	var (
+		raw     []byte
+		summary string
+	)
+	fail := func(err error) {
+		s.log.Error("regenerate proposal", "err", err)
+		http.Redirect(w, r, withQuery(s.proposalURL(r, proposal.ID), flashQuery("Regeneration failed: "+err.Error(), "error")), http.StatusSeeOther)
+	}
+
+	switch proposal.ProposalType {
+	case "project_brief":
+		payload, err := s.planner.BriefProposal(r.Context(), ctxText, feedback, nil)
+		if err != nil {
+			fail(err)
+			return
+		}
+		raw, _ = json.Marshal(payload)
+		summary = payload.Summary
+	case "video_outline":
+		briefText := ""
+		if brief, err := s.store.GetCurrentBrief(r.Context(), project.ID); err == nil && brief != nil {
+			briefText = planner.BriefText(briefMap(brief))
+		}
+		payload, err := s.planner.OutlineProposal(r.Context(), ctxText, briefText, feedback, nil)
+		if err != nil {
+			fail(err)
+			return
+		}
+		raw, _ = json.Marshal(payload)
+		summary = payload.Summary
+	case "scene_plan":
+		var old struct {
+			SceneID string `json:"scene_id"`
+			*planner.BeatPayload
+		}
+		_ = json.Unmarshal([]byte(proposal.PayloadJSON), &old)
+		scene, err := s.store.GetScene(r.Context(), old.SceneID)
+		if err != nil {
+			s.notFound(w, r)
+			return
+		}
+		payload, err := s.planner.BeatProposal(r.Context(), ctxText, sceneContextText(scene), feedback, nil)
+		if err != nil {
+			fail(err)
+			return
+		}
+		raw, _ = json.Marshal(struct {
+			SceneID string `json:"scene_id"`
+			*planner.BeatPayload
+		}{old.SceneID, payload})
+		summary = payload.Summary
+	case "shot_plan":
+		var old struct {
+			BeatID string `json:"beat_id"`
+			*planner.ShotBreakdownPayload
+		}
+		_ = json.Unmarshal([]byte(proposal.PayloadJSON), &old)
+		beat, err := s.store.GetBeat(r.Context(), old.BeatID)
+		if err != nil {
+			s.notFound(w, r)
+			return
+		}
+		payload, err := s.planner.ShotBreakdownProposal(r.Context(), ctxText, beatContextText(beat), feedback, nil)
+		if err != nil {
+			fail(err)
+			return
+		}
+		raw, _ = json.Marshal(struct {
+			BeatID string `json:"beat_id"`
+			*planner.ShotBreakdownPayload
+		}{old.BeatID, payload})
+		summary = payload.Summary
+	default:
+		http.Redirect(w, r, withQuery(s.proposalURL(r, proposal.ID), flashQuery("This proposal cannot be regenerated.", "error")), http.StatusSeeOther)
+		return
+	}
+
+	p, err := s.store.CreateProposal(r.Context(), project.ID, video.ID, proposal.ProposalType, string(raw), summary, s.cfg.LLM.Model, user.ID, 0)
+	if err != nil {
+		fail(err)
+		return
+	}
+	_ = s.store.MarkProposalRegenerated(r.Context(), p.ID, proposal.ID)
+	_ = s.store.DecideProposalWithReason(r.Context(), proposal.ID, "superseded", feedback, user.ID)
+	_ = s.store.Audit(r.Context(), project.WorkspaceID, user.ID, "proposal.regenerated", "proposal", p.ID, "regenerated proposal", "{}")
+	http.Redirect(w, r, s.proposalURL(r, p.ID), http.StatusSeeOther)
 }
 
 func (s *Server) handleBriefRevise(w http.ResponseWriter, r *http.Request) {

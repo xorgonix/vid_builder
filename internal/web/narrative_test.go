@@ -123,3 +123,83 @@ func TestNarrativeProposalSplit(t *testing.T) {
 		t.Fatalf("shot was not applied to the beat: %+v", shots)
 	}
 }
+
+// TestProposalDecisions covers apply-all, reject-with-reason and regenerate from
+// feedback (spec §8.6).
+func TestProposalDecisions(t *testing.T) {
+	st := testutil.NewStore(t)
+	fake := testutil.NewLMStudio(t)
+	cfg := config.Default()
+	cfg.LLM.Enabled = true
+	cfg.LLM.BaseURL = fake.URL
+	cfg.LLM.Model = "test-model"
+	cfg.LLM.RequestTimeoutSec = 5
+	h, _ := webapp.NewServer(t, st, cfg)
+
+	admin := testutil.MustAdmin(t, st)
+	ws := testutil.MustWorkspace(t, st)
+	project, video := testutil.MustProjectVideo(t, st, ws.ID, admin.ID, "Decisions")
+	_, scene, _ := testutil.MustShot(t, st, video.ID, admin.ID, "Shot A")
+
+	c := testutil.NewClient(t, h)
+	c.LoginAdmin()
+	base := "/w/" + ws.ID + "/projects/" + project.ID + "/videos/" + video.ID
+
+	beatsJSON := map[string]any{
+		"summary": "two beats",
+		"beats": []map[string]any{
+			{"title": "One", "action": "a"},
+			{"title": "Two", "action": "b"},
+		},
+	}
+
+	fake.SetJSON(beatsJSON)
+	resp := c.PostForm(base+"/scenes/"+scene.ID+"/propose-beats", url.Values{})
+	testutil.MustStatus(t, resp, http.StatusSeeOther)
+	first := proposalIDFrom(t, testutil.Location(resp))
+
+	page := testutil.MustStatus(t, c.Get(base+"/proposals/"+first), http.StatusOK)
+	for _, want := range []string{"Apply all", "Regenerate from feedback", "Current structure"} {
+		if !strings.Contains(page, want) {
+			t.Fatalf("proposal page missing %q", want)
+		}
+	}
+
+	// Regenerate from feedback: the old proposal is superseded and linked.
+	resp = c.PostForm(base+"/proposals/"+first+"/regenerate", url.Values{"feedback": {"make it darker"}})
+	testutil.MustStatus(t, resp, http.StatusSeeOther)
+	second := proposalIDFrom(t, testutil.Location(resp))
+	if second == first {
+		t.Fatalf("regeneration should create a new proposal")
+	}
+	old, err := st.GetProposal(t.Context(), first)
+	if err != nil {
+		t.Fatalf("old proposal: %v", err)
+	}
+	if old.Status != "superseded" || old.DecisionReason != "make it darker" {
+		t.Fatalf("old proposal decision = %q/%q", old.Status, old.DecisionReason)
+	}
+
+	// Apply all without ticking any individual item.
+	resp = c.PostForm(base+"/proposals/"+second+"/apply", url.Values{"apply_all": {"1"}})
+	if loc := testutil.Location(resp); !strings.Contains(loc, "kind=success") {
+		t.Fatalf("apply all redirect = %q", loc)
+	}
+	_ = resp.Body.Close()
+	beats, _ := st.ListBeats(t.Context(), scene.ID)
+	if len(beats) != 3 { // implicit + two proposed
+		t.Fatalf("apply all created %d beats, want 3", len(beats))
+	}
+
+	// Reject with a reason.
+	fake.SetJSON(beatsJSON)
+	resp = c.PostForm(base+"/scenes/"+scene.ID+"/propose-beats", url.Values{})
+	testutil.MustStatus(t, resp, http.StatusSeeOther)
+	third := proposalIDFrom(t, testutil.Location(resp))
+	resp = c.PostForm(base+"/proposals/"+third+"/reject", url.Values{"reason": {"not this direction"}})
+	testutil.MustStatus(t, resp, http.StatusSeeOther)
+	rejected, _ := st.GetProposal(t.Context(), third)
+	if rejected.Status != "rejected" || rejected.DecisionReason != "not this direction" {
+		t.Fatalf("rejected proposal = %q/%q", rejected.Status, rejected.DecisionReason)
+	}
+}

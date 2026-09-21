@@ -32,15 +32,17 @@ type DiscoveryMessage struct {
 
 // Proposal is an inspectable AI/human proposal before application.
 type Proposal struct {
-	ID           string
-	ProjectID    string
-	VideoID      sql.NullString
-	ProposalType string
-	PayloadJSON  string
-	Summary      string
-	Status       string
-	ModelID      sql.NullString
-	CreatedAt    string
+	ID                string
+	ProjectID         string
+	VideoID           sql.NullString
+	ProposalType      string
+	PayloadJSON       string
+	Summary           string
+	Status            string
+	ModelID           sql.NullString
+	DecisionReason    string
+	RegeneratedFromID sql.NullString
+	CreatedAt         string
 }
 
 // Brief is an accepted, versioned creative direction.
@@ -193,9 +195,9 @@ func (s *Store) CreateProposal(ctx context.Context, projectID, videoID, proposal
 
 // GetProposal fetches a proposal.
 func (s *Store) GetProposal(ctx context.Context, id string) (*Proposal, error) {
-	row := s.QueryRowContext(ctx, `SELECT id, project_id, video_id, proposal_type, payload_json, summary, status, model_id, created_at FROM proposals WHERE id=?`, id)
+	row := s.QueryRowContext(ctx, `SELECT id, project_id, video_id, proposal_type, payload_json, summary, status, model_id, decision_reason, regenerated_from_id, created_at FROM proposals WHERE id=?`, id)
 	var p Proposal
-	err := row.Scan(&p.ID, &p.ProjectID, &p.VideoID, &p.ProposalType, &p.PayloadJSON, &p.Summary, &p.Status, &p.ModelID, &p.CreatedAt)
+	err := row.Scan(&p.ID, &p.ProjectID, &p.VideoID, &p.ProposalType, &p.PayloadJSON, &p.Summary, &p.Status, &p.ModelID, &p.DecisionReason, &p.RegeneratedFromID, &p.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -223,7 +225,19 @@ func (s *Store) ListProposals(ctx context.Context, projectID, videoID string) ([
 
 // DecideProposal sets the terminal status of a proposal.
 func (s *Store) DecideProposal(ctx context.Context, id, status, userID string) error {
-	_, err := s.ExecContext(ctx, `UPDATE proposals SET status=?, decided_at=?, decided_by_user_id=? WHERE id=?`, status, db.Now(), userID, id)
+	return s.DecideProposalWithReason(ctx, id, status, "", userID)
+}
+
+// DecideProposalWithReason records a decision and an optional reason (§8.6).
+func (s *Store) DecideProposalWithReason(ctx context.Context, id, status, reason, userID string) error {
+	_, err := s.ExecContext(ctx, `UPDATE proposals SET status=?, decision_reason=?, decided_at=?, decided_by_user_id=? WHERE id=?`,
+		status, reason, db.Now(), userID, id)
+	return err
+}
+
+// MarkProposalRegenerated links a regenerated proposal to its predecessor.
+func (s *Store) MarkProposalRegenerated(ctx context.Context, id, fromID string) error {
+	_, err := s.ExecContext(ctx, `UPDATE proposals SET regenerated_from_id=? WHERE id=?`, fromID, id)
 	return err
 }
 

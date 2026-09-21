@@ -140,6 +140,7 @@ func (s *Server) Handler() http.Handler {
 				r.Get("/proposals/{proposalID}", s.handleProposalView)
 				r.With(canEdit).Post("/proposals/{proposalID}/apply", s.handleProposalApply)
 				r.With(canEdit).Post("/proposals/{proposalID}/reject", s.handleProposalReject)
+				r.With(canEdit).Post("/proposals/{proposalID}/regenerate", s.handleProposalRegenerate)
 				r.With(canEdit).Post("/brief/revise", s.handleBriefRevise)
 				r.Get("/brief/history", s.handleBriefHistory)
 				r.Get("/outline", s.handleOutline)

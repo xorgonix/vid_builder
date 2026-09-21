@@ -229,6 +229,7 @@ type ProposalData struct {
 	BeatID      string
 	Beats       []BeatDraftView
 	Breakdown   []BreakdownShotView
+	Current     []string
 	OutlineJSON string
 }
 
