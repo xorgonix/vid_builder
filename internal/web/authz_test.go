@@ -112,6 +112,7 @@ func TestAuthorizationMatrix(t *testing.T) {
 		{"animatic settings", "PATCH", v("/animatic/settings"), edit},
 		{"approve animatic", "POST", v("/animatic/approve"), edit},
 		{"set metric", "POST", v("/metrics"), edit},
+		{"sync drafts", "POST", v("/drafts/sync"), edit},
 		{"copy blocking", "POST", v("/shots/" + shot.ID + "/blocking/start/copy"), edit},
 		{"save prompt", "POST", v("/shots/" + shot.ID + "/prompt-workbench"), edit},
 		{"prompt preview", "POST", v("/shots/" + shot.ID + "/prompt-preview"), edit},

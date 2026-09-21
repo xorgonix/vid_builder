@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -104,6 +106,28 @@ func (c *Client) Delete(path string) *http.Response {
 
 // Token returns the captured CSRF token, or "" if none.
 func (c *Client) Token() string { return c.token }
+
+// PostJSON sends a JSON body (with the CSRF token attached) and returns the response.
+func (c *Client) PostJSON(path string, body any) *http.Response {
+	c.t.Helper()
+	raw, err := json.Marshal(body)
+	if err != nil {
+		c.t.Fatalf("testutil: marshal json: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, c.base+path, bytes.NewReader(raw))
+	if err != nil {
+		c.t.Fatalf("testutil: request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.token != "" {
+		req.Header.Set("X-CSRF-Token", c.token)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		c.t.Fatalf("testutil: do: %v", err)
+	}
+	return resp
+}
 
 // Body reads and closes the response body, returning it as a string.
 func Body(t *testing.T, resp *http.Response) string {

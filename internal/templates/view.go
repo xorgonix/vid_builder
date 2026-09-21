@@ -1076,3 +1076,10 @@ type ShotNode struct {
 	Readiness  string
 	SpecsReady int
 }
+
+// DraftsData backs the offline draft queue and conflict view.
+type DraftsData struct {
+	Shell   ShellData
+	Project ProjectView
+	Video   VideoView
+}

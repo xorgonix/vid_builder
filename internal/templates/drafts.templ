@@ -1,0 +1,22 @@
+package templates
+
+templ DraftsPage(data DraftsData) {
+	@shell(data.Shell, draftsBody(data))
+}
+
+templ draftsBody(data DraftsData) {
+	<script src="/static/drafts.js" defer></script>
+	<div class="max-w-4xl mx-auto" id="drafts-root"
+		data-sync-url={ templ.URL(data.Shell.VideoBase() + "/drafts/sync") }
+		data-video-id={ data.Video.ID }>
+		<div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+			<div>
+				<h1 class="text-2xl font-bold">Offline drafts</h1>
+				<p class="opacity-70 text-sm">Drafts are stored on this device and synced when the server is reachable. Only safe creative drafts are queued; production, approvals, deletions, membership and workflow changes require a live server.</p>
+			</div>
+			<button class="btn btn-sm btn-primary" type="button" id="drafts-sync">Sync now</button>
+		</div>
+		<div id="drafts-status" class="alert mb-3 hidden"><span></span></div>
+		<div id="drafts-list" class="flex flex-col gap-3"></div>
+	</div>
+}

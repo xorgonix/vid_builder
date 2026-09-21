@@ -187,6 +187,8 @@ func (s *Server) Handler() http.Handler {
 				r.With(canEdit).Patch("/animatic/settings", s.handleAnimaticSettings)
 				r.With(canEdit).Post("/animatic/approve", s.handleAnimaticApprove)
 				r.With(canEdit).Post("/metrics", s.handleSetMetric)
+				r.Get("/drafts", s.handleDrafts)
+				r.With(canEdit).Post("/drafts/sync", s.handleDraftsSync)
 				r.Get("/shots/{shotID}/history", s.handleShotHistory)
 				r.Get("/shots/{shotID}/prompt-workbench", s.handlePromptWorkbench)
 				r.With(canEdit).Post("/shots/{shotID}/prompt-workbench", s.handlePromptSave)

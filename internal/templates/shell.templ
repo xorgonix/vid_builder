@@ -7,6 +7,7 @@ templ shell(data ShellData, body templ.Component) {
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<meta name="theme-color" content="#1d232a"/>
+			<meta name="csrf-token" content={ data.CSRFToken }/>
 			<meta name="mobile-web-app-capable" content="yes"/>
 			<link rel="manifest" href="/manifest.webmanifest"/>
 			<link rel="apple-touch-icon" href="/static/icons/icon-192.svg"/>
