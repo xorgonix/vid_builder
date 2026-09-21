@@ -211,6 +211,18 @@ func (s *Store) ShotInVideo(ctx context.Context, shotID, videoID string) (bool, 
 	return n > 0, nil
 }
 
+// SceneInVideo reports whether a scene belongs to the given video.
+func (s *Store) SceneInVideo(ctx context.Context, sceneID, videoID string) (bool, error) {
+	var n int
+	err := s.QueryRowContext(ctx, `SELECT COUNT(*) FROM scenes sc
+		JOIN sections se ON se.id = sc.section_id
+		WHERE sc.id=? AND se.video_id=?`, sceneID, videoID).Scan(&n)
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
 // ShotContext returns the scene and section titles for a shot.
 func (s *Store) ShotContext(ctx context.Context, shotID string) (sceneTitle, sectionTitle string, err error) {
 	err = s.QueryRowContext(ctx, `SELECT sc.title, se.title FROM shots sh
