@@ -558,6 +558,18 @@ A workflow supports first/last video only if it declares both `first_frame_asset
 `last_frame_asset` bindings. Produce refuses endpoint-conditioned motion on a workflow
 that lacks them — there is **no silent start-only fallback** (§14.4).
 
+vid-build ships **two** bundled, human-authored packages:
+
+- **SDXL Text to Image** (`sdxl-txt2img`, task `image`) — the default still-image package.
+- **Wan First/Last Frame to Video** (`wan-flf-video`, task `video`) — Wan 2.2 TI2V 5B with
+  the umt5 text encoder and `wanBlockSwap` for 24 GB cards. It declares the endpoint
+  bindings, so it drives endpoint-conditioned motion. The produced asset is stored as a
+  **video** (`video/webm`) and thumbnailed from its first frame with FFmpeg.
+
+Both packages are validated against the running ComfyUI when you press **Validate against
+target**. The Wan package is verified against ComfyUI 0.35.0 (a live integration test
+submits the exact bound graph and checks the returned WebM stream).
+
 ---
 
 ## 13. Model profiles and execution targets
@@ -958,7 +970,7 @@ go run ./cmd/vidbuild-restore -backup data/backups/backup-YYYYMMDD-HHMMSS -yes
 | 403 on submit | Session expired or CSRF mismatch — reload and sign in again. |
 | "Section/Scene/Shot changed elsewhere" | Optimistic revision conflict; the page reloaded with the current data. |
 | Export fails | FFmpeg missing from `PATH`, or a clip's asset is missing. Run Diagnostics. |
-| Video workflows fail with `hostbuf_file_reader_read failed` | A ComfyUI-side weight-loading bug (its `comfy_aimdo` offload). Update ComfyUI or disable its dynamic-VRAM offload. |
+| Video workflow crashes ComfyUI with `hostbuf_file_reader_read failed` or a Windows access violation during weight load | An environment-side weight-loading fault, not a vid-build graph fault. The bundled Wan package is verified on ComfyUI 0.35.0. Update ComfyUI and its `comfy-aimdo` package, retry once with a smaller resolution/length, and ensure the model files are complete. |
 | Data looks empty | You may be in the wrong workspace (see the switcher) or signed in as a different user. |
 
 ---

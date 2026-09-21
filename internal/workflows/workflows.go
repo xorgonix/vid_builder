@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"sort"
+	"strings"
 )
 
 //go:embed bundled/*
@@ -53,23 +55,62 @@ type Packaged struct {
 	GraphSHA     string
 }
 
-// Load reads the single bundled default workflow package.
+// Load reads the single default bundled workflow package (the SDXL text-to-image
+// package). Kept for callers that expect one default; use LoadAll to seed every
+// bundled package.
 func Load() (*Packaged, error) {
-	raw, err := fs.ReadFile(bundled, "bundled/manifest.json")
+	all, err := LoadAll()
 	if err != nil {
-		return nil, fmt.Errorf("workflows: read manifest: %w", err)
+		return nil, err
+	}
+	for _, p := range all {
+		if p.Manifest.Slug == "sdxl-txt2img" {
+			return p, nil
+		}
+	}
+	return all[0], nil
+}
+
+// LoadAll reads every bundled workflow package (manifests named *manifest*.json),
+// ordered by slug for deterministic seeding.
+func LoadAll() ([]*Packaged, error) {
+	entries, err := fs.ReadDir(bundled, "bundled")
+	if err != nil {
+		return nil, fmt.Errorf("workflows: read bundled dir: %w", err)
+	}
+	var out []*Packaged
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") || !strings.Contains(e.Name(), "manifest") {
+			continue
+		}
+		pkg, err := loadOne("bundled/" + e.Name())
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, pkg)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("workflows: no bundled manifests found")
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Manifest.Slug < out[j].Manifest.Slug })
+	return out, nil
+}
+
+func loadOne(manifestPath string) (*Packaged, error) {
+	raw, err := fs.ReadFile(bundled, manifestPath)
+	if err != nil {
+		return nil, fmt.Errorf("workflows: read manifest %s: %w", manifestPath, err)
 	}
 	var m Manifest
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return nil, fmt.Errorf("workflows: parse manifest: %w", err)
+		return nil, fmt.Errorf("workflows: parse manifest %s: %w", manifestPath, err)
 	}
-	graphFile := m.GraphAPIFile
-	if graphFile == "" {
-		graphFile = "sdxl_txt2img_api.json"
+	if m.GraphAPIFile == "" {
+		return nil, fmt.Errorf("workflows: manifest %s has no graph_api_file", manifestPath)
 	}
-	graph, err := fs.ReadFile(bundled, "bundled/"+graphFile)
+	graph, err := fs.ReadFile(bundled, "bundled/"+m.GraphAPIFile)
 	if err != nil {
-		return nil, fmt.Errorf("workflows: read graph: %w", err)
+		return nil, fmt.Errorf("workflows: read graph %s: %w", m.GraphAPIFile, err)
 	}
 	sum := sha256.Sum256(graph)
 	return &Packaged{Manifest: m, ManifestJSON: string(raw), GraphJSON: string(graph), GraphSHA: hex.EncodeToString(sum[:])}, nil

@@ -1,0 +1,32 @@
+{
+  "name": "Wan First/Last Frame to Video",
+  "slug": "wan-flf-video",
+  "task": "video",
+  "semantic_version": "1.0.0",
+  "tested_comfyui_version": "0.35.0",
+  "description": "Bundled, human-authored Wan first/last-frame to video workflow. Authored in ComfyUI, exported in API format, and verified against ComfyUI 0.35.0 with Wan 2.2 TI2V 5B and the umt5 text encoder. Endpoint-conditioned: vid-build stages the approved start and end frames as inputs. wanBlockSwap reduces VRAM pressure on a 24GB card.",
+  "graph_api_file": "wan_flf_api.json",
+  "graph_ui_file": "",
+  "bindings": [
+    { "semantic_field": "first_frame_positive", "node_id": "4", "input_name": "text", "value_type": "string", "required": true },
+    { "semantic_field": "first_frame_negative", "node_id": "5", "input_name": "text", "value_type": "string", "required": true },
+    { "semantic_field": "first_frame_asset", "node_id": "6", "input_name": "image", "value_type": "string", "required": true },
+    { "semantic_field": "last_frame_asset", "node_id": "7", "input_name": "image", "value_type": "string", "required": true },
+    { "semantic_field": "width", "node_id": "8", "input_name": "width", "value_type": "int", "required": false },
+    { "semantic_field": "height", "node_id": "8", "input_name": "height", "value_type": "int", "required": false },
+    { "semantic_field": "frame_count", "node_id": "8", "input_name": "length", "value_type": "int", "required": false },
+    { "semantic_field": "seed", "node_id": "10", "input_name": "seed", "value_type": "int", "required": false },
+    { "semantic_field": "model_name", "node_id": "1", "input_name": "unet_name", "value_type": "string", "required": false },
+    { "semantic_field": "fps", "node_id": "12", "input_name": "fps", "value_type": "float", "required": false },
+    { "semantic_field": "output_node", "node_id": "12", "input_name": "", "value_type": "node", "required": true }
+  ],
+  "requirements": {
+    "diffusion_models": ["wan2.2_ti2v_5B_fp16.safetensors"],
+    "text_encoders": ["umt5_xxl_fp8_e4m3fn_scaled.safetensors"],
+    "vae": ["wan2.2_vae.safetensors"],
+    "custom_nodes": ["wanblockswap"]
+  },
+  "expected_outputs": [
+    { "node_id": "12", "type": "video", "field": "images" }
+  ]
+}

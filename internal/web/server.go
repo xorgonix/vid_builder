@@ -58,21 +58,26 @@ func (s *Server) Bootstrap(ctx context.Context) error {
 	return nil
 }
 
-// SeedBundledWorkflow imports the bundled workflow package once.
+// SeedBundledWorkflow imports the bundled workflow packages once.
 func (s *Server) SeedBundledWorkflow(ctx context.Context) error {
-	pkg, err := workflows.Load()
+	pkgs, err := workflows.LoadAll()
 	if err != nil {
 		return err
 	}
-	bindings := make([]store.WorkflowBinding, 0, len(pkg.Manifest.Bindings))
-	for _, b := range pkg.Manifest.Bindings {
-		bindings = append(bindings, store.WorkflowBinding{
-			SemanticField: b.SemanticField, NodeID: b.NodeID, InputName: b.InputName,
-			ValueType: b.ValueType, Required: b.Required,
-		})
+	for _, pkg := range pkgs {
+		bindings := make([]store.WorkflowBinding, 0, len(pkg.Manifest.Bindings))
+		for _, b := range pkg.Manifest.Bindings {
+			bindings = append(bindings, store.WorkflowBinding{
+				SemanticField: b.SemanticField, NodeID: b.NodeID, InputName: b.InputName,
+				ValueType: b.ValueType, Required: b.Required,
+			})
+		}
+		if err := s.store.SeedBundledWorkflow(ctx, pkg.Manifest.Name, pkg.Manifest.Slug, pkg.Manifest.Task,
+			pkg.Manifest.Description, pkg.GraphJSON, pkg.GraphSHA, pkg.ManifestJSON, pkg.Manifest.TestedComfyUIVersion, bindings); err != nil {
+			return err
+		}
 	}
-	return s.store.SeedBundledWorkflow(ctx, pkg.Manifest.Name, pkg.Manifest.Slug, pkg.Manifest.Task,
-		pkg.Manifest.Description, pkg.GraphJSON, pkg.GraphSHA, pkg.ManifestJSON, pkg.Manifest.TestedComfyUIVersion, bindings)
+	return nil
 }
 
 // Handler returns the fully wired HTTP handler.

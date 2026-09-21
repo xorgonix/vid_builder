@@ -213,7 +213,7 @@ We would rather tell you what works than what sounds impressive.
 
 | Horizon | Focus |
 |---|---|
-| Near | Desktop packaging and signing; bundled first/last video workflow; onboarding |
+| Near | Desktop packaging and signing; onboarding |
 | Mid | Rented-worker and commercial-API adapters; multi-user review; workflow library |
 | Long | Hosted team coordinator; shared campaigns; production analytics |
 

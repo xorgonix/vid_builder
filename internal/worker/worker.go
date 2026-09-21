@@ -342,16 +342,17 @@ func (w *Worker) runAttempt(ctx context.Context, job *store.Job, req *store.Gene
 	if err != nil {
 		return fmt.Errorf("store output: %w", err)
 	}
+	kind, mime := outputMedia(img.Filename)
 	assetID, err := w.store.CreateAsset(ctx, store.Asset{
 		WorkspaceID: job.WorkspaceID, ProjectID: req.ProjectID,
-		GenerationAttemptID: sql.NullString{String: a.ID, Valid: true}, Kind: "image", Role: req.OutputRole,
-		StorageURI: uri, MimeType: "image/png", SizeBytes: size, Checksum: checksum,
+		GenerationAttemptID: sql.NullString{String: a.ID, Valid: true}, Kind: kind, Role: req.OutputRole,
+		StorageURI: uri, MimeType: mime, SizeBytes: size, Checksum: checksum,
 	})
 	if err != nil {
 		return fmt.Errorf("record asset: %w", err)
 	}
 	// Best-effort derived thumbnail; failure never fails the attempt.
-	w.makeThumbnail(ctx, job.WorkspaceID, req.ProjectID, assetID, "image/png")
+	w.makeThumbnail(ctx, job.WorkspaceID, req.ProjectID, assetID, kind, mime)
 
 	resolved, _ := json.Marshal(map[string]string{"positive": payload.Positive, "negative": payload.Negative})
 	elapsed := time.Since(started).Milliseconds()
@@ -367,6 +368,26 @@ func nullString(v string) (out *string) {
 		return nil
 	}
 	return &v
+}
+
+// outputMedia classifies a ComfyUI output filename into an asset kind and mime
+// type. ComfyUI reports video outputs (webm/mp4) under the same "images" field
+// as stills, so the filename extension is authoritative.
+func outputMedia(filename string) (kind, mime string) {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".webm":
+		return "video", "video/webm"
+	case ".mp4":
+		return "video", "video/mp4"
+	case ".webp":
+		return "image", "image/webp"
+	case ".jpg", ".jpeg":
+		return "image", "image/jpeg"
+	case ".gif":
+		return "image", "image/gif"
+	default:
+		return "image", "image/png"
+	}
 }
 
 // processExport assembles an edit into a single video (spec §15.7).
@@ -532,24 +553,35 @@ func summarize(out string) string {
 	return ": " + out
 }
 
-// makeThumbnail derives and stores a thumbnail asset, logging (not failing) on error.
-func (w *Worker) makeThumbnail(ctx context.Context, workspaceID, projectID, assetID, mime string) {
-	if !thumbs.IsImageMime(mime) {
-		return
-	}
+// makeThumbnail derives and stores a thumbnail asset, logging (not failing) on
+// error. Video outputs are reduced to a first frame with FFmpeg when available.
+func (w *Worker) makeThumbnail(ctx context.Context, workspaceID, projectID, assetID, kind, mime string) {
 	asset, err := w.store.GetAsset(ctx, assetID)
 	if err != nil {
 		return
 	}
-	f, err := w.media.Open(asset.StorageURI)
-	if err != nil {
-		w.log.Warn("thumbnail: open", "err", err)
-		return
-	}
-	data, err := io.ReadAll(io.LimitReader(f, 64<<20))
-	f.Close()
-	if err != nil {
-		w.log.Warn("thumbnail: read", "err", err)
+	var data []byte
+	switch {
+	case thumbs.IsImageMime(mime):
+		f, err := w.media.Open(asset.StorageURI)
+		if err != nil {
+			w.log.Warn("thumbnail: open", "err", err)
+			return
+		}
+		data, err = io.ReadAll(io.LimitReader(f, 64<<20))
+		f.Close()
+		if err != nil {
+			w.log.Warn("thumbnail: read", "err", err)
+			return
+		}
+	case kind == "video" && w.cfg.FFmpeg.Enabled:
+		frame, err := w.extractVideoFrame(ctx, asset.StorageURI)
+		if err != nil {
+			w.log.Warn("thumbnail: video frame", "err", err)
+			return
+		}
+		data = frame
+	default:
 		return
 	}
 	pngBytes, dw, dh, err := thumbs.GenerateImage(data, 0, 0)
@@ -566,6 +598,34 @@ func (w *Worker) makeThumbnail(ctx context.Context, workspaceID, projectID, asse
 	if _, err := w.store.CreateThumbnail(ctx, workspaceID, projectID, assetID, uri, "image/png", size, checksum, dw, dh); err != nil {
 		w.log.Warn("thumbnail: record", "err", err)
 	}
+}
+
+// extractVideoFrame renders the first video frame to PNG bytes using FFmpeg.
+func (w *Worker) extractVideoFrame(ctx context.Context, storageURI string) ([]byte, error) {
+	src, err := w.media.Resolve(storageURI)
+	if err != nil {
+		return nil, err
+	}
+	bin := w.cfg.FFmpeg.BinaryPath
+	if bin == "" {
+		bin = "ffmpeg"
+	}
+	tempDir := w.cfg.Media.TempDir
+	if !filepath.IsAbs(tempDir) {
+		if abs, err := filepath.Abs(tempDir); err == nil {
+			tempDir = abs
+		}
+	}
+	if err := os.MkdirAll(tempDir, 0o755); err != nil {
+		return nil, err
+	}
+	out := filepath.Join(tempDir, "frame-"+filepath.Base(storageURI)+".png")
+	defer os.Remove(out)
+	cmd := exec.CommandContext(ctx, bin, "-y", "-i", src, "-frames:v", "1", out)
+	if b, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("ffmpeg: %v: %s", err, strings.TrimSpace(string(b)))
+	}
+	return os.ReadFile(out)
 }
 
 // processPackage builds a portable project package (spec §12.3, §20).
