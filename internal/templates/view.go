@@ -636,6 +636,22 @@ type DurationData struct {
 	Assemblies []DurationAssemblyView
 }
 
+// TutorialView is one guided tour in the catalogue.
+type TutorialView struct {
+	Slug       string
+	Title      string
+	Summary    string
+	StartRoute string
+	VideoScope bool
+	Steps      int
+}
+
+// TutorialsData backs the guided-tours index.
+type TutorialsData struct {
+	Shell     ShellData
+	Tutorials []TutorialView
+}
+
 // JobEventView is a job event line.
 type JobEventView struct {
 	Sequence  int

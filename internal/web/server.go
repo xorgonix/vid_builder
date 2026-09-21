@@ -106,6 +106,8 @@ func (s *Server) Handler() http.Handler {
 		r.Use(s.requireAuth)
 		r.Get("/", s.handleRoot)
 		r.Get("/account", s.handleAccount)
+		r.Get("/tutorials", s.handleTutorials)
+		r.Get("/tutorials/{slug}/script.json", s.handleTutorialScript)
 		r.Get("/assets/{assetID}", s.handleAssetFile)
 		r.Get("/settings/local-services", s.handleLocalServices)
 		r.With(s.csrfProtect).Post("/settings/local-services/test", s.handleTestLocalServices)
