@@ -15,9 +15,10 @@ import (
 // tests. It never follows redirects, so status codes and Location headers are
 // observable (important for Post/Redirect/Get and authorization assertions).
 type Client struct {
-	t    *testing.T
-	http *http.Client
-	base string
+	t     *testing.T
+	http  *http.Client
+	base  string
+	token string
 }
 
 var csrfRe = regexp.MustCompile(`name="_csrf" value="([^"]+)"`)
@@ -41,12 +42,20 @@ func NewClient(t *testing.T, h http.Handler) *Client {
 	}}
 }
 
-// Request performs a request and returns the response. body may be nil.
+// Request performs a request and returns the response. body may be nil. When a
+// CSRF token has been captured it is attached to every mutation automatically.
 func (c *Client) Request(method, path string, form url.Values, headers map[string]string) *http.Response {
 	c.t.Helper()
 	var body io.Reader
 	if form != nil {
-		body = strings.NewReader(form.Encode())
+		cp := url.Values{}
+		for k, v := range form {
+			cp[k] = v
+		}
+		if c.token != "" && cp.Get("_csrf") == "" {
+			cp.Set("_csrf", c.token)
+		}
+		body = strings.NewReader(cp.Encode())
 	}
 	req, err := http.NewRequest(method, c.base+path, body)
 	if err != nil {
@@ -54,6 +63,9 @@ func (c *Client) Request(method, path string, form url.Values, headers map[strin
 	}
 	if form != nil {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+	if c.token != "" {
+		req.Header.Set("X-CSRF-Token", c.token)
 	}
 	for k, v := range headers {
 		req.Header.Set(k, v)
@@ -79,6 +91,19 @@ func (c *Client) GetHX(path string) *http.Response {
 func (c *Client) PostForm(path string, form url.Values) *http.Response {
 	return c.Request(http.MethodPost, path, form, nil)
 }
+
+// Patch performs a PATCH with a form body.
+func (c *Client) Patch(path string, form url.Values) *http.Response {
+	return c.Request(http.MethodPatch, path, form, nil)
+}
+
+// Delete performs a DELETE, sending an empty form so the CSRF token is attached.
+func (c *Client) Delete(path string) *http.Response {
+	return c.Request(http.MethodDelete, path, url.Values{}, nil)
+}
+
+// Token returns the captured CSRF token, or "" if none.
+func (c *Client) Token() string { return c.token }
 
 // Body reads and closes the response body, returning it as a string.
 func Body(t *testing.T, resp *http.Response) string {
@@ -112,7 +137,8 @@ func CSRF(t *testing.T, html string) string {
 	return m[1]
 }
 
-// Login signs the client in as the given user and asserts success.
+// Login signs the client in as the given user and asserts success, then
+// captures the session CSRF token from the account page.
 func (c *Client) Login(email, password string) {
 	c.t.Helper()
 	page := MustStatus(c.t, c.Get("/login"), http.StatusOK)
@@ -122,6 +148,14 @@ func (c *Client) Login(email, password string) {
 	if resp.StatusCode != http.StatusSeeOther {
 		c.t.Fatalf("testutil: login status = %d, want 303", resp.StatusCode)
 	}
+	c.captureCSRF()
+}
+
+// captureCSRF reads a token from an authenticated page for later mutations.
+func (c *Client) captureCSRF() {
+	c.t.Helper()
+	page := MustStatus(c.t, c.Get("/account"), http.StatusOK)
+	c.token = CSRF(c.t, page)
 }
 
 // LoginAdmin signs in with the seeded bootstrap credentials.

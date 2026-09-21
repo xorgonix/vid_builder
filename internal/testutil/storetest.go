@@ -61,6 +61,28 @@ func MustWorkspace(t *testing.T, st *store.Store) *store.Workspace {
 	return &ws[0]
 }
 
+// MustUser creates an active non-admin user with the shared test password.
+func MustUser(t *testing.T, st *store.Store, email, name string) *store.User {
+	t.Helper()
+	hash, err := auth.HashPassword(AdminPassword, auth.DefaultParams(65536, 2, 2))
+	if err != nil {
+		t.Fatalf("testutil: hash password: %v", err)
+	}
+	u, err := st.CreateUser(t.Context(), email, name, hash, false)
+	if err != nil {
+		t.Fatalf("testutil: create user: %v", err)
+	}
+	return u
+}
+
+// MustMember adds a user to a workspace with the given role.
+func MustMember(t *testing.T, st *store.Store, workspaceID, userID, role, invitedBy string) {
+	t.Helper()
+	if err := st.AddMember(t.Context(), workspaceID, userID, role, invitedBy); err != nil {
+		t.Fatalf("testutil: add member: %v", err)
+	}
+}
+
 // MustProjectVideo creates a project with its first video and returns both.
 func MustProjectVideo(t *testing.T, st *store.Store, workspaceID, userID, title string) (*store.Project, *store.Video) {
 	t.Helper()
