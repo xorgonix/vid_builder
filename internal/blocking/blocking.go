@@ -6,14 +6,15 @@ import "encoding/json"
 
 // Spec is the blocking document for one endpoint of one shot.
 type Spec struct {
-	Canvas Canvas  `json:"canvas"`
-	Camera Camera  `json:"camera"`
-	Zones  []Zone  `json:"zones,omitempty"`
-	Actors []Actor `json:"actors,omitempty"`
-	Props  []Prop  `json:"props,omitempty"`
-	Labels []Label `json:"labels,omitempty"`
-	Arrows []Arrow `json:"arrows,omitempty"`
-	Notes  string  `json:"notes,omitempty"`
+	Version int     `json:"version"`
+	Canvas  Canvas  `json:"canvas"`
+	Camera  Camera  `json:"camera"`
+	Zones   []Zone  `json:"zones,omitempty"`
+	Actors  []Actor `json:"actors,omitempty"`
+	Props   []Prop  `json:"props,omitempty"`
+	Labels  []Label `json:"labels,omitempty"`
+	Arrows  []Arrow `json:"arrows,omitempty"`
+	Notes   string  `json:"notes,omitempty"`
 }
 
 // Canvas describes the frame aspect. Width/height are normalized units.
@@ -80,8 +81,9 @@ type Arrow struct {
 // Default returns a valid, readable starting blocking.
 func Default() Spec {
 	return Spec{
-		Canvas: Canvas{Width: 1, Height: 1},
-		Camera: Camera{ShotSize: "medium", Angle: "eye", X: 0.05, Y: 0.05, W: 0.9, H: 0.9},
+		Version: SchemaVersion,
+		Canvas:  Canvas{Width: 1, Height: 1},
+		Camera:  Camera{ShotSize: "medium", Angle: "eye", X: 0.05, Y: 0.05, W: 0.9, H: 0.9},
 		Zones: []Zone{
 			{Name: "foreground", X: 0, Y: 0.6, W: 1, H: 0.4},
 			{Name: "midground", X: 0, Y: 0.3, W: 1, H: 0.3},
@@ -99,6 +101,9 @@ func Parse(raw string) Spec {
 	var s Spec
 	if err := json.Unmarshal([]byte(raw), &s); err != nil {
 		return Default()
+	}
+	if s.Version == 0 {
+		s.Version = SchemaVersion
 	}
 	if s.Canvas.Width == 0 || s.Canvas.Height == 0 {
 		s.Canvas = Canvas{Width: 1, Height: 1}

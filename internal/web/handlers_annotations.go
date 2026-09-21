@@ -30,7 +30,7 @@ func (s *Server) handleCreateAnnotation(w http.ResponseWriter, r *http.Request) 
 	}
 	if assetID != "" {
 		asset, err := s.store.GetAsset(r.Context(), assetID)
-		if err != nil || asset.WorkspaceID != project.WorkspaceID {
+		if err != nil || asset.WorkspaceID != project.WorkspaceID || asset.ProjectID != project.ID {
 			s.notFound(w, r)
 			return
 		}

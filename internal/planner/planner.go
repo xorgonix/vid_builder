@@ -97,7 +97,19 @@ func (p *Planner) BriefProposal(ctx context.Context, projectContext, instruction
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return nil, err
 	}
+	if err := payload.Validate(); err != nil {
+		return nil, err
+	}
 	return &payload, nil
+}
+
+// Validate rejects a structurally incomplete brief before it becomes a proposal
+// (spec §13.3).
+func (b *BriefPayload) Validate() error {
+	if strings.TrimSpace(b.Premise) == "" {
+		return fmt.Errorf("planner: brief proposal is missing a premise")
+	}
+	return nil
 }
 
 // OutlinePayload is a proposed section/scene/shot structure.
@@ -186,10 +198,34 @@ func (p *Planner) OutlineProposal(ctx context.Context, projectContext, briefText
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return nil, err
 	}
-	if len(payload.Sections) == 0 {
-		return nil, fmt.Errorf("planner: outline proposal contained no sections")
+	if err := payload.Validate(); err != nil {
+		return nil, err
 	}
 	return &payload, nil
+}
+
+// Validate rejects an outline whose structure is incomplete before it becomes a
+// proposal (spec §13.3).
+func (o *OutlinePayload) Validate() error {
+	if len(o.Sections) == 0 {
+		return fmt.Errorf("planner: outline proposal contained no sections")
+	}
+	for si, s := range o.Sections {
+		if strings.TrimSpace(s.Title) == "" {
+			return fmt.Errorf("planner: section %d is missing a title", si+1)
+		}
+		for ci, c := range s.Scenes {
+			if strings.TrimSpace(c.Title) == "" {
+				return fmt.Errorf("planner: section %d scene %d is missing a title", si+1, ci+1)
+			}
+			for hi, sh := range c.Shots {
+				if strings.TrimSpace(sh.Title) == "" || strings.TrimSpace(sh.Purpose) == "" {
+					return fmt.Errorf("planner: section %d scene %d shot %d must have a title and purpose", si+1, ci+1, hi+1)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // BriefText renders a brief as plain text for prompt context.

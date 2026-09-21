@@ -7,6 +7,17 @@ import (
 	"vidbuild/internal/templates"
 )
 
+// validEditTransition reports whether a transition kind is one the exporter can
+// render (spec §13.3: validate transition documents).
+func validEditTransition(v string) bool {
+	switch v {
+	case "cut", "fade", "dissolve":
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *Server) handleEdit(w http.ResponseWriter, r *http.Request) {
 	project, video, shell, ok := s.loadVideoCtx(w, r)
 	if !ok {
@@ -85,11 +96,17 @@ func (s *Server) handleAddEditItem(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	assetID := r.FormValue("asset_id")
 	shotID := r.FormValue("shot_id")
-	// The asset must exist and belong to this workspace.
+	// The asset and shot must belong to this video's project (spec §13.3).
 	asset, err := s.store.GetAsset(r.Context(), assetID)
-	if err != nil || asset.WorkspaceID != WorkspaceFrom(r.Context()).ID {
+	if err != nil || asset.WorkspaceID != WorkspaceFrom(r.Context()).ID || asset.ProjectID != video.ProjectID {
 		http.Redirect(w, r, s.editURL(r)+"?msg="+urlMsg("Unknown asset.")+"&kind=error", http.StatusSeeOther)
 		return
+	}
+	if shotID != "" {
+		if inVideo, _ := s.store.ShotInVideo(r.Context(), shotID, video.ID); !inVideo {
+			http.Redirect(w, r, s.editURL(r)+"?msg="+urlMsg("That shot is not in this video.")+"&kind=error", http.StatusSeeOther)
+			return
+		}
 	}
 	durationMs := parseInt(r.FormValue("duration_s"), 3) * 1000
 	if durationMs < 100 {
@@ -97,6 +114,10 @@ func (s *Server) handleAddEditItem(w http.ResponseWriter, r *http.Request) {
 	}
 	transIn := formValueOr(r, "transition_in", "cut")
 	transOut := formValueOr(r, "transition_out", "cut")
+	if !validEditTransition(transIn) || !validEditTransition(transOut) {
+		http.Redirect(w, r, s.editURL(r)+"?msg="+urlMsg("Transitions must be cut, fade or dissolve.")+"&kind=error", http.StatusSeeOther)
+		return
+	}
 	if _, err := s.store.AddEditItem(r.Context(), edit.ID, shotID, assetID, durationMs, transIn, transOut); err != nil {
 		s.log.Error("add edit item", "err", err)
 		http.Redirect(w, r, s.editURL(r)+"?msg="+urlMsg("Could not add clip.")+"&kind=error", http.StatusSeeOther)
@@ -115,8 +136,14 @@ func (s *Server) handleUpdateEditItem(w http.ResponseWriter, r *http.Request) {
 	if durationMs < 100 {
 		durationMs = 3000
 	}
+	transIn := formValueOr(r, "transition_in", "cut")
+	transOut := formValueOr(r, "transition_out", "cut")
+	if !validEditTransition(transIn) || !validEditTransition(transOut) {
+		http.Redirect(w, r, s.editURL(r)+"?msg="+urlMsg("Transitions must be cut, fade or dissolve.")+"&kind=error", http.StatusSeeOther)
+		return
+	}
 	err := s.store.UpdateEditItem(r.Context(), itemID, 0, durationMs, durationMs,
-		formValueOr(r, "transition_in", "cut"), formValueOr(r, "transition_out", "cut"), parseInt(r.FormValue("revision"), 1))
+		transIn, transOut, parseInt(r.FormValue("revision"), 1))
 	if err != nil {
 		http.Redirect(w, r, s.editURL(r)+"?msg="+urlMsg("Clip changed elsewhere; reloaded.")+"&kind=warning", http.StatusSeeOther)
 		return

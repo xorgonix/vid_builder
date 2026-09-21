@@ -86,3 +86,55 @@ func TestHealthReportsReachability(t *testing.T) {
 		t.Fatalf("health: %v", err)
 	}
 }
+
+func TestBriefProposalRejectsMissingPremise(t *testing.T) {
+	fake := testutil.NewLMStudio(t)
+	fake.SetJSON(map[string]any{"theme": "x", "summary": "s"})
+	p := newPlanner(t, fake)
+	if _, err := p.BriefProposal(context.Background(), "", "", nil); err == nil {
+		t.Fatal("expected a brief without a premise to be rejected before proposal creation")
+	}
+}
+
+func TestOutlineProposalRejectsIncompleteStructure(t *testing.T) {
+	cases := map[string]map[string]any{
+		"no sections": {"summary": "s"},
+		"blank section title": {"summary": "s", "sections": []map[string]any{
+			{"title": "  "},
+		}},
+		"blank scene title": {"summary": "s", "sections": []map[string]any{
+			{"title": "S", "scenes": []map[string]any{{"title": ""}}},
+		}},
+		"shot without purpose": {"summary": "s", "sections": []map[string]any{
+			{"title": "S", "scenes": []map[string]any{{"title": "C", "shots": []map[string]any{{"title": "shot"}}}}},
+		}},
+	}
+	for name, payload := range cases {
+		fake := testutil.NewLMStudio(t)
+		fake.SetJSON(payload)
+		p := newPlanner(t, fake)
+		if _, err := p.OutlineProposal(context.Background(), "", "", "", nil); err == nil {
+			t.Fatalf("%s: expected incomplete outline to be rejected", name)
+		}
+	}
+}
+
+func TestOutlineProposalAcceptsCompleteStructure(t *testing.T) {
+	fake := testutil.NewLMStudio(t)
+	fake.SetJSON(map[string]any{
+		"summary": "s",
+		"sections": []map[string]any{
+			{"title": "S", "scenes": []map[string]any{
+				{"title": "C", "shots": []map[string]any{{"title": "shot", "purpose": "why"}}},
+			}},
+		},
+	})
+	p := newPlanner(t, fake)
+	got, err := p.OutlineProposal(context.Background(), "", "", "", nil)
+	if err != nil {
+		t.Fatalf("outline: %v", err)
+	}
+	if len(got.Sections) != 1 || len(got.Sections[0].Scenes) != 1 {
+		t.Fatalf("unexpected structure: %+v", got)
+	}
+}

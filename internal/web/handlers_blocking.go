@@ -2,11 +2,41 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"vidbuild/internal/blocking"
 	"vidbuild/internal/templates"
 )
+
+// validateBlockingScope rejects references to entities outside the project
+// (spec §13.3): every actor character_id must belong to this project.
+func (s *Server) validateBlockingScope(r *http.Request, projectID, specJSON string) error {
+	spec := blocking.Parse(specJSON)
+	need := map[string]bool{}
+	for _, a := range spec.Actors {
+		if a.CharacterID != "" {
+			need[a.CharacterID] = true
+		}
+	}
+	if len(need) == 0 {
+		return nil
+	}
+	chars, err := s.store.ListCharacters(r.Context(), projectID)
+	if err != nil {
+		return err
+	}
+	have := map[string]bool{}
+	for _, c := range chars {
+		have[c.ID] = true
+	}
+	for id := range need {
+		if !have[id] {
+			return fmt.Errorf("blocking: character %s does not belong to this project", id)
+		}
+	}
+	return nil
+}
 
 func roleSpecKind(role string) string {
 	switch role {
@@ -61,7 +91,7 @@ func (s *Server) loadBlockingSpec(r *http.Request, shotID, specKind, role string
 }
 
 func (s *Server) handleSaveBlocking(w http.ResponseWriter, r *http.Request) {
-	_, video, _, ok := s.loadVideoCtx(w, r)
+	project, video, _, ok := s.loadVideoCtx(w, r)
 	if !ok {
 		return
 	}
@@ -78,8 +108,12 @@ func (s *Server) handleSaveBlocking(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = r.ParseForm()
 	specJSON := r.FormValue("spec_json")
-	if !json.Valid([]byte(specJSON)) {
-		http.Redirect(w, r, s.blockingURL(r, shotID)+"?msg="+urlMsg("Blocking data must be valid JSON.")+"&kind=error", http.StatusSeeOther)
+	if err := blocking.ValidateJSON(specJSON); err != nil {
+		http.Redirect(w, r, s.blockingURL(r, shotID)+"?msg="+urlMsg(err.Error())+"&kind=error", http.StatusSeeOther)
+		return
+	}
+	if err := s.validateBlockingScope(r, project.ID, specJSON); err != nil {
+		http.Redirect(w, r, s.blockingURL(r, shotID)+"?msg="+urlMsg(err.Error())+"&kind=error", http.StatusSeeOther)
 		return
 	}
 	spec, err := s.store.GetCurrentSpec(r.Context(), shotID, specKind)
