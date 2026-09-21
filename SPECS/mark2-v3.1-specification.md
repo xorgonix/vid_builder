@@ -16,11 +16,9 @@ The central production model is:
 
 > **A Project holds a shared creative world and production resources. A Video is one ordered deliverable. Outline, Storyboard and Edit are different views of that Video. Every Shot explicitly defines its beginning, destination and motion.**
 
-Version 3.1 replaces the current demo-centred terminal workflow with an understandable desktop-first aprove to me that you can create a file
-plication. Wails packages the product and supplies narrow operating-system integration, while the working interface remains a real HTTP/HTML application that can also run in a browser. Domain logic, HTTP handlers and templates must not depend on Wails.
+Version 3.1 replaces the current demo-centred terminal workflow with an understandable desktop-first application. Wails packages the product and supplies narrow operating-system integration, while the working interface remains a real HTTP/HTML application that can also run in a browser. Domain logic, HTTP handlers and templates must not depend on Wails.
 
-### 1.1 Key deciions
-you havew not creasetd anythign yet!!!
+### 1.1 Key decisions
 1. **SQLite remains the only database.** No PocketBase or SurrealDB dependency.
 2. **Project and Video are distinct.** Creating a project automatically creates its first video.
 3. **Users work through Workspaces.** One user may own personal work and participate in client workspaces without changing identity.
@@ -173,7 +171,7 @@ HTMX is the default interaction mechanism because most Version 3 actions are ser
 
 Use minimal JavaScript only when browser-local interaction is materially better:
 
-1. **SVG blocking editor:** dragging actors, gaze targets, props and camera bounds before saving the resulting JSON specification.
+1. **(planned) SVG blocking editor:** dragging actors, gaze targets, props and camera bounds before saving the resulting JSON specification. The current implementation edits the same structured document through form controls and regenerates deterministic SVG.
 2. **Timeline manipulation:** trimming, scrubbing and continuous drag positioning if the Edit screen eventually exceeds form-and-button interactions.
 3. **Media playback:** browser video APIs and frame capture.
 4. **Upload progress and global keyboard shortcuts.**
@@ -1110,9 +1108,9 @@ block-beta
 
 Board display modes:
 
-- **Compact:** one card per shot with small endpoint thumbnails.
+- **Compact:** one card per shot (a density variant; small endpoint thumbnails are planned).
 - **Director:** large start/change/end cards.
-- **Continuity:** emphasizes shot-to-shot links, characters, costume, props and location.
+- **Continuity (planned):** emphasizes shot-to-shot links, characters, costume, props and location.
 - **Production:** emphasizes readiness, generation count, estimates and failures.
 
 Filters: status, readiness, section, scene, character, location, missing endpoint, stale output, assigned reviewer.
@@ -1925,7 +1923,7 @@ mark2 migrate-v2 --receipt migration-review.json --apply
 
 - A shot can display deterministic start/end blocking without any image model call.
 - Blocking survives reload as structured data and SVG can be regenerated.
-- Creator can edit blocking using pointer and form controls.
+- Creator can edit blocking using form controls; pointer editing is a planned enhancement (§4.3).
 - Change analysis identifies at least pose, position, gaze, prop and camera differences.
 
 ### Generation and review
