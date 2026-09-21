@@ -78,6 +78,7 @@ func (s ShellData) NavItems() []NavItem {
 		{Key: "outline", Label: "Outline", Href: base + "/outline"},
 		{Key: "board", Label: "Board", Href: base + "/board"},
 		{Key: "produce", Label: "Produce", Href: base + "/produce"},
+		{Key: "duration", Label: "Duration video", Href: base + "/duration"},
 		{Key: "review", Label: "Review", Href: base + "/review"},
 		{Key: "edit", Label: "Edit", Href: base + "/edit"},
 		{Key: "more", Label: "More", Href: base + "/more"},
@@ -591,6 +592,48 @@ type GenerateData struct {
 	WorkflowSupportsEndpoints bool
 	Profiles                  []ProfileOption
 	DefaultProfileID          string
+}
+
+// DurationSegmentView is one fixed-length segment on the duration page.
+type DurationSegmentView struct {
+	ID      string
+	Index   int
+	Status  string
+	Error   string
+	Asset   AssetView
+	HasFile bool
+}
+
+// DurationAssemblyView is one duration video (assembly) on the duration page.
+type DurationAssemblyView struct {
+	RequestID string
+	ShotID    string
+	ShotTitle string
+	Status    string
+	Error     string
+	Video     AssetView
+	HasVideo  bool
+	Segments  []DurationSegmentView
+}
+
+// DurationShotView is a shot eligible for a duration video (both endpoints
+// selected and approved).
+type DurationShotView struct {
+	ShotID    string
+	Title     string
+	Start     AssetView
+	End       AssetView
+	Endpoints bool
+}
+
+// DurationData backs the duration-video screen.
+type DurationData struct {
+	Shell      ShellData
+	Project    ProjectView
+	Video      VideoView
+	Shots      []DurationShotView
+	Workflows  []WorkflowOption
+	Assemblies []DurationAssemblyView
 }
 
 // JobEventView is a job event line.

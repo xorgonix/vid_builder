@@ -117,6 +117,8 @@ func TestAuthorizationMatrix(t *testing.T) {
 		{"save prompt", "POST", v("/shots/" + shot.ID + "/prompt-workbench"), edit},
 		{"prompt preview", "POST", v("/shots/" + shot.ID + "/prompt-preview"), edit},
 		{"create generation request", "POST", v("/generation-requests"), edit},
+		{"create duration video", "POST", v("/duration"), edit},
+		{"retry duration segment", "POST", v("/duration/segments/missing/retry"), edit},
 		{"select asset", "POST", v("/shots/" + shot.ID + "/selections"), edit},
 		{"add edit item", "POST", v("/edits/missing/items"), edit},
 		{"update edit item", "PATCH", v("/edit-items/missing"), edit},

@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"vidbuild/internal/backup"
@@ -36,6 +37,9 @@ type Worker struct {
 	log        *slog.Logger
 	owner      string
 	backupsDir string
+
+	upMu    sync.Mutex
+	uploads map[string]string
 }
 
 // New constructs a worker.
@@ -119,6 +123,10 @@ func (w *Worker) process(ctx context.Context, job *store.Job) error {
 		return w.processGeneration(ctx, job)
 	case "export":
 		return w.processExport(ctx, job)
+	case "generate_segment":
+		return w.processSegment(ctx, job)
+	case "assemble_video":
+		return w.processAssembly(ctx, job)
 	case "package":
 		return w.processPackage(ctx, job)
 	case "backup":
