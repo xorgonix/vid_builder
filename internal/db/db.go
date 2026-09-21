@@ -3,19 +3,14 @@ package db
 
 import (
 	"database/sql"
-	"embed"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	_ "modernc.org/sqlite"
 
 	"vidbuild/internal/ids"
 )
-
-//go:embed schema.sql
-var schemaFS embed.FS
 
 // DB wraps *sql.DB with helpers used across services.
 type DB struct {
@@ -23,8 +18,8 @@ type DB struct {
 }
 
 // Open opens (or creates) the SQLite database at path, applies pragmas and
-// the embedded schema, and seeds the bootstrap admin user + personal workspace
-// on first run. Path's parent directory is created if missing.
+// pending migrations, and returns the handle. Path's parent directory is
+// created if missing. See migrate.go for the numbered migration framework.
 func Open(path string, busyTimeoutMs, maxConns int) (*DB, error) {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -47,46 +42,6 @@ func Open(path string, busyTimeoutMs, maxConns int) (*DB, error) {
 		return nil, err
 	}
 	return d, nil
-}
-
-func (d *DB) migrate() error {
-	schema, err := schemaFS.ReadFile("schema.sql")
-	if err != nil {
-		return fmt.Errorf("db: read schema: %w", err)
-	}
-	if _, err := d.Exec(string(schema)); err != nil {
-		return fmt.Errorf("db: apply schema: %w", err)
-	}
-	// Column additions for databases created before a column existed. SQLite has
-	// no ADD COLUMN IF NOT EXISTS, so duplicate-column errors are ignored.
-	for _, stmt := range columnMigrations {
-		if _, err := d.Exec(stmt); err != nil {
-			if strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
-				continue
-			}
-			return fmt.Errorf("db: migration %q: %w", stmt, err)
-		}
-	}
-	return nil
-}
-
-// columnMigrations add columns introduced after the initial schema. Each is
-// safe to re-run.
-var columnMigrations = []string{
-	`ALTER TABLE generation_requests ADD COLUMN workflow_version_id TEXT`,
-	`ALTER TABLE generation_requests ADD COLUMN model_profile_id TEXT`,
-	`ALTER TABLE generation_attempts ADD COLUMN workflow_version_id TEXT`,
-	`ALTER TABLE generation_attempts ADD COLUMN workflow_graph_sha256 TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE generation_attempts ADD COLUMN campaign_item_id TEXT`,
-	`ALTER TABLE generation_attempts ADD COLUMN resolved_negative_prompts_json TEXT NOT NULL DEFAULT '{}'`,
-	`ALTER TABLE generation_attempts ADD COLUMN bound_inputs_json TEXT NOT NULL DEFAULT '{}'`,
-	`ALTER TABLE generation_attempts ADD COLUMN provider_request_receipt_json TEXT NOT NULL DEFAULT '{}'`,
-	`ALTER TABLE generation_attempts ADD COLUMN cost_micros INTEGER NOT NULL DEFAULT 0`,
-	`ALTER TABLE generation_attempts ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD'`,
-	`ALTER TABLE generation_attempts ADD COLUMN peak_vram_mb INTEGER`,
-	`ALTER TABLE workflow_versions ADD COLUMN tested_comfyui_version TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE shot_specs ADD COLUMN prompt_layers_json TEXT NOT NULL DEFAULT '[]'`,
-	`ALTER TABLE projects ADD COLUMN default_model_profile_id TEXT`,
 }
 
 // SeedBootstraps creates the initial system admin user (if no users exist) and
