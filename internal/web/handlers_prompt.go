@@ -64,10 +64,14 @@ func (s *Server) handlePromptWorkbench(w http.ResponseWriter, r *http.Request) {
 		Kind: kind, KindLabel: specKinds[kind],
 		BasePositive: basePos, BaseNegative: baseNeg,
 		Scopes: layerScopes,
-		Modes:  []string{prompt.ModeInherit, prompt.ModeAppend, prompt.ModeReplace, prompt.ModeSuppress, prompt.ModeLock},
+		Modes:  []string{prompt.ModeInherit, prompt.ModeAppend, prompt.ModeReplace, prompt.ModeSuppress},
 	}
 	for _, l := range layers {
-		data.Layers = append(data.Layers, templates.LayerView{Scope: l.Scope, Mode: l.Mode, Text: l.Text, Locked: l.Locked})
+		l.Normalize()
+		data.Layers = append(data.Layers, templates.LayerView{
+			Scope: l.Scope, Mode: l.Mode, Positive: l.Positive, Negative: l.Negative,
+			Locked: l.Locked, Priority: l.Priority,
+		})
 	}
 	if spec != nil {
 		data.Positive = spec.PositivePrompt
@@ -88,13 +92,23 @@ func layersFromForm(r *http.Request) []prompt.Layer {
 	count := parseInt(r.FormValue("layers_count"), 0)
 	var out []prompt.Layer
 	for i := 0; i < count; i++ {
-		scope := r.FormValue("scope_" + itoa(i))
-		text := strings.TrimSpace(r.FormValue("text_" + itoa(i)))
+		scope := strings.TrimSpace(r.FormValue("scope_" + itoa(i)))
 		mode := r.FormValue("mode_" + itoa(i))
-		if scope == "" && text == "" {
+		positive := strings.TrimSpace(r.FormValue("positive_" + itoa(i)))
+		if positive == "" {
+			positive = strings.TrimSpace(r.FormValue("text_" + itoa(i)))
+		}
+		negative := strings.TrimSpace(r.FormValue("negative_" + itoa(i)))
+		if scope == "" && positive == "" && negative == "" {
 			continue
 		}
-		out = append(out, prompt.Layer{Scope: scope, Mode: mode, Text: text, Locked: r.FormValue("locked_"+itoa(i)) != ""})
+		l := prompt.Layer{
+			Scope: scope, Mode: mode, Positive: positive, Negative: negative,
+			Locked:   r.FormValue("locked_"+itoa(i)) != "",
+			Priority: parseInt(r.FormValue("priority_"+itoa(i)), 0),
+		}
+		l.Normalize()
+		out = append(out, l)
 	}
 	return out
 }

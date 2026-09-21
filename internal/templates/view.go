@@ -679,10 +679,12 @@ type PackageData struct {
 
 // LayerView is one editable prompt layer.
 type LayerView struct {
-	Scope  string
-	Mode   string
-	Text   string
-	Locked bool
+	Scope    string
+	Mode     string
+	Positive string
+	Negative string
+	Locked   bool
+	Priority int
 }
 
 // PromptWorkbenchData backs the layered prompt workbench.
