@@ -137,6 +137,7 @@ type Scene struct {
 type Shot struct {
 	ID               string
 	SceneID          string
+	BeatID           string
 	Title            string
 	Purpose          string
 	Treatment        string
@@ -147,6 +148,26 @@ type Shot struct {
 	Revision         int
 	CreatedAt        string
 	UpdatedAt        string
+}
+
+// Beat is one dramatic unit inside a scene (v0.02 spec §6.1). A scene always has
+// at least one beat; simple projects hide the layer behind an implicit beat.
+type Beat struct {
+	ID                     string
+	SceneID                string
+	Title                  string
+	Purpose                string
+	Trigger                string
+	Action                 string
+	Reaction               string
+	ResultingState         string
+	IntendedAudienceEffect string
+	DurationBudgetMs       int
+	Position               int
+	Implicit               bool
+	Revision               int
+	CreatedAt              string
+	UpdatedAt              string
 }
 
 // ShotSpec is one current specification for a shot (start_frame/end_frame/motion).

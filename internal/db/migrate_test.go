@@ -177,3 +177,83 @@ func TestMigrateUpgradesV01Database(t *testing.T) {
 		t.Fatalf("projects.default_model_profile_id not present after upgrade: %v", err)
 	}
 }
+
+// TestMigrateBackfillsBeats proves the beats migration attaches one implicit
+// beat to every existing scene and moves existing shots under it (spec §5.1).
+func TestMigrateBackfillsBeats(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v01beats.db")
+
+	migs, err := loadMigrations()
+	if err != nil {
+		t.Fatalf("load migrations: %v", err)
+	}
+	var baseline migration
+	for _, m := range migs {
+		if m.Version == 1 {
+			baseline = m
+		}
+	}
+
+	raw, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatalf("raw open: %v", err)
+	}
+	if _, err := raw.Exec(baseline.SQL); err != nil {
+		t.Fatalf("apply baseline: %v", err)
+	}
+	now := Now()
+	seed := []string{
+		`INSERT INTO users (id,email_normalized,display_name,password_hash,status,is_system_admin,created_at,updated_at) VALUES ('u1','a@b.c','A','x','active',0,'` + now + `','` + now + `')`,
+		`INSERT INTO workspaces (id,name,slug,kind,created_by_user_id,created_at,updated_at) VALUES ('w1','W','w','personal','u1','` + now + `','` + now + `')`,
+		`INSERT INTO projects (id,workspace_id,title,description,status,created_by_user_id,created_at,updated_at) VALUES ('p1','w1','P','','active','u1','` + now + `','` + now + `')`,
+		`INSERT INTO videos (id,project_id,title,created_by_user_id,created_at,updated_at) VALUES ('v1','p1','V','u1','` + now + `','` + now + `')`,
+		`INSERT INTO sections (id,video_id,title,created_at,updated_at) VALUES ('sec1','v1','S','` + now + `','` + now + `')`,
+		`INSERT INTO scenes (id,section_id,title,synopsis,purpose,duration_budget_ms,position,created_at,updated_at) VALUES ('sc1','sec1','Scene 1','syn','purp',4000,0,'` + now + `','` + now + `')`,
+		`INSERT INTO shots (id,scene_id,title,purpose,treatment,duration_target_ms,position,status,readiness,created_by_user_id,created_at,updated_at) VALUES ('sh1','sc1','Shot 1','p','t',2000,0,'draft','incomplete','u1','` + now + `','` + now + `')`,
+	}
+	for _, stmt := range seed {
+		if _, err := raw.Exec(stmt); err != nil {
+			t.Fatalf("seed %q: %v", stmt, err)
+		}
+	}
+	raw.Close()
+
+	d, err := Open(path, 5000, 4)
+	if err != nil {
+		t.Fatalf("upgrade open: %v", err)
+	}
+	defer d.Close()
+
+	var beatID string
+	var implicit int
+	if err := d.QueryRow(`SELECT id, implicit FROM beats WHERE scene_id='sc1'`).Scan(&beatID, &implicit); err != nil {
+		t.Fatalf("implicit beat not created: %v", err)
+	}
+	if implicit != 1 {
+		t.Fatalf("beat implicit = %d, want 1", implicit)
+	}
+
+	var shotBeat string
+	if err := d.QueryRow(`SELECT COALESCE(beat_id,'') FROM shots WHERE id='sh1'`).Scan(&shotBeat); err != nil {
+		t.Fatalf("shot beat lookup: %v", err)
+	}
+	if shotBeat != beatID {
+		t.Fatalf("shot beat_id = %q, want %q", shotBeat, beatID)
+	}
+
+	rows, err := d.Query(`PRAGMA foreign_key_check`)
+	if err != nil {
+		t.Fatalf("foreign_key_check: %v", err)
+	}
+	if rows.Next() {
+		rows.Close()
+		t.Fatal("foreign key violations after beats migration")
+	}
+	rows.Close()
+
+	// beat_id is required for new shots.
+	if _, err := d.Exec(`INSERT INTO shots (id,scene_id,title,purpose,treatment,duration_target_ms,position,status,readiness,created_by_user_id,created_at,updated_at)
+		VALUES ('sh2','sc1','Shot 2','p','t',1000,1,'draft','incomplete','u1','` + now + `','` + now + `')`); err == nil {
+		t.Fatal("expected a shot without beat_id to be rejected")
+	}
+}

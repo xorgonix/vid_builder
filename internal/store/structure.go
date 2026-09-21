@@ -175,7 +175,7 @@ func (s *Store) DeleteScene(ctx context.Context, id string) error {
 
 // ListShots returns shots in a scene.
 func (s *Store) ListShots(ctx context.Context, sceneID string) ([]Shot, error) {
-	rows, err := s.QueryContext(ctx, `SELECT id, scene_id, title, purpose, treatment, duration_target_ms, position, status, readiness, revision, created_at, updated_at
+	rows, err := s.QueryContext(ctx, `SELECT id, scene_id, COALESCE(beat_id,''), title, purpose, treatment, duration_target_ms, position, status, readiness, revision, created_at, updated_at
 		FROM shots WHERE scene_id=? ORDER BY position, created_at`, sceneID)
 	if err != nil {
 		return nil, err
@@ -194,7 +194,7 @@ func (s *Store) ListShots(ctx context.Context, sceneID string) ([]Shot, error) {
 
 // GetShot fetches a shot by id.
 func (s *Store) GetShot(ctx context.Context, id string) (*Shot, error) {
-	row := s.QueryRowContext(ctx, `SELECT id, scene_id, title, purpose, treatment, duration_target_ms, position, status, readiness, revision, created_at, updated_at FROM shots WHERE id=?`, id)
+	row := s.QueryRowContext(ctx, `SELECT id, scene_id, COALESCE(beat_id,''), title, purpose, treatment, duration_target_ms, position, status, readiness, revision, created_at, updated_at FROM shots WHERE id=?`, id)
 	return scanShot(row)
 }
 
@@ -221,28 +221,44 @@ func (s *Store) ShotContext(ctx context.Context, shotID string) (sceneTitle, sec
 
 func scanShot(sc scanner) (*Shot, error) {
 	var x Shot
-	err := sc.Scan(&x.ID, &x.SceneID, &x.Title, &x.Purpose, &x.Treatment, &x.DurationTargetMs, &x.Position, &x.Status, &x.Readiness, &x.Revision, &x.CreatedAt, &x.UpdatedAt)
+	err := sc.Scan(&x.ID, &x.SceneID, &x.BeatID, &x.Title, &x.Purpose, &x.Treatment, &x.DurationTargetMs, &x.Position, &x.Status, &x.Readiness, &x.Revision, &x.CreatedAt, &x.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	return &x, err
 }
 
-// CreateShot adds a shot and its three initial specifications.
+// CreateShot adds a shot and its three initial specifications. The shot is
+// attached to the scene's implicit beat (v0.02 spec §5.1); explicit beats are
+// created through the beat routes.
 func (s *Store) CreateShot(ctx context.Context, sceneID, userID, title, purpose, treatment string, durationTargetMs int) (*Shot, error) {
-	now := db.Now()
-	var pos int
-	if err := s.QueryRowContext(ctx, `SELECT COALESCE(MAX(position),-1)+1 FROM shots WHERE scene_id=?`, sceneID).Scan(&pos); err != nil {
+	beat, err := s.EnsureImplicitBeat(ctx, sceneID)
+	if err != nil {
 		return nil, err
 	}
-	shot := &Shot{ID: ids.New(), SceneID: sceneID, Title: title, Purpose: purpose, Treatment: treatment, DurationTargetMs: durationTargetMs, Position: pos, Status: "draft", Readiness: "incomplete", Revision: 1, CreatedAt: now, UpdatedAt: now}
+	return s.CreateShotInBeat(ctx, beat.ID, userID, title, purpose, treatment, durationTargetMs)
+}
+
+// CreateShotInBeat adds a shot and its three initial specifications to a beat.
+func (s *Store) CreateShotInBeat(ctx context.Context, beatID, userID, title, purpose, treatment string, durationTargetMs int) (*Shot, error) {
+	beat, err := s.GetBeat(ctx, beatID)
+	if err != nil {
+		return nil, err
+	}
+	sceneID := beat.SceneID
+	now := db.Now()
+	var pos int
+	if err := s.QueryRowContext(ctx, `SELECT COALESCE(MAX(position),-1)+1 FROM shots WHERE beat_id=?`, beatID).Scan(&pos); err != nil {
+		return nil, err
+	}
+	shot := &Shot{ID: ids.New(), SceneID: sceneID, BeatID: beatID, Title: title, Purpose: purpose, Treatment: treatment, DurationTargetMs: durationTargetMs, Position: pos, Status: "draft", Readiness: "incomplete", Revision: 1, CreatedAt: now, UpdatedAt: now}
 	tx, err := s.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `INSERT INTO shots (id, scene_id, title, purpose, treatment, duration_target_ms, position, status, readiness, created_by_user_id, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, shot.ID, sceneID, title, purpose, treatment, durationTargetMs, pos, shot.Status, shot.Readiness, userID, now, now); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO shots (id, scene_id, beat_id, title, purpose, treatment, duration_target_ms, position, status, readiness, created_by_user_id, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, shot.ID, sceneID, beatID, title, purpose, treatment, durationTargetMs, pos, shot.Status, shot.Readiness, userID, now, now); err != nil {
 		return nil, fmt.Errorf("insert shot: %w", err)
 	}
 	for _, kind := range []string{"start_frame", "end_frame", "motion"} {
