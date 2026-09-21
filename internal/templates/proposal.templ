@@ -144,6 +144,51 @@ templ proposalBody(data ProposalData) {
 				</div>
 			</form>
 		}
+		if data.IsContinuity {
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/apply") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<h2 class="card-title text-sm">Carry state into the next shot</h2>
+						<div class="grid md:grid-cols-3 gap-3 text-xs">
+							<div>
+								<div class="uppercase opacity-60 mb-1">Inherited</div>
+								<ul class="flex flex-col gap-1">
+									for _, line := range data.Continuity.Inherited {
+										<li>• { line }</li>
+									}
+								</ul>
+							</div>
+							<div>
+								<div class="uppercase opacity-60 mb-1">Intentionally changed</div>
+								<ul class="flex flex-col gap-1">
+									for _, line := range data.Continuity.Changed {
+										<li>• { line }</li>
+									}
+								</ul>
+							</div>
+							<div>
+								<div class="uppercase opacity-60 mb-1">Unresolved</div>
+								<ul class="flex flex-col gap-1">
+									for _, line := range data.Continuity.Unresolved {
+										<li>• { line }</li>
+									}
+								</ul>
+							</div>
+						</div>
+						<label class="form-control mt-3">
+							<span class="label-text text-xs">Proposed start state (edit before applying)</span>
+							<textarea class="textarea textarea-bordered font-mono text-xs" name="f_state" rows="8">{ data.Continuity.StateJSON }</textarea>
+						</label>
+						<div class="card-actions items-center justify-end mt-3">
+							<input class="input input-bordered input-sm mr-auto w-56" name="reason" placeholder="Rejection reason (optional)"/>
+							<button class="btn btn-ghost" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/reject") }>Reject</button>
+							<button class="btn btn-primary" type="submit">Apply start state</button>
+						</div>
+					</div>
+				</div>
+			</form>
+		}
 		if len(data.Current) > 0 {
 			<div class="card bg-base-200 shadow mt-3">
 				<div class="card-body">

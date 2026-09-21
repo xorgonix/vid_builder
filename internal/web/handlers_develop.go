@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"vidbuild/internal/blocking"
+	"vidbuild/internal/continuity"
 	"vidbuild/internal/llm"
 	"vidbuild/internal/planner"
 	"vidbuild/internal/store"
@@ -302,6 +303,20 @@ func (s *Server) handleProposalView(w http.ResponseWriter, r *http.Request) {
 			StartSVG: blocking.RenderSVG(payload.Start),
 			EndSVG:   blocking.RenderSVG(payload.End),
 		}
+	case "continuity":
+		var payload struct {
+			FromShotID string                `json:"from_shot_id"`
+			ToShotID   string                `json:"to_shot_id"`
+			Derivation continuity.Derivation `json:"derivation"`
+		}
+		_ = json.Unmarshal([]byte(proposal.PayloadJSON), &payload)
+		stateJSON, _ := json.Marshal(payload.Derivation.Start)
+		data.IsContinuity = true
+		data.Continuity = &templates.ContinuityPreview{
+			FromShotID: payload.FromShotID, ToShotID: payload.ToShotID, StateJSON: string(stateJSON),
+			Inherited: payload.Derivation.Inherited, Changed: payload.Derivation.Changed,
+			Unresolved: payload.Derivation.Unresolved,
+		}
 	case "scene_plan":
 		var payload struct {
 			SceneID string `json:"scene_id"`
@@ -506,6 +521,37 @@ func (s *Server) handleProposalApply(w http.ResponseWriter, r *http.Request) {
 		_ = s.store.DecideProposal(r.Context(), proposal.ID, "applied", user.ID)
 		_ = s.store.Audit(r.Context(), project.WorkspaceID, user.ID, "blocking.applied", "proposal", proposal.ID, "applied blocking proposal", "{}")
 		http.Redirect(w, r, withQuery(s.blockingURL(r, payload.ShotID), flashQuery("Blocking applied.", "success")), http.StatusSeeOther)
+		return
+	case "continuity":
+		var payload struct {
+			ToShotID   string                `json:"to_shot_id"`
+			Derivation continuity.Derivation `json:"derivation"`
+		}
+		if err := json.Unmarshal([]byte(proposal.PayloadJSON), &payload); err != nil || payload.ToShotID == "" {
+			s.notFound(w, r)
+			return
+		}
+		if inVideo, _ := s.store.ShotInVideo(r.Context(), payload.ToShotID, video.ID); !inVideo {
+			s.notFound(w, r)
+			return
+		}
+		stateJSON := strings.TrimSpace(r.FormValue("f_state"))
+		if stateJSON == "" {
+			b, _ := json.Marshal(payload.Derivation.Start)
+			stateJSON = string(b)
+		}
+		if err := continuity.ValidateStateJSON(stateJSON); err != nil {
+			http.Redirect(w, r, withQuery(s.proposalURL(r, proposal.ID), flashQuery(err.Error(), "error")), http.StatusSeeOther)
+			return
+		}
+		if _, err := s.store.SaveShotState(r.Context(), payload.ToShotID, "start", stateJSON, "derived", user.ID); err != nil {
+			s.log.Error("apply continuity", "err", err)
+			s.notFound(w, r)
+			return
+		}
+		_ = s.store.DecideProposal(r.Context(), proposal.ID, "applied", user.ID)
+		_ = s.store.Audit(r.Context(), project.WorkspaceID, user.ID, "continuity.applied", "proposal", proposal.ID, "applied continuity proposal", "{}")
+		http.Redirect(w, r, s.stateURL(r, payload.ToShotID)+"?msg="+urlMsg("Start state applied as a derived version.")+"&kind=success", http.StatusSeeOther)
 		return
 	case "scene_plan":
 		var payload struct {

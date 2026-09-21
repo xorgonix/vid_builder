@@ -1,6 +1,8 @@
 // Package templates holds server-rendered templ components for vid-build 0.01.
 package templates
 
+import "vidbuild/internal/continuity"
+
 // ShellData is the shared chrome data for every authenticated page.
 type ShellData struct {
 	Title            string
@@ -213,25 +215,59 @@ type FieldView struct {
 
 // ProposalData backs the proposal diff/apply screen.
 type ProposalData struct {
-	Shell       ShellData
-	Project     ProjectView
-	Video       VideoView
-	Proposal    ProposalView
-	Fields      []FieldView
-	Outline     *OutlineView
-	Blocking    *BlockingPreview
-	IsOutline   bool
-	IsBrief     bool
-	IsPrompt    bool
-	IsBlocking  bool
-	IsBeats     bool
-	IsShots     bool
-	SceneID     string
-	BeatID      string
-	Beats       []BeatDraftView
-	Breakdown   []BreakdownShotView
-	Current     []string
-	OutlineJSON string
+	Shell        ShellData
+	Project      ProjectView
+	Video        VideoView
+	Proposal     ProposalView
+	Fields       []FieldView
+	Outline      *OutlineView
+	Blocking     *BlockingPreview
+	IsOutline    bool
+	IsBrief      bool
+	IsPrompt     bool
+	IsBlocking   bool
+	IsBeats      bool
+	IsShots      bool
+	SceneID      string
+	BeatID       string
+	Beats        []BeatDraftView
+	Breakdown    []BreakdownShotView
+	Continuity   *ContinuityPreview
+	IsContinuity bool
+	Current      []string
+	OutlineJSON  string
+}
+
+// ContinuityPreview shows a derived next-shot start state and its reasoning.
+type ContinuityPreview struct {
+	FromShotID string
+	ToShotID   string
+	StateJSON  string
+	Inherited  []string
+	Changed    []string
+	Unresolved []string
+}
+
+// InheritFlag is one checkbox in the transition-out form.
+type InheritFlag struct {
+	Key     string
+	Label   string
+	Checked bool
+}
+
+// ContinuityData backs the shot state and transition editor.
+type ContinuityData struct {
+	Shell         ShellData
+	Project       ProjectView
+	Video         VideoView
+	Shot          ShotNode
+	StartState    string
+	EndState      string
+	NextShotID    string
+	NextShotTitle string
+	Handoff       continuity.Handoff
+	Transitions   []string
+	InheritFlags  []InheritFlag
 }
 
 // BeatDraftView is one proposed beat row.
@@ -340,6 +376,15 @@ type BoardCard struct {
 	HasEnd     bool
 	MotionText string
 	Stale      bool
+
+	// Continuity mode
+	HasContinuity        bool
+	NextShotID           string
+	TransitionType       string
+	TransitionMotivation string
+	InheritedSummary     string
+	ScreenDirection      string
+	ContinuityWarnings   []string
 }
 
 // BoardData backs the storyboard.

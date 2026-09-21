@@ -1,0 +1,145 @@
+package templates
+
+templ ContinuityPage(data ContinuityData) {
+	@shell(data.Shell, continuityBody(data))
+}
+
+templ continuityBody(data ContinuityData) {
+	<div class="max-w-5xl mx-auto">
+		<div class="flex items-center justify-between mb-4">
+			<div>
+				<h1 class="text-2xl font-bold">Continuity — { data.Shot.Title }</h1>
+				<p class="opacity-70 text-sm">State, not pixels, crosses a cut. Describe the semantic state at each endpoint and how it hands off to the next shot.</p>
+			</div>
+			<a class="btn btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID) }>Shot</a>
+		</div>
+
+		<div class="grid md:grid-cols-2 gap-4">
+			@stateCard(data, "start", "Start state", data.StartState)
+			@stateCard(data, "end", "End state", data.EndState)
+		</div>
+
+		if data.NextShotID == "" {
+			<div class="alert mt-4">
+				<span>This is the last shot in the video; there is no following shot to transition into.</span>
+			</div>
+		} else {
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/transition-out") } class="card bg-base-100 shadow mt-4">
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<input type="hidden" name="_method" value="PUT"/>
+				<div class="card-body">
+					<h2 class="card-title text-base">Transition into “{ data.NextShotTitle }”</h2>
+					<div class="grid md:grid-cols-2 gap-3">
+						<label class="form-control">
+							<span class="label-text text-xs">Transition type</span>
+							<select class="select select-bordered select-sm" name="transition_type">
+								@transitionOptions(data.Transitions, data.Handoff.TransitionType)
+							</select>
+						</label>
+						<label class="form-control">
+							<span class="label-text text-xs">Duration (ms, 0 = cut)</span>
+							<input class="input input-bordered input-sm" type="number" name="duration_ms" value={ itoaT(data.Handoff.DurationMs) }/>
+						</label>
+					</div>
+					<label class="form-control mt-2">
+						<span class="label-text text-xs">Motivation — why this cut is caused by the previous shot</span>
+						<textarea class="textarea textarea-bordered" name="motivation" rows="2">{ data.Handoff.Motivation }</textarea>
+					</label>
+
+					<div class="mt-3">
+						<div class="text-xs uppercase opacity-60 mb-1">Inherit from the previous end state</div>
+						<div class="grid grid-cols-2 md:grid-cols-3 gap-1">
+							for _, f := range data.InheritFlags {
+								<label class="label cursor-pointer justify-start gap-2 py-0">
+									<input type="checkbox" class="checkbox checkbox-xs" name={ "inherit_" + f.Key } checked?={ f.Checked }/>
+									<span class="label-text text-xs">{ f.Label }</span>
+								</label>
+							}
+						</div>
+					</div>
+
+					<div class="grid md:grid-cols-4 gap-2 mt-3 items-end">
+						<label class="form-control">
+							<span class="label-text text-xs">Recompose allowed</span>
+							<input type="checkbox" class="checkbox checkbox-sm" name="recompose_allowed" checked?={ data.Handoff.Recompose.Allowed }/>
+						</label>
+						<label class="form-control">
+							<span class="label-text text-xs">Shot size</span>
+							<select class="select select-bordered select-sm" name="recompose_shot_size">
+								@optionalOption("", data.Handoff.Recompose.ShotSize, "any")
+								@optionalOption("wide", data.Handoff.Recompose.ShotSize, "wide")
+								@optionalOption("medium", data.Handoff.Recompose.ShotSize, "medium")
+								@optionalOption("close", data.Handoff.Recompose.ShotSize, "close")
+								@optionalOption("extreme_close", data.Handoff.Recompose.ShotSize, "extreme_close")
+							</select>
+						</label>
+						<label class="form-control">
+							<span class="label-text text-xs">Angle</span>
+							<select class="select select-bordered select-sm" name="recompose_angle">
+								@optionalOption("", data.Handoff.Recompose.Angle, "any")
+								@optionalOption("same", data.Handoff.Recompose.Angle, "same")
+								@optionalOption("reverse", data.Handoff.Recompose.Angle, "reverse")
+								@optionalOption("new", data.Handoff.Recompose.Angle, "new")
+							</select>
+						</label>
+						<label class="form-control">
+							<span class="label-text text-xs">Camera side</span>
+							<select class="select select-bordered select-sm" name="recompose_camera_side">
+								@optionalOption("", data.Handoff.Recompose.CameraSide, "any")
+								@optionalOption("preserve_screen_direction", data.Handoff.Recompose.CameraSide, "preserve screen direction")
+								@optionalOption("flip", data.Handoff.Recompose.CameraSide, "flip")
+								@optionalOption("neutral", data.Handoff.Recompose.CameraSide, "neutral")
+							</select>
+						</label>
+					</div>
+
+					<label class="form-control mt-2">
+						<span class="label-text text-xs">Notes</span>
+						<textarea class="textarea textarea-bordered" name="notes" rows="2">{ data.Handoff.Notes }</textarea>
+					</label>
+
+					<div class="card-actions justify-end mt-3">
+						<button class="btn btn-sm" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/transition-out/derive-next") } formnovalidate>Derive next start state</button>
+						<button class="btn btn-sm btn-primary" type="submit">Save transition</button>
+					</div>
+					<p class="text-xs opacity-60 mt-1">Deriving creates a proposal for the next shot's start state. It never writes the neighbour until you apply it.</p>
+				</div>
+			</form>
+		}
+	</div>
+}
+
+templ stateCard(data ContinuityData, endpoint, label, value string) {
+	<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + data.Shot.ID + "/state/" + endpoint) } class="card bg-base-100 shadow">
+		<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+		<input type="hidden" name="_method" value="PATCH"/>
+		<div class="card-body">
+			<h2 class="card-title text-base">{ label }</h2>
+			<textarea class="textarea textarea-bordered font-mono text-xs" name="state_json" rows="10">{ value }</textarea>
+			<div class="card-actions justify-end">
+				<button class="btn btn-sm btn-primary" type="submit">Save { label }</button>
+			</div>
+		</div>
+	</form>
+}
+
+templ transitionOptions(list []string, current string) {
+	for _, t := range list {
+		if t == current {
+			<option value={ t } selected="selected">{ t }</option>
+		} else {
+			<option value={ t }>{ t }</option>
+		}
+	}
+	if current == "" {
+		<option value="" selected="selected">choose…</option>
+	}
+}
+
+templ optionalOption(value, current, label string) {
+	if value == current {
+		<option value={ value } selected="selected">{ label }</option>
+	} else {
+		<option value={ value }>{ label }</option>
+	}
+}

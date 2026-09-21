@@ -1,9 +1,12 @@
 package web
 
 import (
+	"encoding/json"
 	"net/http"
+	"strings"
 
 	"vidbuild/internal/blocking"
+	"vidbuild/internal/continuity"
 	"vidbuild/internal/templates"
 )
 
@@ -19,6 +22,14 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request) {
 	}
 	filter := r.URL.Query().Get("readiness")
 	data := templates.BoardData{Shell: shell, Project: toProjectView(project), Video: toVideoView(video), Mode: mode, Filter: filter}
+
+	ordered, _ := s.store.ListVideoShotsOrdered(r.Context(), video.ID)
+	nextByID := map[string]string{}
+	for i, sh := range ordered {
+		if i < len(ordered)-1 {
+			nextByID[sh.ID] = ordered[i+1].ID
+		}
+	}
 
 	sections, _ := s.store.ListSections(r.Context(), video.ID)
 	for _, sec := range sections {
@@ -46,6 +57,10 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request) {
 				}
 				if sp, err := s.store.GetCurrentSpec(r.Context(), sh.ID, "motion"); err == nil && sp != nil {
 					card.MotionText = sp.PositivePrompt
+				}
+				if mode == "continuity" {
+					card.HasContinuity = true
+					s.fillContinuity(r, &card, nextByID[sh.ID])
 				}
 				data.Cards = append(data.Cards, card)
 			}
@@ -143,6 +158,64 @@ func (s *Server) handleCreateStyleRule(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = s.store.Audit(r.Context(), project.WorkspaceID, user.ID, "style_rule.create", "project", project.ID, "created style rule", "{}")
 	http.Redirect(w, r, "/w/"+ws.ID+"/projects/"+project.ID+"/bible?msg="+urlMsg("Style rule added.")+"&kind=success", http.StatusSeeOther)
+}
+
+// fillContinuity populates continuity-mode card fields: the transition into the
+// next shot, what is inherited, screen direction and unexplained changes.
+func (s *Server) fillContinuity(r *http.Request, card *templates.BoardCard, nextShotID string) {
+	if nextShotID == "" {
+		card.ContinuityWarnings = append(card.ContinuityWarnings, "Last shot: no outgoing transition")
+	} else {
+		card.NextShotID = nextShotID
+		link, err := s.store.GetShotLink(r.Context(), card.ShotID, nextShotID)
+		if err != nil {
+			card.ContinuityWarnings = append(card.ContinuityWarnings, "No transition defined into the next shot")
+		} else {
+			var h continuity.Handoff
+			_ = json.Unmarshal([]byte(link.MetadataJSON), &h)
+			card.TransitionType = h.TransitionType
+			card.TransitionMotivation = h.Motivation
+			card.ScreenDirection = h.Recompose.CameraSide
+			card.InheritedSummary = inheritSummary(h.Inherit)
+			if h.TransitionType == "" {
+				card.ContinuityWarnings = append(card.ContinuityWarnings, "Transition type is not set")
+			}
+			if strings.TrimSpace(h.Motivation) == "" {
+				card.ContinuityWarnings = append(card.ContinuityWarnings, "Transition has no motivation")
+			}
+		}
+	}
+	if _, err := s.store.GetCurrentShotState(r.Context(), card.ShotID, "end"); err != nil {
+		card.ContinuityWarnings = append(card.ContinuityWarnings, "No end state recorded")
+	}
+}
+
+func inheritSummary(f continuity.InheritFlags) string {
+	flags := []struct {
+		label string
+		on    bool
+	}{
+		{"identity", f.CharacterIdentity},
+		{"costume", f.Costume},
+		{"condition", f.PhysicalCondition},
+		{"emotion", f.EmotionalState},
+		{"knowledge", f.KnowledgeState},
+		{"props", f.PropState},
+		{"positions", f.PhysicalPositions},
+		{"location", f.Location},
+		{"lighting", f.Lighting},
+		{"weather", f.Weather},
+	}
+	var parts []string
+	for _, f := range flags {
+		if f.on {
+			parts = append(parts, f.label)
+		}
+	}
+	if len(parts) == 0 {
+		return "nothing"
+	}
+	return strings.Join(parts, ", ")
 }
 
 func formValueOr(r *http.Request, key, def string) string {

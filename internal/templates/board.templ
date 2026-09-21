@@ -16,6 +16,7 @@ templ boardBody(data BoardData) {
 					<a class={ "btn btn-sm join-item", templ.KV("btn-active", data.Mode == "compact") } href={ templ.URL(data.Shell.VideoBase() + "/board?mode=compact") }>Compact</a>
 					<a class={ "btn btn-sm join-item", templ.KV("btn-active", data.Mode == "director") } href={ templ.URL(data.Shell.VideoBase() + "/board?mode=director") }>Director</a>
 					<a class={ "btn btn-sm join-item", templ.KV("btn-active", data.Mode == "production") } href={ templ.URL(data.Shell.VideoBase() + "/board?mode=production") }>Production</a>
+					<a class={ "btn btn-sm join-item", templ.KV("btn-active", data.Mode == "continuity") } href={ templ.URL(data.Shell.VideoBase() + "/board?mode=continuity") }>Continuity</a>
 				</div>
 				<a class="btn btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/outline") }>Outline</a>
 			</div>
@@ -72,8 +73,32 @@ templ boardCard(data BoardData, card BoardCard) {
 					}
 				</div>
 			</div>
+			if card.HasContinuity {
+				<div class="mt-2 border-t border-base-300 pt-2">
+					<div class="text-xs uppercase opacity-60 mb-1">Continuity</div>
+					if card.NextShotID != "" {
+						<div class="text-xs opacity-80">
+							<span class="badge badge-ghost badge-xs mr-1">{ card.TransitionType }</span>
+							into next shot
+						</div>
+						if card.TransitionMotivation != "" {
+							<p class="text-xs opacity-70 mt-1">Motivation: { card.TransitionMotivation }</p>
+						}
+						<p class="text-xs opacity-70">Inherits: { card.InheritedSummary }</p>
+						if card.ScreenDirection != "" {
+							<p class="text-xs opacity-70">Screen direction: { card.ScreenDirection }</p>
+						}
+					} else {
+						<p class="text-xs opacity-70">Final shot in the sequence.</p>
+					}
+					for _, warn := range card.ContinuityWarnings {
+						<div class="alert alert-warning py-1 px-2 mt-1 text-xs"><span>{ warn }</span></div>
+					}
+				</div>
+			}
 			<div class="card-actions justify-end mt-2">
 				<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + card.ShotID) }>Open</a>
+				<a class="btn btn-xs" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + card.ShotID + "/state") }>State</a>
 				<a class="btn btn-xs btn-primary" href={ templ.URL(data.Shell.VideoBase() + "/shots/" + card.ShotID + "/blocking") }>Blocking</a>
 			</div>
 		</div>
@@ -85,6 +110,8 @@ func boardGridClass(mode string) string {
 	case "compact":
 		return "sm:grid-cols-2 lg:grid-cols-3"
 	case "production":
+		return "md:grid-cols-2"
+	case "continuity":
 		return "md:grid-cols-2"
 	default:
 		return "lg:grid-cols-2"
