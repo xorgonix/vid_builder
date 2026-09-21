@@ -285,12 +285,39 @@ and motion specs). Reject if it does not read well.
 
 - Each **section** groups scenes and carries a purpose and duration budget.
 - Each **scene** carries a synopsis, purpose, pace and audience reaction.
+- Each **beat** is a dramatic unit inside a scene: title, purpose, trigger, action,
+  reaction, resulting state, intended audience effect and a duration budget.
 - Each **shot** row shows title, purpose, duration and a **readiness badge**.
 
-Actions: **Add section** (dialog), **Add scene** under a section, **Add shot** under a
-scene, **↑/↓** to reorder, **Edit** to change fields, **Delete** to remove (deleting a
-section rehomes its scenes rather than silently dropping them). **Open** a shot to reach
-the inspector.
+Actions: **Add section** (dialog), **Add scene** under a section, **Add beat** under a
+scene, **Add shot** under a beat, **↑/↓** to reorder, **Edit** to change fields, **Delete**
+to remove. Deleting a section rehomes its scenes rather than silently dropping them; a
+beat that still owns shots, or a scene's only beat, cannot be deleted. **Open** a shot to
+reach the inspector.
+
+### 8.1 Implicit beats
+
+Simple projects are unchanged: a scene starts with one **implicit beat** that holds its
+shots and is hidden. The first time you add an explicit beat, the implicit beat is
+promoted so the full hierarchy becomes visible. Nothing is lost and nothing is rewritten.
+
+### 8.2 Proposing beats and shots separately
+
+The planner is split so you decide at the right altitude:
+
+- **Propose beats** (from a scene) asks for the scene's dramatic beats. The proposal page
+  lets you untick beats, edit any field before applying, apply all, reject with an optional
+  reason, or regenerate from explicit feedback.
+- **Propose shots** (from a beat) asks for the *minimum* shots that communicate that beat —
+  one shot is a valid answer. Each proposed shot carries its purpose, what the audience
+  must notice, start/change/end states, framing, duration, transitions, continuity needs, a
+  suggested generation method (`blocking_only`, `generated`, `stock`, `live_action`,
+  `composite`, `still_with_motion`) and a justification. Applying a shot folds that
+  guidance into the shot's treatment so nothing the planner explained is lost.
+
+Proposal pages also show the **current structure** for comparison, and an open proposal is
+marked **stale** (never deleted) when the scene, beat, video or brief it was based on has
+changed since.
 
 A shot's purpose should be a sentence a director would say out loud. If you cannot name
 the visible change, the shot is not ready to produce.
