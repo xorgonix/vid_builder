@@ -78,7 +78,84 @@ templ proposalBody(data ProposalData) {
 				</div>
 			</form>
 		}
+		if data.IsBeats {
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/apply") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<p class="opacity-80 text-sm">Proposed beats for one scene. Untick anything you do not accept; edit before applying.</p>
+						for _, b := range data.Beats {
+							<div class="border-b border-base-300 py-2">
+								<label class="label cursor-pointer justify-start gap-2 mb-1">
+									<input type="checkbox" class="checkbox checkbox-sm" name={ "c_beat_" + itoaT(b.Index) } checked="checked"/>
+									<span class="label-text font-semibold">Beat { itoaT(b.Index + 1) }</span>
+								</label>
+								<input class="input input-bordered input-sm w-full mb-2" name={ "f_beat_title_" + itoaT(b.Index) } value={ b.Title }/>
+								<div class="grid grid-cols-2 gap-2">
+									<textarea class="textarea textarea-bordered text-sm" name={ "f_beat_purpose_" + itoaT(b.Index) } rows="1" placeholder="purpose">{ b.Purpose }</textarea>
+									<textarea class="textarea textarea-bordered text-sm" name={ "f_beat_trigger_" + itoaT(b.Index) } rows="1" placeholder="trigger">{ b.Trigger }</textarea>
+									<textarea class="textarea textarea-bordered text-sm" name={ "f_beat_action_" + itoaT(b.Index) } rows="1" placeholder="action">{ b.Action }</textarea>
+									<textarea class="textarea textarea-bordered text-sm" name={ "f_beat_reaction_" + itoaT(b.Index) } rows="1" placeholder="reaction">{ b.Reaction }</textarea>
+									<textarea class="textarea textarea-bordered text-sm" name={ "f_beat_state_" + itoaT(b.Index) } rows="1" placeholder="resulting state">{ b.ResultingState }</textarea>
+									<textarea class="textarea textarea-bordered text-sm" name={ "f_beat_effect_" + itoaT(b.Index) } rows="1" placeholder="audience effect">{ b.AudienceEffect }</textarea>
+								</div>
+							</div>
+						}
+						<div class="card-actions justify-end mt-3">
+							<button class="btn btn-ghost" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/reject") }>Reject</button>
+							<button class="btn btn-primary" type="submit">Apply selected beats</button>
+						</div>
+					</div>
+				</div>
+			</form>
+		}
+		if data.IsShots {
+			<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/apply") }>
+				<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<p class="opacity-80 text-sm">Proposed shots for one beat. One shot is a valid answer. Edit or untick before applying.</p>
+						for _, sh := range data.Breakdown {
+							<div class="border-b border-base-300 py-2">
+								<label class="label cursor-pointer justify-start gap-2 mb-1">
+									<input type="checkbox" class="checkbox checkbox-sm" name={ "c_shot_" + itoaT(sh.Index) } checked="checked"/>
+									<span class="label-text font-semibold">Shot { itoaT(sh.Index + 1) }</span>
+									<span class="badge badge-ghost badge-sm">{ sh.GenerationMethod }</span>
+									<span class="badge badge-ghost badge-sm">{ sh.DurationMs / 1000 }s</span>
+								</label>
+								<input class="input input-bordered input-sm w-full mb-2" name={ "f_shot_title_" + itoaT(sh.Index) } value={ sh.Title }/>
+								<textarea class="textarea textarea-bordered text-sm w-full mb-2" name={ "f_shot_purpose_" + itoaT(sh.Index) } rows="1" placeholder="narrative purpose">{ sh.NarrativePurpose }</textarea>
+								<textarea class="textarea textarea-bordered text-sm w-full mb-2" name={ "f_shot_treatment_" + itoaT(sh.Index) } rows="2" placeholder="treatment">{ shotTreatmentText(sh) }</textarea>
+								<p class="text-xs opacity-70">Must notice: { sh.MustNotice } · Start: { sh.StartState } · Change: { sh.VisibleChange } · End: { sh.EndState }</p>
+							</div>
+						}
+						<div class="card-actions justify-end mt-3">
+							<button class="btn btn-ghost" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/proposals/" + data.Proposal.ID + "/reject") }>Reject</button>
+							<button class="btn btn-primary" type="submit">Apply selected shots</button>
+						</div>
+					</div>
+				</div>
+			</form>
+		}
 	</div>
+}
+
+// shotTreatmentText mirrors the treatment folded into a shot on apply.
+func shotTreatmentText(sh BreakdownShotView) string {
+	out := ""
+	if sh.Framing != "" {
+		out += "Framing: " + sh.Framing + "\n"
+	}
+	if sh.VisibleChange != "" {
+		out += "Change: " + sh.VisibleChange + "\n"
+	}
+	if sh.GenerationMethod != "" {
+		out += "Method: " + sh.GenerationMethod + "\n"
+	}
+	if sh.Justification != "" {
+		out += "Why: " + sh.Justification
+	}
+	return out
 }
 
 templ outlinePreview(view *OutlineView) {

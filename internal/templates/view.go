@@ -223,7 +223,44 @@ type ProposalData struct {
 	IsBrief     bool
 	IsPrompt    bool
 	IsBlocking  bool
+	IsBeats     bool
+	IsShots     bool
+	SceneID     string
+	BeatID      string
+	Beats       []BeatDraftView
+	Breakdown   []BreakdownShotView
 	OutlineJSON string
+}
+
+// BeatDraftView is one proposed beat row.
+type BeatDraftView struct {
+	Index          int
+	Title          string
+	Purpose        string
+	Trigger        string
+	Action         string
+	Reaction       string
+	ResultingState string
+	AudienceEffect string
+	BudgetMs       int
+}
+
+// BreakdownShotView is one proposed shot row in a shot-breakdown proposal.
+type BreakdownShotView struct {
+	Index            int
+	Title            string
+	NarrativePurpose string
+	MustNotice       string
+	StartState       string
+	VisibleChange    string
+	EndState         string
+	Framing          string
+	DurationMs       int
+	TransitionIn     string
+	TransitionOut    string
+	Continuity       string
+	GenerationMethod string
+	Justification    string
 }
 
 // BlockingPreview previews a proposed start/end blocking.

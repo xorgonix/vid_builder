@@ -328,3 +328,292 @@ func (p *Planner) SuggestBlocking(ctx context.Context, projectContext, shotPurpo
 	}
 	return &out, nil
 }
+
+// StructurePayload proposes sections and scenes only (spec §8.2). Shots are
+// proposed later, per beat, by the shot-breakdown planner.
+type StructurePayload struct {
+	Summary  string             `json:"summary"`
+	Sections []StructureSection `json:"sections"`
+}
+
+// StructureSection is a proposed section.
+type StructureSection struct {
+	Title            string           `json:"title"`
+	Purpose          string           `json:"purpose"`
+	Summary          string           `json:"summary"`
+	DurationBudgetMs int              `json:"duration_budget_ms"`
+	Scenes           []StructureScene `json:"scenes"`
+}
+
+// StructureScene is a proposed scene, including the change it must deliver.
+type StructureScene struct {
+	Title            string `json:"title"`
+	Synopsis         string `json:"synopsis"`
+	Purpose          string `json:"purpose"`
+	Pace             string `json:"pace"`
+	AudienceReaction string `json:"audience_reaction"`
+	OpeningState     string `json:"opening_state"`
+	EndingState      string `json:"ending_state"`
+	DurationBudgetMs int    `json:"duration_budget_ms"`
+}
+
+const structureSchema = `{
+  "summary": "one-line summary",
+  "sections": [
+    {
+      "title": "section title",
+      "purpose": "what this division accomplishes",
+      "summary": "short summary",
+      "duration_budget_ms": 0,
+      "scenes": [
+        {
+          "title": "scene title",
+          "synopsis": "what happens",
+          "purpose": "dramatic/explanatory function",
+          "pace": "slow|moderate|fast",
+          "audience_reaction": "intended reaction",
+          "opening_state": "state at the scene's first frame",
+          "ending_state": "state at the scene's last frame, visibly changed",
+          "duration_budget_ms": 0
+        }
+      ]
+    }
+  ]
+}`
+
+// StructureProposal proposes sections and scenes only.
+func (p *Planner) StructureProposal(ctx context.Context, projectContext, briefText, instruction string, history []llm.Message) (*StructurePayload, error) {
+	if !p.Enabled() {
+		return nil, fmt.Errorf("planner: LLM disabled")
+	}
+	system := "You are the vid-build planner. Propose a video structure of sections and scenes only; do not propose shots. " +
+		"Every scene must state its purpose, intended audience reaction, duration budget and the visible change from its opening to its ending state. " +
+		"Use at most 3 sections and at most 3 scenes per section. Output compact JSON with no prose or markdown."
+	if projectContext != "" {
+		system += "\n\nProject context:\n" + projectContext
+	}
+	if briefText != "" {
+		system += "\n\nAccepted brief:\n" + briefText
+	}
+	if instruction != "" {
+		system += "\n\nCreator instruction:\n" + instruction
+	}
+	raw, err := p.client.ChatJSON(ctx, system, history, structureSchema)
+	if err != nil {
+		return nil, err
+	}
+	var payload StructurePayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, err
+	}
+	if err := payload.Validate(); err != nil {
+		return nil, err
+	}
+	return &payload, nil
+}
+
+// Validate rejects an incomplete structure proposal (spec §13.3).
+func (s *StructurePayload) Validate() error {
+	if len(s.Sections) == 0 {
+		return fmt.Errorf("planner: structure proposal contained no sections")
+	}
+	for si, sec := range s.Sections {
+		if strings.TrimSpace(sec.Title) == "" {
+			return fmt.Errorf("planner: section %d is missing a title", si+1)
+		}
+		if len(sec.Scenes) == 0 {
+			return fmt.Errorf("planner: section %d has no scenes", si+1)
+		}
+		for ci, sc := range sec.Scenes {
+			if strings.TrimSpace(sc.Title) == "" || strings.TrimSpace(sc.Purpose) == "" {
+				return fmt.Errorf("planner: section %d scene %d must have a title and purpose", si+1, ci+1)
+			}
+		}
+	}
+	return nil
+}
+
+// BeatPayload proposes the dramatic beats of one scene (spec §8.3).
+type BeatPayload struct {
+	Summary string      `json:"summary"`
+	Beats   []BeatDraft `json:"beats"`
+}
+
+// BeatDraft is a proposed beat.
+type BeatDraft struct {
+	Title                  string         `json:"title"`
+	Purpose                string         `json:"purpose"`
+	Trigger                string         `json:"trigger"`
+	Action                 string         `json:"action"`
+	Reaction               string         `json:"reaction"`
+	ResultingState         string         `json:"resulting_state"`
+	IntendedAudienceEffect string         `json:"intended_audience_effect"`
+	DurationBudgetMs       int            `json:"duration_budget_ms"`
+	Metrics                map[string]int `json:"metrics,omitempty"`
+}
+
+const beatSchema = `{
+  "summary": "one-line summary of the scene's dramatic shape",
+  "beats": [
+    {
+      "title": "beat title",
+      "purpose": "what this beat accomplishes",
+      "trigger": "what starts it",
+      "action": "what happens",
+      "reaction": "how the subject responds",
+      "resulting_state": "the state the beat leaves behind",
+      "intended_audience_effect": "what the audience should feel or understand",
+      "duration_budget_ms": 0,
+      "metrics": {"dramatic_intensity": 0, "tension": 0}
+    }
+  ]
+}`
+
+// BeatProposal proposes beats for one scene.
+func (p *Planner) BeatProposal(ctx context.Context, projectContext, sceneContext, instruction string, history []llm.Message) (*BeatPayload, error) {
+	if !p.Enabled() {
+		return nil, fmt.Errorf("planner: LLM disabled")
+	}
+	system := "You are the vid-build planner. Propose the dramatic beats of one scene as JSON only. " +
+		"Each beat must have a trigger, an action, a reaction and a resulting state that visibly changes. " +
+		"Do not propose shots. Output compact JSON with no prose."
+	if projectContext != "" {
+		system += "\n\nProject context:\n" + projectContext
+	}
+	if sceneContext != "" {
+		system += "\n\nScene:\n" + sceneContext
+	}
+	if instruction != "" {
+		system += "\n\nCreator instruction:\n" + instruction
+	}
+	raw, err := p.client.ChatJSON(ctx, system, history, beatSchema)
+	if err != nil {
+		return nil, err
+	}
+	var payload BeatPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, err
+	}
+	if err := payload.Validate(); err != nil {
+		return nil, err
+	}
+	return &payload, nil
+}
+
+// Validate rejects an incomplete beat proposal (spec §13.3).
+func (b *BeatPayload) Validate() error {
+	if len(b.Beats) == 0 {
+		return fmt.Errorf("planner: beat proposal contained no beats")
+	}
+	for i, beat := range b.Beats {
+		if strings.TrimSpace(beat.Title) == "" || strings.TrimSpace(beat.Action) == "" {
+			return fmt.Errorf("planner: beat %d must have a title and an action", i+1)
+		}
+	}
+	return nil
+}
+
+// ShotBreakdownPayload proposes the minimum shots for one beat (spec §8.4).
+type ShotBreakdownPayload struct {
+	Summary string          `json:"summary"`
+	Shots   []BreakdownShot `json:"shots"`
+}
+
+// BreakdownShot is a proposed shot with justification and production method.
+type BreakdownShot struct {
+	Title            string `json:"title"`
+	NarrativePurpose string `json:"narrative_purpose"`
+	MustNotice       string `json:"must_notice"`
+	StartState       string `json:"start_state"`
+	VisibleChange    string `json:"visible_change"`
+	EndState         string `json:"end_state"`
+	Framing          string `json:"framing"`
+	DurationTargetMs int    `json:"duration_target_ms"`
+	TransitionIn     string `json:"transition_in"`
+	TransitionOut    string `json:"transition_out"`
+	Continuity       string `json:"continuity"`
+	GenerationMethod string `json:"generation_method"`
+	Justification    string `json:"justification"`
+}
+
+// GenerationMethods are the production methods a shot proposal may recommend.
+var GenerationMethods = []string{"blocking_only", "generated", "stock", "live_action", "composite", "still_with_motion"}
+
+const shotBreakdownSchema = `{
+  "summary": "one-line summary",
+  "shots": [
+    {
+      "title": "shot title",
+      "narrative_purpose": "why this shot exists",
+      "must_notice": "what the audience must notice",
+      "start_state": "visible state at the start",
+      "visible_change": "what changes",
+      "end_state": "visible state at the end",
+      "framing": "framing and point of view",
+      "duration_target_ms": 0,
+      "transition_in": "cut|fade|dissolve",
+      "transition_out": "cut|fade|dissolve",
+      "continuity": "continuity requirements",
+      "generation_method": "blocking_only|generated|stock|live_action|composite|still_with_motion",
+      "justification": "why the shot exists and why it is worth its cost"
+    }
+  ]
+}`
+
+// ShotBreakdownProposal proposes the minimum shots for one beat. It is allowed
+// to recommend a single shot when one shot is enough.
+func (p *Planner) ShotBreakdownProposal(ctx context.Context, projectContext, beatContext, instruction string, history []llm.Message) (*ShotBreakdownPayload, error) {
+	if !p.Enabled() {
+		return nil, fmt.Errorf("planner: LLM disabled")
+	}
+	system := "You are the vid-build planner. Propose the minimum shots required to communicate one beat, as JSON only. " +
+		"One shot is a valid answer when one shot is enough. Every shot must state a narrative purpose, what the audience must notice, " +
+		"its start state, the visible change, its end state, framing, duration, transitions, continuity needs, a suggested generation " +
+		"method (blocking_only, generated, stock, live_action, composite, still_with_motion) and a justification. Output compact JSON with no prose."
+	if projectContext != "" {
+		system += "\n\nProject context:\n" + projectContext
+	}
+	if beatContext != "" {
+		system += "\n\nBeat:\n" + beatContext
+	}
+	if instruction != "" {
+		system += "\n\nCreator instruction:\n" + instruction
+	}
+	raw, err := p.client.ChatJSON(ctx, system, history, shotBreakdownSchema)
+	if err != nil {
+		return nil, err
+	}
+	var payload ShotBreakdownPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, err
+	}
+	if err := payload.Validate(); err != nil {
+		return nil, err
+	}
+	return &payload, nil
+}
+
+// Validate rejects an incomplete shot-breakdown proposal (spec §13.3).
+func (s *ShotBreakdownPayload) Validate() error {
+	if len(s.Shots) == 0 {
+		return fmt.Errorf("planner: shot-breakdown proposal contained no shots")
+	}
+	for i, shot := range s.Shots {
+		if strings.TrimSpace(shot.Title) == "" || strings.TrimSpace(shot.NarrativePurpose) == "" {
+			return fmt.Errorf("planner: shot %d must have a title and a narrative purpose", i+1)
+		}
+		if shot.GenerationMethod != "" {
+			ok := false
+			for _, m := range GenerationMethods {
+				if shot.GenerationMethod == m {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				return fmt.Errorf("planner: shot %d has unknown generation_method %q", i+1, shot.GenerationMethod)
+			}
+		}
+	}
+	return nil
+}

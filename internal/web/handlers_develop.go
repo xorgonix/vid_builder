@@ -268,6 +268,44 @@ func (s *Server) handleProposalView(w http.ResponseWriter, r *http.Request) {
 			StartSVG: blocking.RenderSVG(payload.Start),
 			EndSVG:   blocking.RenderSVG(payload.End),
 		}
+	case "scene_plan":
+		var payload struct {
+			SceneID string `json:"scene_id"`
+			*planner.BeatPayload
+		}
+		_ = json.Unmarshal([]byte(proposal.PayloadJSON), &payload)
+		if payload.BeatPayload == nil {
+			payload.BeatPayload = &planner.BeatPayload{}
+		}
+		data.IsBeats = true
+		data.SceneID = payload.SceneID
+		for i, b := range payload.Beats {
+			data.Beats = append(data.Beats, templates.BeatDraftView{
+				Index: i, Title: b.Title, Purpose: b.Purpose, Trigger: b.Trigger, Action: b.Action,
+				Reaction: b.Reaction, ResultingState: b.ResultingState, AudienceEffect: b.IntendedAudienceEffect,
+				BudgetMs: b.DurationBudgetMs,
+			})
+		}
+	case "shot_plan":
+		var payload struct {
+			BeatID string `json:"beat_id"`
+			*planner.ShotBreakdownPayload
+		}
+		_ = json.Unmarshal([]byte(proposal.PayloadJSON), &payload)
+		if payload.ShotBreakdownPayload == nil {
+			payload.ShotBreakdownPayload = &planner.ShotBreakdownPayload{}
+		}
+		data.IsShots = true
+		data.BeatID = payload.BeatID
+		for i, sh := range payload.Shots {
+			data.Breakdown = append(data.Breakdown, templates.BreakdownShotView{
+				Index: i, Title: sh.Title, NarrativePurpose: sh.NarrativePurpose, MustNotice: sh.MustNotice,
+				StartState: sh.StartState, VisibleChange: sh.VisibleChange, EndState: sh.EndState,
+				Framing: sh.Framing, DurationMs: sh.DurationTargetMs, TransitionIn: sh.TransitionIn,
+				TransitionOut: sh.TransitionOut, Continuity: sh.Continuity, GenerationMethod: sh.GenerationMethod,
+				Justification: sh.Justification,
+			})
+		}
 	}
 	s.renderPage(w, r, templates.ProposalPage(data))
 }
@@ -402,8 +440,95 @@ func (s *Server) handleProposalApply(w http.ResponseWriter, r *http.Request) {
 		_ = s.store.Audit(r.Context(), project.WorkspaceID, user.ID, "blocking.applied", "proposal", proposal.ID, "applied blocking proposal", "{}")
 		http.Redirect(w, r, withQuery(s.blockingURL(r, payload.ShotID), flashQuery("Blocking applied.", "success")), http.StatusSeeOther)
 		return
+	case "scene_plan":
+		var payload struct {
+			SceneID string `json:"scene_id"`
+			*planner.BeatPayload
+		}
+		if err := json.Unmarshal([]byte(proposal.PayloadJSON), &payload); err != nil || payload.BeatPayload == nil || payload.SceneID == "" {
+			s.notFound(w, r)
+			return
+		}
+		if inVideo, _ := s.store.SceneInVideo(r.Context(), payload.SceneID, video.ID); !inVideo {
+			s.notFound(w, r)
+			return
+		}
+		applied := 0
+		for i, b := range payload.Beats {
+			if r.FormValue("c_beat_"+itoa(i)) == "" {
+				continue
+			}
+			if _, err := s.store.CreateBeat(r.Context(), payload.SceneID,
+				formValueOr(r, "f_beat_title_"+itoa(i), b.Title),
+				formValueOr(r, "f_beat_purpose_"+itoa(i), b.Purpose),
+				formValueOr(r, "f_beat_trigger_"+itoa(i), b.Trigger),
+				formValueOr(r, "f_beat_action_"+itoa(i), b.Action),
+				formValueOr(r, "f_beat_reaction_"+itoa(i), b.Reaction),
+				formValueOr(r, "f_beat_state_"+itoa(i), b.ResultingState),
+				formValueOr(r, "f_beat_effect_"+itoa(i), b.IntendedAudienceEffect),
+				b.DurationBudgetMs); err != nil {
+				s.log.Error("apply beat", "err", err)
+				continue
+			}
+			applied++
+		}
+		_ = s.store.DecideProposal(r.Context(), proposal.ID, "applied", user.ID)
+		_ = s.store.Audit(r.Context(), project.WorkspaceID, user.ID, "beats.applied", "proposal", proposal.ID, "applied beat proposal", "{}")
+		http.Redirect(w, r, s.outlineURL(r)+"?msg="+urlMsg(itoa(applied)+" beat(s) applied.")+"&kind=success", http.StatusSeeOther)
+		return
+	case "shot_plan":
+		var payload struct {
+			BeatID string `json:"beat_id"`
+			*planner.ShotBreakdownPayload
+		}
+		if err := json.Unmarshal([]byte(proposal.PayloadJSON), &payload); err != nil || payload.ShotBreakdownPayload == nil || payload.BeatID == "" {
+			s.notFound(w, r)
+			return
+		}
+		if inVideo, _ := s.store.BeatInVideo(r.Context(), payload.BeatID, video.ID); !inVideo {
+			s.notFound(w, r)
+			return
+		}
+		applied := 0
+		for i, sh := range payload.Shots {
+			if r.FormValue("c_shot_"+itoa(i)) == "" {
+				continue
+			}
+			treatment := formValueOr(r, "f_shot_treatment_"+itoa(i), breakdownTreatment(sh))
+			if _, err := s.store.CreateShotInBeat(r.Context(), payload.BeatID, user.ID,
+				formValueOr(r, "f_shot_title_"+itoa(i), sh.Title),
+				formValueOr(r, "f_shot_purpose_"+itoa(i), sh.NarrativePurpose),
+				treatment, sh.DurationTargetMs); err != nil {
+				s.log.Error("apply shot", "err", err)
+				continue
+			}
+			applied++
+		}
+		_ = s.store.DecideProposal(r.Context(), proposal.ID, "applied", user.ID)
+		_ = s.store.Audit(r.Context(), project.WorkspaceID, user.ID, "shots.applied", "proposal", proposal.ID, "applied shot-breakdown proposal", "{}")
+		http.Redirect(w, r, s.outlineURL(r)+"?msg="+urlMsg(itoa(applied)+" shot(s) applied.")+"&kind=success", http.StatusSeeOther)
+		return
 	}
 	http.Redirect(w, r, s.proposalURL(r, proposal.ID), http.StatusSeeOther)
+}
+
+// breakdownTreatment folds a proposed shot's production guidance into the
+// shot's treatment text so nothing the planner explained is lost.
+func breakdownTreatment(sh planner.BreakdownShot) string {
+	parts := []string{}
+	if sh.Framing != "" {
+		parts = append(parts, "Framing: "+sh.Framing)
+	}
+	if sh.VisibleChange != "" {
+		parts = append(parts, "Change: "+sh.VisibleChange)
+	}
+	if sh.GenerationMethod != "" {
+		parts = append(parts, "Method: "+sh.GenerationMethod)
+	}
+	if sh.Justification != "" {
+		parts = append(parts, "Why: "+sh.Justification)
+	}
+	return strings.Join(parts, "\n")
 }
 
 func (s *Server) applyOutline(r *http.Request, project *store.Project, video *store.Video, payload planner.OutlinePayload, userID string) error {

@@ -92,6 +92,8 @@ func TestAuthorizationMatrix(t *testing.T) {
 		{"update beat", "PATCH", v("/beats/missing"), edit},
 		{"delete beat", "DELETE", v("/beats/missing"), edit},
 		{"move beat", "POST", v("/beats/missing/move"), edit},
+		{"propose beats", "POST", v("/scenes/" + scene.ID + "/propose-beats"), edit},
+		{"propose shots", "POST", v("/beats/missing/propose-shots"), edit},
 		{"update shot", "PATCH", v("/shots/" + shot.ID), edit},
 		{"delete shot", "DELETE", v("/shots/missing"), edit},
 		{"move shot", "POST", v("/shots/" + shot.ID + "/move"), edit},

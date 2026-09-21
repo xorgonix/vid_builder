@@ -156,6 +156,8 @@ func (s *Server) Handler() http.Handler {
 				r.With(canEdit).Patch("/beats/{beatID}", s.handleUpdateBeat)
 				r.With(canEdit).Delete("/beats/{beatID}", s.handleDeleteBeat)
 				r.With(canEdit).Post("/beats/{beatID}/move", s.handleMoveBeat)
+				r.With(canEdit).Post("/scenes/{sceneID}/propose-beats", s.handleProposeBeats)
+				r.With(canEdit).Post("/beats/{beatID}/propose-shots", s.handleProposeShots)
 				r.With(canEdit).Patch("/shots/{shotID}", s.handleUpdateShot)
 				r.With(canEdit).Delete("/shots/{shotID}", s.handleDeleteShot)
 				r.With(canEdit).Post("/shots/{shotID}/move", s.handleMoveShot)

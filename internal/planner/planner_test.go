@@ -138,3 +138,76 @@ func TestOutlineProposalAcceptsCompleteStructure(t *testing.T) {
 		t.Fatalf("unexpected structure: %+v", got)
 	}
 }
+
+func TestStructureProposalValidation(t *testing.T) {
+	fake := testutil.NewLMStudio(t)
+	fake.SetJSON(map[string]any{"summary": "s"})
+	p := newPlanner(t, fake)
+	if _, err := p.StructureProposal(context.Background(), "", "", "", nil); err == nil {
+		t.Fatal("empty structure should be rejected")
+	}
+
+	fake = testutil.NewLMStudio(t)
+	fake.SetJSON(map[string]any{
+		"summary": "s",
+		"sections": []map[string]any{
+			{"title": "Act 1", "scenes": []map[string]any{
+				{"title": "Opening", "purpose": "hook", "opening_state": "still", "ending_state": "moving"},
+			}},
+		},
+	})
+	p = newPlanner(t, fake)
+	got, err := p.StructureProposal(context.Background(), "", "", "", nil)
+	if err != nil {
+		t.Fatalf("structure: %v", err)
+	}
+	if len(got.Sections) != 1 || len(got.Sections[0].Scenes) != 1 {
+		t.Fatalf("unexpected structure: %+v", got)
+	}
+}
+
+func TestBeatProposalValidation(t *testing.T) {
+	fake := testutil.NewLMStudio(t)
+	fake.SetJSON(map[string]any{"summary": "s", "beats": []map[string]any{{"title": "B"}}})
+	p := newPlanner(t, fake)
+	if _, err := p.BeatProposal(context.Background(), "", "", "", nil); err == nil {
+		t.Fatal("a beat without an action should be rejected")
+	}
+
+	fake = testutil.NewLMStudio(t)
+	fake.SetJSON(map[string]any{"summary": "s", "beats": []map[string]any{
+		{"title": "B", "action": "she opens the door", "resulting_state": "empty room"},
+	}})
+	p = newPlanner(t, fake)
+	got, err := p.BeatProposal(context.Background(), "", "", "", nil)
+	if err != nil {
+		t.Fatalf("beat: %v", err)
+	}
+	if len(got.Beats) != 1 {
+		t.Fatalf("unexpected beats: %+v", got)
+	}
+}
+
+func TestShotBreakdownProposalValidation(t *testing.T) {
+	fake := testutil.NewLMStudio(t)
+	fake.SetJSON(map[string]any{"summary": "s", "shots": []map[string]any{
+		{"title": "S", "narrative_purpose": "p", "generation_method": "hologram"},
+	}})
+	p := newPlanner(t, fake)
+	if _, err := p.ShotBreakdownProposal(context.Background(), "", "", "", nil); err == nil {
+		t.Fatal("unknown generation_method should be rejected")
+	}
+
+	fake = testutil.NewLMStudio(t)
+	fake.SetJSON(map[string]any{"summary": "s", "shots": []map[string]any{
+		{"title": "Single shot", "narrative_purpose": "one shot is enough", "generation_method": "blocking_only"},
+	}})
+	p = newPlanner(t, fake)
+	got, err := p.ShotBreakdownProposal(context.Background(), "", "", "", nil)
+	if err != nil {
+		t.Fatalf("shot breakdown: %v", err)
+	}
+	if len(got.Shots) != 1 || got.Shots[0].GenerationMethod != "blocking_only" {
+		t.Fatalf("unexpected shots: %+v", got)
+	}
+}
