@@ -37,7 +37,7 @@ func TestMigrateFreshDatabase(t *testing.T) {
 	}
 
 	// Core v0.01 tables must exist after migration.
-	for _, tbl := range []string{"users", "workspaces", "projects", "videos", "sections", "scenes", "shots", "shot_specs", "assets", "jobs", "pairing_tokens", "app_settings"} {
+	for _, tbl := range []string{"users", "workspaces", "projects", "videos", "sections", "scenes", "shots", "shot_specs", "assets", "jobs", "pairing_tokens", "app_settings", "beats", "shot_states", "shot_cues", "animatics", "narrative_metrics"} {
 		var c int
 		if err := d.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, tbl).Scan(&c); err != nil {
 			t.Fatalf("lookup %s: %v", tbl, err)
