@@ -54,10 +54,12 @@ templ boardCard(data BoardData, card BoardCard) {
 			<div class="grid grid-cols-3 gap-2 items-start mt-2">
 				<div>
 					<div class="text-xs uppercase opacity-60 mb-1">Start</div>
-					if card.HasStart {
+					if card.HasStartAsset {
+						<img class="rounded-box border border-base-300 w-full" src={ templ.URL(card.StartAssetURL) } alt="start"/>
+					} else if card.HasStart {
 						<div class="rounded-box overflow-hidden border border-base-300">@templ.Raw(card.StartSVG)</div>
 					} else {
-						<div class="aspect-video bg-base-300/40 rounded-box grid place-items-center text-xs opacity-60">no blocking</div>
+						<div class="aspect-video bg-base-300/40 rounded-box grid place-items-center text-xs opacity-60">no endpoint</div>
 					}
 				</div>
 				<div>
@@ -66,10 +68,12 @@ templ boardCard(data BoardData, card BoardCard) {
 				</div>
 				<div>
 					<div class="text-xs uppercase opacity-60 mb-1">End</div>
-					if card.HasEnd {
+					if card.HasEndAsset {
+						<img class="rounded-box border border-base-300 w-full" src={ templ.URL(card.EndAssetURL) } alt="end"/>
+					} else if card.HasEnd {
 						<div class="rounded-box overflow-hidden border border-base-300">@templ.Raw(card.EndSVG)</div>
 					} else {
-						<div class="aspect-video bg-base-300/40 rounded-box grid place-items-center text-xs opacity-60">no blocking</div>
+						<div class="aspect-video bg-base-300/40 rounded-box grid place-items-center text-xs opacity-60">no endpoint</div>
 					}
 				</div>
 			</div>

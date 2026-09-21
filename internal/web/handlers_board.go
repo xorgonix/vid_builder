@@ -55,6 +55,15 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request) {
 					card.EndSVG = blocking.RenderSVG(blocking.Parse(b.SpecJSON))
 					card.HasEnd = true
 				}
+				// Endpoint precedence (spec §5.6): selected final → concept → blocking SVG.
+				if url, ok := s.endpointAssetURL(r, sh.ID, "start_frame"); ok {
+					card.StartAssetURL = url
+					card.HasStartAsset = true
+				}
+				if url, ok := s.endpointAssetURL(r, sh.ID, "end_frame"); ok {
+					card.EndAssetURL = url
+					card.HasEndAsset = true
+				}
 				if sp, err := s.store.GetCurrentSpec(r.Context(), sh.ID, "motion"); err == nil && sp != nil {
 					card.MotionText = sp.PositivePrompt
 				}
@@ -158,6 +167,19 @@ func (s *Server) handleCreateStyleRule(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = s.store.Audit(r.Context(), project.WorkspaceID, user.ID, "style_rule.create", "project", project.ID, "created style rule", "{}")
 	http.Redirect(w, r, "/w/"+ws.ID+"/projects/"+project.ID+"/bible?msg="+urlMsg("Style rule added.")+"&kind=success", http.StatusSeeOther)
+}
+
+// endpointAssetURL applies endpoint precedence: the selected final asset, then
+// any generated concept/candidate asset, then nothing (blocking SVG is the
+// fallback handled by the template) — spec §5.6.
+func (s *Server) endpointAssetURL(r *http.Request, shotID, role string) (string, bool) {
+	if sel, err := s.store.CurrentSelection(r.Context(), shotID, role); err == nil && sel != nil {
+		return "/assets/" + sel.AssetID, true
+	}
+	if assets, err := s.store.ListAssetsForShotRole(r.Context(), shotID, role); err == nil && len(assets) > 0 {
+		return "/assets/" + assets[0].ID, true
+	}
+	return "", false
 }
 
 // fillContinuity populates continuity-mode card fields: the transition into the

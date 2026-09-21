@@ -747,6 +747,21 @@ func (s *Store) GetCurrentSelection(ctx context.Context, shotID, role string) (*
 	return &sel, err
 }
 
+// CurrentSelection returns the active selected asset for a shot role, or nil.
+func (s *Store) CurrentSelection(ctx context.Context, shotID, role string) (*Selection, error) {
+	row := s.QueryRowContext(ctx, `SELECT id, shot_id, role, asset_id, shot_revision, selected_at, selected_by_user_id
+		FROM asset_selections WHERE shot_id=? AND role=? AND superseded_at IS NULL LIMIT 1`, shotID, role)
+	var sel Selection
+	err := row.Scan(&sel.ID, &sel.ShotID, &sel.Role, &sel.AssetID, &sel.ShotRevision, &sel.SelectedAt, &sel.SelectedBy)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &sel, nil
+}
+
 // ListAssetsForShotRole returns assets produced for a shot and output role.
 func (s *Store) ListAssetsForShotRole(ctx context.Context, shotID, role string) ([]Asset, error) {
 	rows, err := s.QueryContext(ctx, `SELECT a.id, a.workspace_id, a.project_id, a.generation_attempt_id, a.kind, a.role, a.storage_uri, a.mime_type, a.size_bytes, a.checksum_sha256, a.width, a.height, a.duration_ms, a.created_at

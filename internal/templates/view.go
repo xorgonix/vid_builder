@@ -419,19 +419,23 @@ type HistoryItem struct {
 
 // BoardCard is a storyboard card.
 type BoardCard struct {
-	ShotID     string
-	Title      string
-	Purpose    string
-	SceneTitle string
-	Readiness  string
-	Status     string
-	DurationMs int
-	StartSVG   string
-	EndSVG     string
-	HasStart   bool
-	HasEnd     bool
-	MotionText string
-	Stale      bool
+	ShotID        string
+	Title         string
+	Purpose       string
+	SceneTitle    string
+	Readiness     string
+	Status        string
+	DurationMs    int
+	StartSVG      string
+	EndSVG        string
+	HasStart      bool
+	HasEnd        bool
+	StartAssetURL string
+	EndAssetURL   string
+	HasStartAsset bool
+	HasEndAsset   bool
+	MotionText    string
+	Stale         bool
 
 	// Continuity mode
 	HasContinuity        bool

@@ -89,3 +89,31 @@ func TestPromptLegacyLockLayerStillCompiles(t *testing.T) {
 		t.Fatalf("legacy locked layer text missing from workbench")
 	}
 }
+
+// TestContinuityFeedsPromptContext proves endpoint state feeds the inherited
+// prompt context (spec 5.7).
+func TestContinuityFeedsPromptContext(t *testing.T) {
+	st := testutil.NewStore(t)
+	cfg := config.Default()
+	cfg.LLM.Enabled = false
+	h, _ := webapp.NewServer(t, st, cfg)
+
+	admin := testutil.MustAdmin(t, st)
+	ws := testutil.MustWorkspace(t, st)
+	project, video := testutil.MustProjectVideo(t, st, ws.ID, admin.ID, "Continuity prompt")
+	_, _, shot := testutil.MustShot(t, st, video.ID, admin.ID, "Shot")
+
+	if _, err := st.SaveShotState(t.Context(), shot.ID, "end", `{"characters":[{"id":"c1","name":"Elena"}],"setting":"kitchen","emotion":"uneasy"}`, "human", admin.ID); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+
+	c := testutil.NewClient(t, h)
+	c.LoginAdmin()
+	base := "/w/" + ws.ID + "/projects/" + project.ID + "/videos/" + video.ID
+	page := testutil.MustStatus(t, c.Get(base+"/shots/"+shot.ID+"/prompt-workbench?kind=end_frame"), http.StatusOK)
+	for _, want := range []string{"Elena", "kitchen", "uneasy"} {
+		if !strings.Contains(page, want) {
+			t.Fatalf("continuity fact %q missing from prompt context", want)
+		}
+	}
+}

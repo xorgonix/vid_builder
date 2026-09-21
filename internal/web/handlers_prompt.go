@@ -5,11 +5,62 @@ import (
 	"net/http"
 	"strings"
 
+	"vidbuild/internal/continuity"
 	"vidbuild/internal/prompt"
 	"vidbuild/internal/templates"
 )
 
-var layerScopes = []string{"project_style", "character", "location", "first_frame", "last_frame", "motion", "workflow", "experiment"}
+var layerScopes = []string{"project_style", "character", "location", "continuity", "first_frame", "last_frame", "motion", "workflow", "experiment"}
+
+// continuityBase projects a shot's semantic endpoint state into prompt context
+// so continuity feeds the compiled prompt (spec §5.7).
+func (s *Server) continuityBase(r *http.Request, shotID, kind string) string {
+	var parts []string
+	load := func(endpoint string) {
+		var st continuity.State
+		if err := json.Unmarshal([]byte(s.loadStateJSON(r, shotID, endpoint)), &st); err != nil {
+			return
+		}
+		for _, c := range st.Characters {
+			if c.Name != "" {
+				parts = append(parts, c.Name)
+			}
+		}
+		for _, p := range st.Props {
+			if p.Name != "" {
+				parts = append(parts, p.Name)
+			}
+		}
+		for _, v := range []string{st.Setting, st.Time, st.Weather, st.Emotion} {
+			if v != "" {
+				parts = append(parts, v)
+			}
+		}
+	}
+	switch kind {
+	case "end_frame":
+		load("end")
+	case "motion":
+		load("start")
+		load("end")
+	default:
+		load("start")
+	}
+	return strings.Join(parts, ", ")
+}
+
+// promptBaseWithContinuity combines project style context with endpoint state.
+func (s *Server) promptBaseWithContinuity(r *http.Request, projectID, shotID, kind string) (string, string) {
+	basePos, baseNeg := s.promptBase(r, projectID)
+	if cb := s.continuityBase(r, shotID, kind); cb != "" {
+		if basePos == "" {
+			basePos = cb
+		} else {
+			basePos = basePos + ", " + cb
+		}
+	}
+	return basePos, baseNeg
+}
 
 func (s *Server) promptBase(r *http.Request, projectID string) (string, string) {
 	var parts []string
@@ -55,7 +106,7 @@ func (s *Server) handlePromptWorkbench(w http.ResponseWriter, r *http.Request) {
 	if kind == "" {
 		kind = "start_frame"
 	}
-	basePos, baseNeg := s.promptBase(r, project.ID)
+	basePos, baseNeg := s.promptBaseWithContinuity(r, project.ID, shotID, kind)
 	layers := s.loadLayers(r, shotID, kind)
 	spec, _ := s.store.GetCurrentSpec(r.Context(), shotID, kind)
 	data := templates.PromptWorkbenchData{
@@ -128,7 +179,7 @@ func (s *Server) handlePromptPreview(w http.ResponseWriter, r *http.Request) {
 	if kind == "" {
 		kind = "start_frame"
 	}
-	basePos, baseNeg := s.promptBase(r, project.ID)
+	basePos, baseNeg := s.promptBaseWithContinuity(r, project.ID, shotID, kind)
 	_ = kind
 	layers := layersFromForm(r)
 	compiled := prompt.Compile(basePos, baseNeg, layers)
@@ -150,7 +201,7 @@ func (s *Server) handlePromptSave(w http.ResponseWriter, r *http.Request) {
 	if kind == "" {
 		kind = "start_frame"
 	}
-	basePos, baseNeg := s.promptBase(r, project.ID)
+	basePos, baseNeg := s.promptBaseWithContinuity(r, project.ID, shotID, kind)
 	layers := layersFromForm(r)
 	compiled := prompt.Compile(basePos, baseNeg, layers)
 	layersJSON, _ := json.Marshal(layers)
