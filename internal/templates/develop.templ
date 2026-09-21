@@ -148,7 +148,12 @@ templ proposalList(data DevelopData) {
 				<a class="link link-hover text-sm" href={ templ.URL(data.Shell.VideoBase() + "/proposals/" + p.ID) }>
 					<span class="badge badge-ghost badge-xs mr-1">{ p.Type }</span>{ p.Summary }
 				</a>
-				<span class={ "badge badge-sm", proposalStatusClass(p.Status) }>{ p.Status }</span>
+				<span class="flex items-center gap-1">
+					if p.Stale {
+						<span class="badge badge-warning badge-sm" title="The underlying structure changed since this proposal was made">stale</span>
+					}
+					<span class={ "badge badge-sm", proposalStatusClass(p.Status) }>{ p.Status }</span>
+				</span>
 			</li>
 		}
 	</ul>

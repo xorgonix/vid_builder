@@ -203,3 +203,54 @@ func TestProposalDecisions(t *testing.T) {
 		t.Fatalf("rejected proposal = %q/%q", rejected.Status, rejected.DecisionReason)
 	}
 }
+
+// TestProposalStaleness proves a changed scene marks dependent proposals stale
+// without deleting them (spec §15).
+func TestProposalStaleness(t *testing.T) {
+	st := testutil.NewStore(t)
+	fake := testutil.NewLMStudio(t)
+	cfg := config.Default()
+	cfg.LLM.Enabled = true
+	cfg.LLM.BaseURL = fake.URL
+	cfg.LLM.Model = "test-model"
+	cfg.LLM.RequestTimeoutSec = 5
+	h, _ := webapp.NewServer(t, st, cfg)
+
+	admin := testutil.MustAdmin(t, st)
+	ws := testutil.MustWorkspace(t, st)
+	project, video := testutil.MustProjectVideo(t, st, ws.ID, admin.ID, "Stale")
+	_, scene, _ := testutil.MustShot(t, st, video.ID, admin.ID, "Shot A")
+
+	c := testutil.NewClient(t, h)
+	c.LoginAdmin()
+	base := "/w/" + ws.ID + "/projects/" + project.ID + "/videos/" + video.ID
+
+	fake.SetJSON(map[string]any{
+		"summary": "beats",
+		"beats":   []map[string]any{{"title": "One", "action": "a"}},
+	})
+	resp := c.PostForm(base+"/scenes/"+scene.ID+"/propose-beats", url.Values{})
+	testutil.MustStatus(t, resp, http.StatusSeeOther)
+	id := proposalIDFrom(t, testutil.Location(resp))
+
+	page := testutil.MustStatus(t, c.Get(base+"/proposals/"+id), http.StatusOK)
+	if strings.Contains(page, "stale") {
+		t.Fatalf("fresh proposal should not be stale")
+	}
+
+	if err := st.UpdateScene(t.Context(), scene.ID, "Scene renamed", "", "purpose", "moderate", "", 5000, scene.Revision); err != nil {
+		t.Fatalf("update scene: %v", err)
+	}
+
+	page = testutil.MustStatus(t, c.Get(base+"/proposals/"+id), http.StatusOK)
+	if !strings.Contains(page, "stale") {
+		t.Fatalf("proposal should be marked stale after the scene changed")
+	}
+	dev := testutil.MustStatus(t, c.Get(base+"/develop"), http.StatusOK)
+	if !strings.Contains(dev, "stale") {
+		t.Fatalf("develop list should mark the stale proposal")
+	}
+	if _, err := st.GetProposal(t.Context(), id); err != nil {
+		t.Fatalf("stale proposal must not be deleted: %v", err)
+	}
+}

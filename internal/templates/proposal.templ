@@ -12,6 +12,9 @@ templ proposalBody(data ProposalData) {
 				<p class="opacity-70 text-sm">
 					<span class="badge badge-ghost badge-sm mr-1">{ data.Proposal.Type }</span>
 					<span class={ "badge badge-sm", proposalStatusClass(data.Proposal.Status) }>{ data.Proposal.Status }</span>
+					if data.Proposal.Stale {
+						<span class="badge badge-warning badge-sm">stale — the underlying structure changed</span>
+					}
 				</p>
 			</div>
 			<a class="btn btn-sm btn-ghost" href={ templ.URL(data.Shell.VideoBase() + "/develop") }>Back to Develop</a>

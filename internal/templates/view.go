@@ -185,6 +185,7 @@ type ProposalView struct {
 	Type      string
 	Summary   string
 	Status    string
+	Stale     bool
 	CreatedAt string
 }
 

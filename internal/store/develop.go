@@ -36,6 +36,7 @@ type Proposal struct {
 	ProjectID         string
 	VideoID           sql.NullString
 	ProposalType      string
+	SourceRevision    sql.NullInt64
 	PayloadJSON       string
 	Summary           string
 	Status            string
@@ -195,9 +196,9 @@ func (s *Store) CreateProposal(ctx context.Context, projectID, videoID, proposal
 
 // GetProposal fetches a proposal.
 func (s *Store) GetProposal(ctx context.Context, id string) (*Proposal, error) {
-	row := s.QueryRowContext(ctx, `SELECT id, project_id, video_id, proposal_type, payload_json, summary, status, model_id, decision_reason, regenerated_from_id, created_at FROM proposals WHERE id=?`, id)
+	row := s.QueryRowContext(ctx, `SELECT id, project_id, video_id, proposal_type, source_revision, payload_json, summary, status, model_id, decision_reason, regenerated_from_id, created_at FROM proposals WHERE id=?`, id)
 	var p Proposal
-	err := row.Scan(&p.ID, &p.ProjectID, &p.VideoID, &p.ProposalType, &p.PayloadJSON, &p.Summary, &p.Status, &p.ModelID, &p.DecisionReason, &p.RegeneratedFromID, &p.CreatedAt)
+	err := row.Scan(&p.ID, &p.ProjectID, &p.VideoID, &p.ProposalType, &p.SourceRevision, &p.PayloadJSON, &p.Summary, &p.Status, &p.ModelID, &p.DecisionReason, &p.RegeneratedFromID, &p.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -206,7 +207,7 @@ func (s *Store) GetProposal(ctx context.Context, id string) (*Proposal, error) {
 
 // ListProposals returns proposals for a project/video.
 func (s *Store) ListProposals(ctx context.Context, projectID, videoID string) ([]Proposal, error) {
-	rows, err := s.QueryContext(ctx, `SELECT id, project_id, video_id, proposal_type, payload_json, summary, status, model_id, created_at
+	rows, err := s.QueryContext(ctx, `SELECT id, project_id, video_id, proposal_type, source_revision, payload_json, summary, status, model_id, created_at
 		FROM proposals WHERE project_id=? AND (video_id=? OR video_id IS NULL) ORDER BY created_at DESC`, projectID, videoID)
 	if err != nil {
 		return nil, err
@@ -215,7 +216,7 @@ func (s *Store) ListProposals(ctx context.Context, projectID, videoID string) ([
 	var out []Proposal
 	for rows.Next() {
 		var p Proposal
-		if err := rows.Scan(&p.ID, &p.ProjectID, &p.VideoID, &p.ProposalType, &p.PayloadJSON, &p.Summary, &p.Status, &p.ModelID, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.ProjectID, &p.VideoID, &p.ProposalType, &p.SourceRevision, &p.PayloadJSON, &p.Summary, &p.Status, &p.ModelID, &p.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, p)

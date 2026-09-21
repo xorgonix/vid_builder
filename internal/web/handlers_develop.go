@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -11,6 +12,36 @@ import (
 	"vidbuild/internal/store"
 	"vidbuild/internal/templates"
 )
+
+// proposalStale reports whether an open proposal's source revision no longer
+// matches its underlying entity. Stale proposals are marked, never deleted
+// (spec §15).
+func (s *Server) proposalStale(ctx context.Context, p store.Proposal, project *store.Project, video *store.Video) bool {
+	if !p.SourceRevision.Valid || p.Status != "proposed" {
+		return false
+	}
+	switch p.ProposalType {
+	case "project_brief":
+		return p.SourceRevision.Int64 != int64(project.Revision)
+	case "video_outline":
+		return p.SourceRevision.Int64 != int64(video.Revision)
+	case "scene_plan":
+		var payload struct {
+			SceneID string `json:"scene_id"`
+		}
+		_ = json.Unmarshal([]byte(p.PayloadJSON), &payload)
+		sc, err := s.store.GetScene(ctx, payload.SceneID)
+		return err == nil && p.SourceRevision.Int64 != int64(sc.Revision)
+	case "shot_plan":
+		var payload struct {
+			BeatID string `json:"beat_id"`
+		}
+		_ = json.Unmarshal([]byte(p.PayloadJSON), &payload)
+		bt, err := s.store.GetBeat(ctx, payload.BeatID)
+		return err == nil && p.SourceRevision.Int64 != int64(bt.Revision)
+	}
+	return false
+}
 
 var briefFields = []struct{ Key, Label string }{
 	{"premise", "Premise"},
@@ -66,7 +97,10 @@ func (s *Server) handleDevelop(w http.ResponseWriter, r *http.Request) {
 	}
 	proposals, _ := s.store.ListProposals(r.Context(), project.ID, video.ID)
 	for _, p := range proposals {
-		data.Proposals = append(data.Proposals, templates.ProposalView{ID: p.ID, Type: p.ProposalType, Summary: p.Summary, Status: p.Status, CreatedAt: p.CreatedAt})
+		data.Proposals = append(data.Proposals, templates.ProposalView{
+			ID: p.ID, Type: p.ProposalType, Summary: p.Summary, Status: p.Status,
+			Stale: s.proposalStale(r.Context(), p, project, video), CreatedAt: p.CreatedAt,
+		})
 	}
 	if m := r.URL.Query().Get("msg"); m != "" {
 		data.Error = m
@@ -212,7 +246,7 @@ func (s *Server) handleProposalView(w http.ResponseWriter, r *http.Request) {
 	}
 	data := templates.ProposalData{
 		Shell: shell, Project: toProjectView(project), Video: toVideoView(video),
-		Proposal: templates.ProposalView{ID: proposal.ID, Type: proposal.ProposalType, Summary: proposal.Summary, Status: proposal.Status, CreatedAt: proposal.CreatedAt},
+		Proposal: templates.ProposalView{ID: proposal.ID, Type: proposal.ProposalType, Summary: proposal.Summary, Status: proposal.Status, Stale: s.proposalStale(r.Context(), *proposal, project, video), CreatedAt: proposal.CreatedAt},
 	}
 	switch proposal.ProposalType {
 	case "project_brief":
