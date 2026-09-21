@@ -400,6 +400,30 @@ The **Board** gains a **Continuity** mode showing each shot's outgoing transitio
 inherited facts, screen direction and warnings (no transition, no motivation, no end
 state recorded).
 
+### 9.5 The playable animatic
+
+**Animatic** (`.../videos/{video}/animatic`) plays the whole film as timed blocking
+before any image generation. For each shot it shows the start blocking, holds or
+interpolates supported properties toward the end blocking, shows dialogue/caption cues at
+their offsets, optionally speaks placeholder dialogue with browser speech synthesis, and
+advances by the shot's target duration.
+
+Controls: play/pause (space), restart, previous/next shot, scrub, playback speed, loop
+shot/beat/scene, captions on/off, placeholder voice on/off, purpose/metrics overlay and
+full screen.
+
+- **Timing edits** — change a shot's duration inline; it saves with an optimistic revision
+  check and the total updates immediately.
+- **Cues** — add and edit dialogue, voiceover, sound, music, caption and action cues with
+  start and duration in milliseconds.
+- **Narrative metrics** — dramatic intensity, visual intensity, tension, information
+  density and emotional valence, per shot. Any metric may be left unset. Metrics are
+  planning guides, not scientific claims, and never change shots by themselves.
+- **Approve animatic** records the animatic as approved.
+
+Blocking playback represents intended timing and staging only. It does **not** predict
+final model motion; unsupported motion stays represented by arrows and captions.
+
 ---
 
 ## 10. Prompt workbench

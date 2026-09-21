@@ -1,7 +1,15 @@
 // Package templates holds server-rendered templ components for vid-build 0.01.
 package templates
 
-import "vidbuild/internal/continuity"
+import (
+	"strconv"
+
+	"vidbuild/internal/animatic"
+	"vidbuild/internal/continuity"
+)
+
+// trimFloat formats a float without trailing zeros for form values.
+func trimFloat(f float64) string { return strconv.FormatFloat(f, 'g', -1, 64) }
 
 // ShellData is the shared chrome data for every authenticated page.
 type ShellData struct {
@@ -253,6 +261,54 @@ type InheritFlag struct {
 	Key     string
 	Label   string
 	Checked bool
+}
+
+// AnimaticData backs the playable animatic.
+type AnimaticData struct {
+	Shell           ShellData
+	Project         ProjectView
+	Video           VideoView
+	Settings        animatic.Settings
+	Status          string
+	Revision        int
+	TotalDurationMs int
+	Shots           []AnimaticShotView
+}
+
+// AnimaticShotView is one shot row in the animatic page.
+type AnimaticShotView struct {
+	ID         string
+	Title      string
+	Purpose    string
+	SceneTitle string
+	BeatTitle  string
+	DurationMs int
+	Revision   int
+	StartSVG   string
+	Cues       []CueView
+	Metrics    MetricValuesView
+}
+
+// CueView is one timed cue row.
+type CueView struct {
+	ID          string
+	CueType     string
+	CharacterID string
+	Content     string
+	Delivery    string
+	Subtext     string
+	StartMs     int
+	DurationMs  int
+	Revision    int
+}
+
+// MetricValuesView holds metric inputs as strings (empty means unset).
+type MetricValuesView struct {
+	Dramatic string
+	Visual   string
+	Tension  string
+	Info     string
+	Valence  string
 }
 
 // ContinuityData backs the shot state and transition editor.

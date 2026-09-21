@@ -1,0 +1,205 @@
+package templates
+
+templ AnimaticPage(data AnimaticData) {
+	@shell(data.Shell, animaticBody(data))
+}
+
+templ animaticBody(data AnimaticData) {
+	<script src="/static/animatic.js" defer></script>
+	<div class="max-w-7xl mx-auto">
+		<div class="flex items-start justify-between mb-4 flex-wrap gap-2">
+			<div>
+				<h1 class="text-2xl font-bold">Animatic — { data.Video.Title }</h1>
+				<p class="opacity-70 text-sm">Play the whole film as timed blocking before spending a GPU-second. Blocking playback does <strong>not</strong> predict final model motion.</p>
+			</div>
+			<div class="flex items-center gap-2">
+				<span class={ "badge badge-sm", animaticStatusClass(data.Status) }>{ data.Status }</span>
+				<span class="text-xs opacity-70">total { data.TotalDurationMs / 1000 }s</span>
+				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/animatic/approve") }>
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<button class="btn btn-sm btn-primary" type="submit">Approve animatic</button>
+				</form>
+			</div>
+		</div>
+
+		<div id="animatic-player" data-src={ templ.URL(data.Shell.VideoBase() + "/animatic/data") } class="card bg-base-100 shadow mb-4">
+			<div class="card-body">
+				<div class="animatic-stage rounded-box overflow-hidden border border-base-300 bg-base-300/20 aspect-video grid place-items-center">
+					<div class="animatic-frame w-full h-full">@templ.Raw(animaticFirstSVG(data))</div>
+					<div class="animatic-captions absolute"></div>
+				</div>
+				<div class="animatic-controls flex flex-wrap items-center gap-1 mt-2">
+					<button class="btn btn-sm animatic-play" type="button">Play</button>
+					<button class="btn btn-sm animatic-restart" type="button">Restart</button>
+					<button class="btn btn-sm animatic-prev" type="button">Prev</button>
+					<button class="btn btn-sm animatic-next" type="button">Next</button>
+					<input class="range range-xs w-48 animatic-scrub" type="range" min="0" max="1000" value="0"/>
+					<span class="text-xs opacity-70 animatic-time">0.0s</span>
+					<label class="text-xs flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs animatic-captions-toggle" checked="checked"/>captions</label>
+					<label class="text-xs flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs animatic-voice-toggle"/>voice</label>
+					<label class="text-xs flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs animatic-overlay-toggle"/>overlay</label>
+					<select class="select select-bordered select-xs animatic-speed">
+						<option value="0.5">0.5x</option>
+						<option value="1" selected="selected">1x</option>
+						<option value="1.5">1.5x</option>
+						<option value="2">2x</option>
+					</select>
+					<select class="select select-bordered select-xs animatic-loop">
+						<option value="none" selected="selected">no loop</option>
+						<option value="shot">loop shot</option>
+						<option value="beat">loop beat</option>
+						<option value="scene">loop scene</option>
+					</select>
+					<button class="btn btn-sm animatic-fullscreen" type="button">Full screen</button>
+				</div>
+				<div class="animatic-overlay text-xs opacity-80 mt-1"></div>
+			</div>
+		</div>
+
+		<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/animatic/settings") } class="card bg-base-100 shadow mb-4">
+			<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+			<input type="hidden" name="_method" value="PATCH"/>
+			<input type="hidden" name="revision" value={ itoaT(data.Revision) }/>
+			<div class="card-body">
+				<h2 class="card-title text-base">Playback settings</h2>
+				<div class="flex flex-wrap gap-3 items-end">
+					<label class="form-control">
+						<span class="label-text text-xs">Speed</span>
+						<input class="input input-bordered input-sm w-24" type="number" step="0.25" min="0.25" max="4" name="speed" value={ animaticSpeed(data.Settings.Speed) }/>
+					</label>
+					<label class="label cursor-pointer gap-2"><span class="label-text text-xs">Captions</span><input type="checkbox" class="checkbox checkbox-sm" name="captions" checked?={ data.Settings.Captions }/></label>
+					<label class="label cursor-pointer gap-2"><span class="label-text text-xs">Voice</span><input type="checkbox" class="checkbox checkbox-sm" name="voice" checked?={ data.Settings.Voice }/></label>
+					<label class="label cursor-pointer gap-2"><span class="label-text text-xs">Transition preview</span><input type="checkbox" class="checkbox checkbox-sm" name="transition_preview" checked?={ data.Settings.TransitionPreview }/></label>
+					<label class="label cursor-pointer gap-2"><span class="label-text text-xs">Metrics overlay</span><input type="checkbox" class="checkbox checkbox-sm" name="metrics_overlay" checked?={ data.Settings.MetricsOverlay }/></label>
+					<label class="form-control">
+						<span class="label-text text-xs">Loop</span>
+						<select class="select select-bordered select-sm" name="loop_mode">
+							@loopOption("none", data.Settings.LoopMode)
+							@loopOption("shot", data.Settings.LoopMode)
+							@loopOption("beat", data.Settings.LoopMode)
+							@loopOption("scene", data.Settings.LoopMode)
+						</select>
+					</label>
+					<button class="btn btn-sm btn-primary" type="submit">Save settings</button>
+				</div>
+			</div>
+		</form>
+
+		<div class="flex flex-col gap-4">
+			for _, shot := range data.Shots {
+				@animaticShot(data, shot)
+			}
+		</div>
+	</div>
+}
+
+templ animaticShot(data AnimaticData, shot AnimaticShotView) {
+	<div class="card bg-base-100 shadow" id={ "animatic-shot-" + shot.ID } data-shot-id={ shot.ID } data-beat-id={ shot.BeatTitle } data-scene={ shot.SceneTitle }>
+		<div class="card-body">
+			<div class="flex items-center justify-between gap-2">
+				<div>
+					<h2 class="card-title text-base">{ shot.Title }</h2>
+					<p class="text-xs opacity-70">{ shot.SceneTitle } · { shot.BeatTitle } · { shot.Purpose }</p>
+				</div>
+				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + shot.ID) } class="flex items-end gap-2">
+					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+					<input type="hidden" name="_method" value="PATCH"/>
+					<input type="hidden" name="revision" value={ itoaT(shot.Revision) }/>
+					<input type="hidden" name="title" value={ shot.Title }/>
+					<input type="hidden" name="purpose" value={ shot.Purpose }/>
+					<label class="form-control">
+						<span class="label-text text-xs">Duration (s)</span>
+						<input class="input input-bordered input-sm w-24" type="number" step="0.5" min="0.5" name="duration_s" value={ itoaT(shot.DurationMs / 1000) }/>
+					</label>
+					<button class="btn btn-sm" type="submit">Save timing</button>
+				</form>
+			</div>
+
+			<div class="grid md:grid-cols-3 gap-3 mt-2">
+				<div class="md:col-span-1">
+					<div class="text-xs uppercase opacity-60 mb-1">Start blocking</div>
+					<div class="rounded-box overflow-hidden border border-base-300">@templ.Raw(shot.StartSVG)</div>
+				</div>
+				<div class="md:col-span-2">
+					<div class="text-xs uppercase opacity-60 mb-1">Cues</div>
+					<div class="flex flex-col gap-1">
+						for _, cue := range shot.Cues {
+							<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/cues/" + cue.ID) } class="flex flex-wrap items-end gap-1 border-b border-base-300 pb-1">
+								<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+								<input type="hidden" name="_method" value="PATCH"/>
+								<input type="hidden" name="revision" value={ itoaT(cue.Revision) }/>
+								<span class="badge badge-ghost badge-sm">{ cue.CueType }</span>
+								<input class="input input-bordered input-xs w-20" type="number" name="start_ms" value={ itoaT(cue.StartMs) } title="start ms"/>
+								<input class="input input-bordered input-xs w-20" type="number" name="duration_ms" value={ itoaT(cue.DurationMs) } title="duration ms"/>
+								<input class="input input-bordered input-xs flex-1 min-w-40" name="content" value={ cue.Content } placeholder="content"/>
+								<input class="input input-bordered input-xs w-28" name="delivery" value={ cue.Delivery } placeholder="delivery"/>
+								<button class="btn btn-xs" type="submit">Save</button>
+								<button class="btn btn-xs btn-ghost" type="submit" formaction={ templ.URL(data.Shell.VideoBase() + "/cues/" + cue.ID) } name="_method" value="DELETE">Delete</button>
+							</form>
+						}
+						<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/shots/" + shot.ID + "/cues") } class="flex flex-wrap items-end gap-1 mt-1">
+							<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+							<select class="select select-bordered select-xs" name="cue_type">
+								for _, t := range []string{"dialogue", "voiceover", "sound", "music", "caption", "action"} {
+									<option value={ t }>{ t }</option>
+								}
+							</select>
+							<input class="input input-bordered input-xs w-20" type="number" name="start_ms" placeholder="start" value="0"/>
+							<input class="input input-bordered input-xs w-20" type="number" name="duration_ms" placeholder="dur" value="0"/>
+							<input class="input input-bordered input-xs flex-1 min-w-40" name="content" placeholder="cue content" required/>
+							<button class="btn btn-xs btn-primary" type="submit">Add cue</button>
+						</form>
+					</div>
+
+					<div class="text-xs uppercase opacity-60 mt-3 mb-1">Narrative metrics (optional, planning only)</div>
+					<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/metrics") } class="flex flex-wrap items-end gap-1">
+						<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+						<input type="hidden" name="entity_type" value="shot"/>
+						<input type="hidden" name="entity_id" value={ shot.ID }/>
+						<input class="input input-bordered input-xs w-16" type="number" min="0" max="100" name="dramatic_intensity" value={ shot.Metrics.Dramatic } placeholder="dram"/>
+						<input class="input input-bordered input-xs w-16" type="number" min="0" max="100" name="visual_intensity" value={ shot.Metrics.Visual } placeholder="vis"/>
+						<input class="input input-bordered input-xs w-16" type="number" min="0" max="100" name="tension" value={ shot.Metrics.Tension } placeholder="tens"/>
+						<input class="input input-bordered input-xs w-16" type="number" min="0" max="100" name="information_density" value={ shot.Metrics.Info } placeholder="info"/>
+						<input class="input input-bordered input-xs w-16" type="number" min="-100" max="100" name="emotional_valence" value={ shot.Metrics.Valence } placeholder="val"/>
+						<button class="btn btn-xs" type="submit">Save metrics</button>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+templ loopOption(value, current string) {
+	if value == current {
+		<option value={ value } selected="selected">{ value }</option>
+	} else {
+		<option value={ value }>{ value }</option>
+	}
+}
+
+func animaticFirstSVG(data AnimaticData) string {
+	if len(data.Shots) > 0 {
+		return data.Shots[0].StartSVG
+	}
+	return ""
+}
+
+func animaticSpeed(s float64) string {
+	if s == 0 {
+		return "1"
+	}
+	return trimFloat(s)
+}
+
+func animaticStatusClass(status string) string {
+	switch status {
+	case "approved":
+		return "badge-success"
+	case "review":
+		return "badge-info"
+	case "stale":
+		return "badge-warning"
+	default:
+		return "badge-ghost"
+	}
+}
