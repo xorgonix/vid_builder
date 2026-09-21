@@ -58,4 +58,20 @@ func TestBlockingSaveValidation(t *testing.T) {
 		t.Fatalf("foreign character reference should be rejected, redirect = %q", loc)
 	}
 	_ = resp.Body.Close()
+
+	// A v1 document is upgraded in memory and persisted as v2 on human save.
+	v1 := `{"canvas":{"width":1,"height":1},"camera":{"shot_size":"medium","angle":"eye","x":0.05,"y":0.05,"w":0.9,"h":0.9},"actors":[{"name":"Elena","x":0.4,"y":0.5,"body_rotation":0,"pose":"walking","gaze_x":0.5,"gaze_y":0.4,"facing":"camera"}]}`
+	resp = c.Patch(save, url.Values{"spec_json": {v1}})
+	if loc := testutil.Location(resp); !strings.Contains(loc, "kind=success") {
+		t.Fatalf("v1 save redirect = %q", loc)
+	}
+	_ = resp.Body.Close()
+
+	saved, err := st.GetBlockingForShot(t.Context(), shot.ID, "start_frame", "start")
+	if err != nil || saved == nil {
+		t.Fatalf("saved blocking: %v", err)
+	}
+	if !strings.Contains(saved.SpecJSON, "element_id") || !strings.Contains(saved.SpecJSON, `"version":2`) {
+		t.Fatalf("v1 blocking was not upgraded to v2 on save: %s", saved.SpecJSON)
+	}
 }

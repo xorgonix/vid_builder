@@ -7,13 +7,18 @@ import (
 	"strings"
 )
 
-// SchemaVersion is the current blocking document version (spec §8.4, §13.3).
-const SchemaVersion = 1
+// SchemaVersion is the current blocking document version (spec §7, §13.3).
+const SchemaVersion = 2
 
 var (
 	shotSizes = map[string]bool{"wide": true, "medium": true, "close": true, "extreme_close": true}
 	angles    = map[string]bool{"eye": true, "low": true, "high": true, "dutch": true}
 	facings   = map[string]bool{"left": true, "right": true, "camera": true, "away": true}
+	focalCats = map[string]bool{"wide": true, "normal": true, "telephoto": true, "macro": true, "fisheye": true}
+	poseCats  = map[string]bool{
+		"standing": true, "sitting": true, "walking": true, "running": true, "lying": true,
+		"crouching": true, "kneeling": true, "reaching": true, "leaning": true, "other": true,
+	}
 )
 
 // Validate checks the document against the versioned schema. Coordinates are
@@ -34,19 +39,36 @@ func (s Spec) Validate() error {
 	}
 
 	checkUnitRect(add, "camera", s.Camera.X, s.Camera.Y, s.Camera.W, s.Camera.H)
+	if !finite(s.Camera.Height) || s.Camera.Height < 0 || s.Camera.Height > 1 {
+		add("camera height must be between 0 and 1")
+	}
 	if s.Camera.ShotSize != "" && !shotSizes[s.Camera.ShotSize] {
 		add("camera shot_size %q is not one of wide, medium, close, extreme_close", s.Camera.ShotSize)
 	}
 	if s.Camera.Angle != "" && !angles[s.Camera.Angle] {
 		add("camera angle %q is not one of eye, low, high, dutch", s.Camera.Angle)
 	}
+	if s.Camera.FocalCategory != "" && !focalCats[s.Camera.FocalCategory] {
+		add("camera focal_category %q is not one of wide, normal, telephoto, macro, fisheye", s.Camera.FocalCategory)
+	}
 
 	for i, z := range s.Zones {
 		checkUnitRect(add, fmt.Sprintf("zone[%d]", i), z.X, z.Y, z.W, z.H)
 	}
+	actorIDs := map[string]bool{}
 	for i, a := range s.Actors {
 		if strings.TrimSpace(a.Name) == "" {
 			add("actor[%d] name is required", i)
+		}
+		if a.ElementID == "" {
+			add("actor[%d] is missing a stable element_id", i)
+		} else if actorIDs[a.ElementID] {
+			add("actor element_id %q is duplicated", a.ElementID)
+		} else {
+			actorIDs[a.ElementID] = true
+		}
+		if a.PoseCategory != "" && !poseCats[a.PoseCategory] {
+			add("actor[%d] pose_category %q is not a known pose", i, a.PoseCategory)
 		}
 		checkUnitPoint(add, fmt.Sprintf("actor[%d] position", i), a.X, a.Y)
 		checkUnitPoint(add, fmt.Sprintf("actor[%d] gaze", i), a.GazeX, a.GazeY)
@@ -57,9 +79,17 @@ func (s Spec) Validate() error {
 			add("actor[%d] facing %q is not one of left, right, camera, away", i, a.Facing)
 		}
 	}
+	propIDs := map[string]bool{}
 	for i, p := range s.Props {
 		if strings.TrimSpace(p.Name) == "" {
 			add("prop[%d] name is required", i)
+		}
+		if p.ElementID == "" {
+			add("prop[%d] is missing a stable element_id", i)
+		} else if propIDs[p.ElementID] {
+			add("prop element_id %q is duplicated", p.ElementID)
+		} else {
+			propIDs[p.ElementID] = true
 		}
 		checkUnitPoint(add, fmt.Sprintf("prop[%d]", i), p.X, p.Y)
 	}
@@ -80,15 +110,13 @@ func (s Spec) Validate() error {
 	return nil
 }
 
-// ValidateJSON decodes raw JSON and validates it against the schema.
+// ValidateJSON decodes raw JSON, upgrades it in memory to v2 and validates it.
 func ValidateJSON(raw string) error {
 	var s Spec
 	if err := json.Unmarshal([]byte(raw), &s); err != nil {
 		return fmt.Errorf("blocking: invalid JSON: %w", err)
 	}
-	if s.Version == 0 {
-		s.Version = SchemaVersion
-	}
+	s.NormalizeV2()
 	return s.Validate()
 }
 

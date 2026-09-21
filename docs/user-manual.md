@@ -332,7 +332,7 @@ the visible change, the shot is not ready to produce.
 **START · CHANGE · END** with readiness and duration.
 
 - **Display modes:** *Compact* (small thumbnails), *Director* (large, default),
-  *Production* (readiness emphasis).
+  *Production* (readiness emphasis), *Continuity* (transitions and inherited state).
 - **Filters:** All, or by readiness (`incomplete`, `blocking_ready`, `concept_ready`,
   `endpoint_ready`, `video_ready`, `complete`).
 - **Open** a shot or jump to its **Blocking** editor.
@@ -346,21 +346,32 @@ side by side with a **Detected change** panel between them.
 
 Controls on each side:
 
-- **Camera** — shot size (wide/medium/close/extreme close) and angle (eye/low/high/dutch).
-- **Actors** — name, position (x,y), pose, facing, gaze target; **+ actor** / remove.
-- **Props** — name, position; **+ prop** / remove.
-- **Arrows** — movement or camera; **+ arrow** / remove.
+- **Camera** — shot size (wide/medium/close/extreme close), angle (eye/low/high/dutch),
+  focal category and camera height.
+- **Actors** — stable element id, name, optional project-bible character id, position
+  (x,y), pose category plus free text, facing, gaze target; **+ actor** / remove.
+- **Props** — element id, name, state and position; **+ prop** / remove.
+- **Arrows** and **labels** — movement or camera arrows, production notes.
+- **Environment cues** — free-text cues (for example "curtain moves gently").
 
-Editing updates the SVG live. **Save start/end blocking** stores a new version.
-**Duplicate from opposite endpoint** copies the other side as a starting point — useful
-for continuity.
+Blocking is schema **version 2**: every actor, prop, label and arrow carries a **stable
+element id**, so comparison and interpolation match elements by id rather than by display
+name. Older version 1 documents are upgraded **in memory** and only rewritten to v2 when a
+human saves; stored rows are never silently rewritten.
+
+You can edit by **dragging directly on the sketch** (actors, props, gaze targets, camera
+frame, arrows) as well as through the property table. The toolbar offers add/remove,
+**mirror**, align, distribute, **lock** an element, and **undo/redo** for unsaved edits.
+Coordinates clamp to the valid range and the server validates the document on save.
 
 **Change analysis** compares start and end and reports shot-size, angle, camera
 position, actor position/pose/gaze/turn, props and arrows. If nothing changes it tells
 you plainly: *"No visible change detected — the shot lacks a payoff."*
 
 Every control has a **JSON fallback** (expand "Edit as JSON"): the same data can be typed
-directly, so blocking still works with JavaScript disabled.
+directly, so blocking still works with JavaScript disabled. Motion is also structured
+(subject motions with element id/action/timing/easing, camera motion, environment motion,
+negative motion) alongside the motion prompt.
 
 ### 9.3 Model-assisted blocking
 

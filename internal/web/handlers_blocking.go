@@ -112,6 +112,10 @@ func (s *Server) handleSaveBlocking(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, s.blockingURL(r, shotID)+"?msg="+urlMsg(err.Error())+"&kind=error", http.StatusSeeOther)
 		return
 	}
+	// Persist the normalized v2 document: v1 rows are upgraded only on save.
+	doc := blocking.Parse(specJSON)
+	doc.NormalizeV2()
+	specJSON = doc.Marshal()
 	if err := s.validateBlockingScope(r, project.ID, specJSON); err != nil {
 		http.Redirect(w, r, s.blockingURL(r, shotID)+"?msg="+urlMsg(err.Error())+"&kind=error", http.StatusSeeOther)
 		return
