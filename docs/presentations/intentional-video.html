@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>vid-build 0.02 — Why use it instead</title>
+  <link rel="stylesheet" href="../vendor/reveal/reveal.css"/>
+  <link rel="stylesheet" href="../vendor/reveal/night.css"/>
+  <link rel="stylesheet" href="deck.css"/>
+  <style>
+    .reveal .mock{background:rgba(148,163,184,.10);border:1px solid rgba(148,163,184,.25);border-radius:12px;overflow:hidden;}
+    .reveal .mock .bar{display:flex;gap:.3em;align-items:center;background:rgba(2,6,23,.6);padding:.28em .5em;border-bottom:1px solid rgba(148,163,184,.2);}
+    .reveal .mock .dot{width:.45em;height:.45em;border-radius:50%;background:#475569;}
+    .reveal .mock .mtitle{font-size:.5em;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;}
+    .reveal .mock .body{padding:.5em;}
+    .reveal .mock .row{display:flex;align-items:center;gap:.45em;font-size:.56em;color:#cbd5e1;padding:.22em 0;border-bottom:1px dashed rgba(148,163,184,.16);}
+    .reveal .mock .row:last-child{border-bottom:0;}
+    .reveal .mock .pill2{font-size:.86em;padding:.1em .5em;border-radius:999px;border:1px solid rgba(148,163,184,.4);color:#94a3b8;white-space:nowrap;}
+    .reveal .mock .pill2.good{border-color:var(--vb-ok);color:var(--vb-ok);}
+    .reveal .mock .pill2.warn{border-color:var(--vb-warn);color:var(--vb-warn);}
+    .reveal .mock .pill2.run{border-color:var(--vb-accent);color:var(--vb-accent);}
+    .reveal .thumb{width:2.2em;height:1.45em;border-radius:5px;background:linear-gradient(135deg,#334155,#0f172a);border:1px solid rgba(148,163,184,.3);flex:none;}
+    .reveal .sketch{width:100%;height:auto;display:block;border-radius:8px;background:rgba(2,6,23,.7);border:1px solid rgba(148,163,184,.25);}
+    .reveal .timeline{position:relative;height:.5em;border-radius:999px;background:rgba(2,6,23,.7);border:1px solid rgba(148,163,184,.25);overflow:hidden;}
+    .reveal .timeline>i{position:absolute;top:0;bottom:0;background:rgba(125,211,252,.25);border-right:1px solid rgba(125,211,252,.5);}
+    .reveal .timeline>span{position:absolute;top:0;bottom:0;left:38%;width:3px;background:var(--vb-accent2);}
+    .reveal .cmp td:first-child{color:#f8fafc;font-weight:600;white-space:nowrap;}
+    .reveal .honest{border-left:3px solid var(--vb-bad);padding-left:.6em;}
+    .reveal .big-close{font-size:1.35em;line-height:1.2;color:#fff;font-weight:800;}
+  </style>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+
+    <!-- TITLE -->
+    <section class="center" data-background-color="#020617">
+      <p class="kicker">vid-build 0.02 · local-first video development studio</p>
+      <h1>Make videos that match<br/>your <span class="accent">intention</span> — not just your prompt.</h1>
+      <p class="muted">Most tools generate pixels. vid-build holds the intent that decides <em>which</em> pixels, in <em>what order</em>, and <em>why</em> — from a sentence to a finished, playable cut.</p>
+      <p><small>Two acts · Why vid-build · How to use it · arrows/space to advance</small></p>
+    </section>
+
+    <!-- ACT I -->
+    <section class="center" data-background-color="#020617">
+      <p class="kicker">Act I</p>
+      <h1>Why vid-build</h1>
+      <p class="muted">The intent gap — and how this studio closes it.</p>
+    </section>
+
+    <!-- PROBLEM -->
+    <section>
+      <h2>You know what should happen. The tools don’t.</h2>
+      <div class="cols">
+        <div>
+          <p>You can picture the shot: it <strong>begins here</strong>, something <strong>changes</strong>, it <strong>ends there</strong>. You know what the audience must notice.</p>
+          <p class="muted">Then you open a tool and all of that collapses into a text box — one prompt, one clip, no memory of the reason it exists.</p>
+        </div>
+        <div class="card">
+          <h3>What gets lost between tools</h3>
+          <ul>
+            <li>the <strong>purpose</strong> of the shot</li>
+            <li>the <strong>change</strong> it must show</li>
+            <li><strong>continuity</strong> from the previous cut</li>
+            <li>the <strong>ability to reproduce</strong> a result</li>
+            <li>the <strong>decision trail</strong> of who approved what</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ALTERNATIVES -->
+    <section>
+      <h2>Every category drops the intention somewhere</h2>
+      <div class="cols">
+        <div class="card">
+          <h3>Prompt-to-video clouds</h3>
+          <p><small>Stunning pixels, no memory. Clips are islands: no shot purpose, no continuity, no reproducibility. You rent a model and your intent leaks in the gaps.</small></p>
+          <span class="pill" style="border-color:var(--vb-bad);color:var(--vb-bad)">intent: evaporates</span>
+        </div>
+        <div class="card">
+          <h3>Raw ComfyUI</h3>
+          <p><small>Maximum power, zero scaffolding. You wire nodes; nothing asks <em>what the audience should notice</em>. Reproducibility is your own discipline.</small></p>
+          <span class="pill" style="border-color:var(--vb-bad);color:var(--vb-bad)">intent: on you</span>
+        </div>
+      </div>
+      <div class="cols" style="margin-top:.5em">
+        <div class="card">
+          <h3>Editors</h3>
+          <p><small>They assume the footage exists. They assemble beautifully — but don’t originate intent and aren’t connected to generation.</small></p>
+          <span class="pill" style="border-color:var(--vb-bad);color:var(--vb-bad)">intent: assumed</span>
+        </div>
+        <div class="card">
+          <h3>Storyboard / previs tools</h3>
+          <p><small>Capture intent well, then stop. The board lives in one world, the pixels in another; nothing carries across.</small></p>
+          <span class="pill" style="border-color:var(--vb-bad);color:var(--vb-bad)">intent: stranded</span>
+        </div>
+      </div>
+      <div class="card" style="margin-top:.5em;border-color:var(--vb-accent)">
+        <h3>vid-build</h3>
+        <p><small>A <strong>development studio</strong>: it holds the intent from idea to assembled cut, and makes the generation obey it.</small></p>
+        <span class="pill green">intent: held</span>
+      </div>
+    </section>
+
+    <!-- THE TURN -->
+    <section class="center">
+      <p class="kicker">The turn</p>
+      <p class="big">vid-build is not a generator and not an editor.<br/>It is the <span class="accent">development studio</span> in between — the place your intention lives.</p>
+      <p class="muted">Generation becomes one repeatable step inside a process you can see, review and reproduce.</p>
+    </section>
+
+    <!-- INTENT SPINE -->
+    <section>
+      <h2>The intent spine: every shot has a why</h2>
+      <div class="flow">
+        <span class="step">Brief · direction</span><span class="arrow">→</span>
+        <span class="step">Section · purpose + budget</span><span class="arrow">→</span>
+        <span class="step">Scene · what changes</span><span class="arrow">→</span>
+        <span class="step">Beat · dramatic unit</span><span class="arrow">→</span>
+        <span class="step">Shot · state A → state B</span>
+      </div>
+      <div class="card" style="margin-top:.6em">
+        <h3>The rule that makes it intentional</h3>
+        <p><small>A shot is the smallest unit that <strong>begins in one state and ends in another</strong>. If you can’t name the visible change, the shot isn’t ready — and the studio says so plainly: <em>“No visible change detected — the shot lacks a payoff.”</em></small></p>
+      </div>
+    </section>
+
+    <!-- SEE IT BEFORE PIXELS -->
+    <section>
+      <h2>See it before pixels</h2>
+      <div class="cols">
+        <div>
+          <div class="mock">
+            <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="mtitle">Blocking · start / change / end</span></div>
+            <div class="body">
+              <div class="cols" style="gap:.4em">
+                <div>
+                  <svg class="sketch" viewBox="0 0 200 120" preserveAspectRatio="xMidYMid meet">
+                    <rect x="4" y="4" width="192" height="112" rx="6" fill="none" stroke="#334155"/>
+                    <circle cx="72" cy="66" r="14" fill="#475569"/>
+                    <rect x="120" y="70" width="46" height="24" rx="4" fill="#334155"/>
+                  </svg>
+                  <p style="text-align:center;margin:.2em 0 0"><small>start</small></p>
+                </div>
+                <div>
+                  <svg class="sketch" viewBox="0 0 200 120" preserveAspectRatio="xMidYMid meet">
+                    <rect x="4" y="4" width="192" height="112" rx="6" fill="none" stroke="#334155"/>
+                    <circle cx="118" cy="58" r="16" fill="#475569"/>
+                    <rect x="52" y="74" width="46" height="20" rx="4" fill="#334155"/>
+                    <path d="M84 62 L108 58" stroke="#fbbf24" stroke-width="3" marker-end="url(#a)"/>
+                    <defs><marker id="a" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 z" fill="#fbbf24"/></marker></defs>
+                  </svg>
+                  <p style="text-align:center;margin:.2em 0 0"><small>end</small></p>
+                </div>
+              </div>
+              <div class="row"><span class="pill2 warn">Detected change</span><span>position · pose · gaze</span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <ul>
+            <li><strong>Blocking</strong> sketches render instantly as SVG — no model call, no cost.</li>
+            <li><strong>An animatic</strong> plays the whole film with timing, dialogue cues and narrative metrics.</li>
+            <li><strong>Continuity</strong> carries state — identity, costume, emotion, props — across cuts.</li>
+            <li>You fix the story <strong>before</strong> a single GPU-second.</li>
+          </ul>
+          <div class="card">
+            <div class="timeline"><i style="left:12%;width:18%"></i><i style="left:32%;width:22%"></i><i style="left:56%;width:30%"></i><span></span></div>
+            <p><small class="muted">Animatic timeline · cues · timing · playable in the browser</small></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ENDPOINTS + CONTINUITY -->
+    <section>
+      <h2>Intent, made concrete</h2>
+      <div class="cols">
+        <div class="card">
+          <h3>First/last-frame conditioning</h3>
+          <p>Approved <strong>start and end frames</strong> become the anchors of a motion generation. Motion is <em>directed toward a destination</em>, not guessed from adjectives.</p>
+          <p><small class="muted">No silent start-only fallback: if both endpoints aren’t selected and approved, the request is refused.</small></p>
+          <span class="pill green">motion: conditioned</span>
+        </div>
+        <div class="card">
+          <h3>Continuity as state, not pixels</h3>
+          <p>Each cut stores an <strong>inherit / recompose</strong> handoff: what persists, what intentionally changes, what is unresolved — with a motivation for the cut.</p>
+          <p><small class="muted">The next shot’s start state is <em>derived</em> from the previous shot’s end, then you approve it.</small></p>
+          <span class="pill green">world: consistent</span>
+        </div>
+      </div>
+      <div class="card" style="margin-top:.5em;border-color:var(--vb-accent)">
+        <p><small><strong>Why this matters:</strong> “visuals matching your intention” isn’t a vibe — it’s endpoints, continuity and a named change, all enforced by the process.</small></p>
+      </div>
+    </section>
+
+    <!-- TRUST -->
+    <section>
+      <h2>AI proposes. You apply. Everything leaves a receipt.</h2>
+      <div class="cols">
+        <div class="card">
+          <h3>Human authority</h3>
+          <p><small>Planner output arrives as <strong>proposals</strong> — versioned, field-by-field, and marked <em>stale</em> when the thing it was based on changes. Nothing is silently overwritten.</small></p>
+        </div>
+        <div class="card">
+          <h3>Reproducible</h3>
+          <p><small>Workflows are immutable with a <strong>SHA-256</strong>; attempts record <strong>seeds</strong>; assets carry <strong>checksums</strong>. You can explain how any frame was made.</small></p>
+        </div>
+        <div class="card">
+          <h3>Accountable</h3>
+          <p><small>Approval is a human decision — including <strong>approve-with-exception</strong> and a recorded reason. An <strong>audit log</strong> records the actor. Selection is not approval.</small></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOCAL + DELIVERABLE -->
+    <section>
+      <h2>Local-first, private, and it ends in a file</h2>
+      <div class="cols">
+        <div>
+          <ul>
+            <li>Your <strong>SQLite</strong> database, your <strong>media folder</strong>.</li>
+            <li>Your <strong>LM Studio</strong> for the planner, your <strong>ComfyUI</strong> for pixels.</li>
+            <li>No per-clip cloud rent; your work doesn’t leave the machine.</li>
+            <li>FFmpeg assembles the final <strong>MP4</strong> — or a <strong>5/15/30s</strong> duration video.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>What you actually get out</h3>
+          <div class="mock" style="border:0;background:transparent">
+            <div class="body" style="padding:0">
+              <div class="row"><span class="pill2 good">video</span><span>duration 5 · 15 · 30s, assembled from fixed segments</span></div>
+              <div class="row"><span class="pill2 good">export</span><span>one MP4 with a receipt and checksum</span></div>
+              <div class="row"><span class="pill2 run">receipt</span><span>links the film back to its revision &amp; assets</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- WHAT IT'S NOT -->
+    <section>
+      <h2>What vid-build is <span class="accent">not</span></h2>
+      <div class="cols">
+        <div class="honest">
+          <p><small>It is <strong>not</strong> for performance, talking heads, lip-sync or “expressive” AI acting. If the video’s value is a human speaking or an artistic flourish, this is the wrong tool.</small></p>
+          <p><small>It is <strong>not</strong> creativity-in-a-box. It won’t invent your taste; it will hold your decisions and make the visuals obey them.</small></p>
+        </div>
+        <div>
+          <p class="muted"><small>It is for <strong>controlled visual communication</strong> — explainers, promos, previs, product and training — where you know what the audience should notice.</small></p>
+          <p class="muted"><small>Today only a <strong>local ComfyUI</strong> target executes; rental/API targets can be planned but not yet run. Restore is a CLI tool by design.</small></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMPARISON -->
+    <section>
+      <h2>At a glance: where intention survives</h2>
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th></th><th>Prompt-to-video</th><th>Raw ComfyUI</th><th>Editor</th><th>Storyboard tool</th><th class="accent">vid-build</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Shot purpose &amp; named change</td><td class="bad">—</td><td class="bad">—</td><td class="bad">—</td><td class="warn">partial</td><td class="ok">yes</td></tr>
+          <tr><td>See it before pixels (free)</td><td class="bad">—</td><td class="bad">—</td><td class="bad">—</td><td class="warn">partial</td><td class="ok">yes</td></tr>
+          <tr><td>Continuity across cuts</td><td class="bad">—</td><td class="bad">—</td><td class="bad">—</td><td class="warn">notes</td><td class="ok">yes</td></tr>
+          <tr><td>Endpoint-conditioned motion</td><td class="warn">sometimes</td><td class="warn">manual</td><td class="bad">—</td><td class="bad">—</td><td class="ok">yes</td></tr>
+          <tr><td>Reproducible (SHA · seed · receipt)</td><td class="bad">—</td><td class="warn">if disciplined</td><td class="warn">export only</td><td class="bad">—</td><td class="ok">yes</td></tr>
+          <tr><td>Human approval trail</td><td class="bad">—</td><td class="bad">—</td><td class="warn">none</td><td class="warn">review</td><td class="ok">yes</td></tr>
+          <tr><td>Runs locally / private</td><td class="bad">no</td><td class="ok">yes</td><td class="ok">yes</td><td class="ok">yes</td><td class="ok">yes</td></tr>
+          <tr><td>Connected to generation</td><td class="ok">yes</td><td class="ok">yes</td><td class="bad">—</td><td class="bad">—</td><td class="ok">yes</td></tr>
+        </tbody>
+      </table>
+      <p><small class="muted">Categories, not brands. “Partial” means the capability exists but intent isn’t carried through the whole pipeline.</small></p>
+    </section>
+
+    <!-- ACT II -->
+    <section class="center" data-background-color="#020617">
+      <p class="kicker">Act II</p>
+      <h1>How to use it</h1>
+      <p class="muted">Two loops — one free, one paid — then a deliverable.</p>
+    </section>
+
+    <!-- PATH -->
+    <section>
+      <h2>From a sentence to an exported film</h2>
+      <div class="flow">
+        <span class="step">Develop · idea → brief</span><span class="arrow">→</span>
+        <span class="step">Outline · beats → shots</span><span class="arrow">→</span>
+        <span class="step">Block · START·CHANGE·END</span><span class="arrow">→</span>
+        <span class="step">Generate · endpoints → motion</span><span class="arrow">→</span>
+        <span class="step">Review · select → approve</span><span class="arrow">→</span>
+        <span class="step">Edit · assemble → export</span>
+      </div>
+      <div class="card" style="margin-top:.6em">
+        <p><small><strong>Cheap loop first, expensive loop second.</strong> Do all the thinking with no GPU. Only cross into generation once the film already works on paper.</small></p>
+      </div>
+    </section>
+
+    <!-- CHEAP LOOP -->
+    <section>
+      <h2>Loop 1 · free — decide the film before you pay for pixels</h2>
+      <div class="cols">
+        <div>
+          <div class="mock">
+            <div class="bar"><span class="mtitle">Outline · scene → beat → shot</span></div>
+            <div class="body">
+              <div class="row"><span class="pill2">scene</span><span>The wheel · “she throws a pot”</span></div>
+              <div class="row" style="padding-left:.9em"><span class="pill2 warn">beat</span><span>centres the clay → clay is centred</span></div>
+              <div class="row" style="padding-left:1.8em"><span class="pill2 good">shot</span><span>Hands and clay · 3.0s · blocking_only</span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <ul>
+            <li><strong>Develop</strong> the brief — accepted, versioned, yours.</li>
+            <li><strong>Propose</strong> beats and shots; untick, edit, apply.</li>
+            <li><strong>Block</strong> each shot; read the detected change.</li>
+            <li><strong>Play the animatic</strong> with cues and timing.</li>
+          </ul>
+          <span class="pill">cost: zero</span> <span class="pill">GPU: idle</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAID LOOP -->
+    <section>
+      <h2>Loop 2 · your hardware — generate with intent already decided</h2>
+      <div class="cols">
+        <div>
+          <div class="mock">
+            <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="mtitle">Job · events</span></div>
+            <div class="body">
+              <div class="row"><span class="pill2 good">validate</span><span>workflow · bindings · endpoints</span></div>
+              <div class="row"><span class="pill2 good">stage</span><span>start + end frames staged</span></div>
+              <div class="row"><span class="pill2 run">generate</span><span>ComfyUI working…</span></div>
+              <div class="row"><span class="pill2 good">persist</span><span>asset + checksum + receipt</span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="mock">
+            <div class="bar"><span class="mtitle">Review · candidates</span></div>
+            <div class="body">
+              <div class="row"><span class="thumb"></span><span class="thumb"></span><span class="thumb"></span><span class="pill2 good">selected</span><span class="pill2 warn">approve</span></div>
+              <div class="row"><span>seed · model · workflow SHA · checksum</span></div>
+              <div class="row"><span class="muted">↑ receipt: how this frame was made</span></div>
+            </div>
+          </div>
+          <p><small class="muted">Judge at full size. Selection is not approval — approval is yours.</small></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- DELIVER -->
+    <section>
+      <h2>One playable result, with a receipt</h2>
+      <div class="cols">
+        <div class="card">
+          <h3>Edit &amp; export</h3>
+          <p><small>Assemble the cut from approved selections; cuts, fades and dissolves preserve every clip. Export one MP4.</small></p>
+        </div>
+        <div class="card">
+          <h3>Duration video</h3>
+          <p><small>Prompt + <strong>5 / 15 / 30s</strong> → one video. Longer lengths are fixed five-second segments, assembled in order, each retryable on its own.</small></p>
+        </div>
+        <div class="card">
+          <h3>Compute planner</h3>
+          <p><small>Plan batches against targets with estimates built from <em>your</em> measured runs, then reconcile actuals.</small></p>
+        </div>
+      </div>
+      <div class="card" style="margin-top:.5em">
+        <p><small><span class="pill green">export receipt</span> &nbsp;plays the result · download · checksum linking film ↔ revision ↔ assets</small></p>
+      </div>
+    </section>
+
+    <!-- TRY -->
+    <section>
+      <h2>Try it — five minutes, no internet, no cloud</h2>
+      <div class="cols">
+        <div>
+          <p><small class="muted">Prerequisites: <strong>Go</strong> (required), <strong>LM Studio</strong> for the planner, <strong>ComfyUI</strong> for pixels, <strong>FFmpeg</strong> for assembly.</small></p>
+          <pre><code class="language-bash" data-trim>
+cp config.example.json config.json
+templ generate
+go run ./cmd/vidbuild -open
+          </code></pre>
+          <p><small class="muted">Then open <strong>Guided tours</strong> (<span class="accent">/tutorials</span>) and let the software drive the interface while a caption explains each step.</small></p>
+        </div>
+        <div class="card">
+          <h3>Three tours to start</h3>
+          <div class="mock" style="border:0;background:transparent">
+            <div class="body" style="padding:0">
+              <div class="row"><span class="pill2 good">1</span><span>Create a workspace and project</span></div>
+              <div class="row"><span class="pill2 good">2</span><span>Shape the outline and read the board</span></div>
+              <div class="row"><span class="pill2 good">3</span><span>Make a 5/15/30-second video</span></div>
+            </div>
+          </div>
+          <p><small class="muted">The tours run real operations in their own workspace and never queue generation.</small></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CLOSE -->
+    <section class="center" data-background-color="#020617">
+      <p class="kicker">vid-build</p>
+      <p class="big-close">Every shot should change something.<br/><span class="accent">Make the visuals match your intent.</span></p>
+      <p class="muted">Local-first · human-approved · reproducible · one playable result.</p>
+      <p><small class="muted">Idea to finished film, one visible change at a time.</small></p>
+    </section>
+
+  </div>
+</div>
+<div class="foot">vid-build 0.02 - why use it instead</div>
+
+<script src="../vendor/reveal/reveal.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: true,
+    progress: true,
+    controls: true,
+    center: false,
+    transition: "slide",
+    width: 1200,
+    height: 720,
+    margin: 0.06
+  });
+</script>
+</body>
+</html>
