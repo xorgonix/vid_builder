@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>vid-build — documentation &amp; decks</title>
+  <style>
+    :root { --accent:#7dd3fc; --accent2:#fbbf24; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center;
+           background:#020617; color:#e5e7eb;
+           font-family: system-ui, "Segoe UI", Roboto, sans-serif; }
+    .wrap { max-width: 900px; padding: 40px 24px; }
+    h1 { font-size: 2.2rem; margin: 0 0 .2em; letter-spacing:-.02em; }
+    h1 span { color: var(--accent); }
+    .sub { color:#94a3b8; margin-bottom: 2rem; }
+    h2 { font-size: .78rem; letter-spacing:.16em; text-transform:uppercase; color:#64748b; margin: 2rem 0 .8rem; }
+    .grid { display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    a.card { display:block; text-decoration:none; color:inherit;
+             background: rgba(148,163,184,.10); border:1px solid rgba(148,163,184,.25);
+             border-radius:14px; padding:20px; transition: transform .12s ease, border-color .12s ease; }
+    a.card:hover { transform: translateY(-3px); border-color: var(--accent); }
+    a.card h3 { margin:.1em 0 .4em; font-size:1.05rem; color:#f8fafc; }
+    a.card p { margin:0; color:#94a3b8; font-size:.9rem; line-height:1.4; }
+    .tag { display:inline-block; font-size:.68rem; letter-spacing:.14em; text-transform:uppercase;
+           color:var(--accent); border:1px solid var(--accent); border-radius:999px; padding:.15em .6em; }
+    footer { margin-top:2.5rem; color:#64748b; font-size:.8rem; }
+    code { color:#e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>vid-build <span>0.02</span></h1>
+    <p class="sub">Documentation, manuals and presentation decks. Local-first video development studio.</p>
+
+    <h2>Presentations</h2>
+    <div class="grid">
+      <a class="card" href="presentations/intentional-video.html">
+        <span class="tag">Why &amp; how</span>
+        <h3>Why use it instead</h3>
+        <p>The intent gap, how the alternatives lose it, and the free loop that makes visuals match your intention.</p>
+      </a>
+      <a class="card" href="presentations/end-users.html">
+        <span class="tag">Creators</span>
+        <h3>For end users</h3>
+        <p>What it does and the day-to-day path: develop, outline, board, produce, review, edit.</p>
+      </a>
+      <a class="card" href="presentations/system.html">
+        <span class="tag">Engineers</span>
+        <h3>System overview</h3>
+        <p>Architecture, data model, workflow bindings, the endpoint invariant, security and recovery.</p>
+      </a>
+      <a class="card" href="presentations/investors.html">
+        <span class="tag">Product</span>
+        <h3>Why it matters</h3>
+        <p>Problem, insight, differentiation, compute economics and roadmap.</p>
+      </a>
+    </div>
+
+    <h2>Product pages</h2>
+    <div class="grid">
+      <a class="card" href="marketing/landing.html">
+        <span class="tag">Landing</span>
+        <h3>Product landing</h3>
+        <p>The marketing page: how it works, features and why it's different.</p>
+      </a>
+      <a class="card" href="marketing/pricing.html">
+        <span class="tag">Pricing</span>
+        <h3>Pricing</h3>
+        <p>Plans and positioning.</p>
+      </a>
+      <a class="card" href="marketing/landing-teams.html">
+        <span class="tag">Teams</span>
+        <h3>For studios &amp; teams</h3>
+        <p>Working with client and team workspaces.</p>
+      </a>
+    </div>
+
+    <footer>vid-build 0.02 · idea to finished film, one visible change at a time. ·
+      <a href="presentations/index.html" style="color:var(--accent)">presentation index</a>
+    </footer>
+  </div>
+</body>
+</html>
