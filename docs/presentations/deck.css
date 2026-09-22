@@ -82,3 +82,18 @@
 
 .reveal .foot { position: fixed; bottom: 8px; left: 16px; font-size: 12px; color: #64748b; }
 .reveal .r-fit-text { text-align: center; }
+
+/* End-of-deck navigation: always offer a way back to the presentation index. */
+.deck-back {
+  position: fixed; top: 14px; right: 18px; z-index: 60;
+  font-size: 13px; letter-spacing: .02em; text-decoration: none;
+  color: #94a3b8; background: rgba(2, 6, 23, .55);
+  border: 1px solid rgba(148, 163, 184, .28); border-radius: 999px;
+  padding: .22em .7em; opacity: .7;
+  transition: opacity .15s ease, color .15s ease, border-color .15s ease;
+}
+.deck-back:hover { opacity: 1; color: var(--vb-accent); border-color: var(--vb-accent); }
+body.deck-ended .deck-back {
+  opacity: 1; color: var(--vb-accent2); border-color: var(--vb-accent2);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, .18);
+}

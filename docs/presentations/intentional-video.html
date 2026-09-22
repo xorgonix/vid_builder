@@ -430,5 +430,28 @@ go run ./cmd/vidbuild -open
     margin: 0.06
   });
 </script>
+<script>
+  // When the deck reaches its end, lead back to the presentation index.
+  function vidbuildDeckEnd() {
+    var last = Reveal.getTotalSlides() - 1;
+    document.body.classList.toggle('deck-ended', Reveal.getIndices().h >= last);
+  }
+  Reveal.on('ready', function () {
+    var link = document.createElement('a');
+    link.href = 'index.html';
+    link.className = 'deck-back';
+    link.textContent = '\u2190 All presentations';
+    document.body.appendChild(link);
+    vidbuildDeckEnd();
+  });
+  Reveal.on('slidechanged', vidbuildDeckEnd);
+  document.addEventListener('keydown', function (e) {
+    if (!document.body.classList.contains('deck-ended')) return;
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].indexOf(e.key) !== -1) {
+      e.preventDefault();
+      window.location.href = 'index.html';
+    }
+  });
+</script>
 </body>
 </html>
