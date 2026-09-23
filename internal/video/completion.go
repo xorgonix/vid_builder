@@ -96,12 +96,15 @@ func (s *Service) Resume(ctx context.Context, superShotID string) error {
 }
 
 // SelectSegmentAttempt makes one attempt's output the current segment selection,
-// invalidates the assembly and (in context mode) descendant segments
-// (contract §15.9 select-attempt).
+// invalidates the assembly and (in context mode) descendant segments. Every
+// scope and membership check is verified server-side (contract R3).
 func (s *Service) SelectSegmentAttempt(ctx context.Context, superShotID, segmentID, attemptID string) error {
 	plan, err := s.Store.GetSuperShotRequest(ctx, superShotID)
 	if err != nil {
 		return err
+	}
+	if plan.Status == "cancelled" {
+		return fmt.Errorf("plan is cancelled")
 	}
 	seg, err := s.Store.GetSegment(ctx, segmentID)
 	if err != nil {
@@ -110,6 +113,21 @@ func (s *Service) SelectSegmentAttempt(ctx context.Context, superShotID, segment
 	if !seg.SuperShotRequestID.Valid || seg.SuperShotRequestID.String != superShotID {
 		return fmt.Errorf("segment does not belong to this plan")
 	}
+	attempt, err := s.Store.GetAttempt(ctx, attemptID)
+	if err != nil {
+		return fmt.Errorf("attempt not found")
+	}
+	// Ownership: the attempt must belong to this exact segment, not just the same
+	// generation request (R3).
+	if !attempt.SegmentID.Valid || attempt.SegmentID.String != segmentID {
+		return fmt.Errorf("attempt %s does not belong to segment %s", attemptID, segmentID)
+	}
+	if attempt.RequestID != seg.RequestID {
+		return fmt.Errorf("attempt is from a different generation request")
+	}
+	if attempt.Status != "succeeded" {
+		return fmt.Errorf("attempt has not succeeded (status %s)", attempt.Status)
+	}
 	assets, err := s.Store.ListAssetsForAttempt(ctx, attemptID)
 	if err != nil {
 		return err
@@ -117,15 +135,13 @@ func (s *Service) SelectSegmentAttempt(ctx context.Context, superShotID, segment
 	assetID := ""
 	for _, a := range assets {
 		if a.Kind == "video" || a.Role == "motion" {
+			// Video-kind assets only; do not fall back to an arbitrary first asset.
 			assetID = a.ID
 			break
 		}
 	}
-	if assetID == "" && len(assets) > 0 {
-		assetID = assets[0].ID
-	}
 	if assetID == "" {
-		return fmt.Errorf("selected attempt has no recorded output")
+		return fmt.Errorf("selected attempt has no eligible video output")
 	}
 	if err := s.Store.SetSegmentSelectedOutput(ctx, seg.ID, attemptID, assetID); err != nil {
 		return err
@@ -156,8 +172,9 @@ func (s *Service) SetJoinReview(ctx context.Context, superShotID string, idx int
 	return s.Store.UpsertJoinReview(ctx, asm.ID, idx, status, notes)
 }
 
-// SelectAssembledVideo makes the assembled video the shot's motion selection so
-// it enters the ordinary Review/Edit flow (contract C10).
+// SelectAssembledVideo makes the assembled video the shot's "video" selection so
+// it enters the ordinary Review/Edit flow. Only a current, measured assembly is
+// eligible (contract R4).
 func (s *Service) SelectAssembledVideo(ctx context.Context, superShotID, userID string) (string, error) {
 	plan, err := s.Store.GetSuperShotRequest(ctx, superShotID)
 	if err != nil {
@@ -170,14 +187,14 @@ func (s *Service) SelectAssembledVideo(ctx context.Context, superShotID, userID 
 	if err != nil {
 		return "", err
 	}
-	if asm.Status != "succeeded" || !asm.AssetID.Valid {
-		return "", fmt.Errorf("assembly is not a current success")
+	if asm.Status != "succeeded" || !asm.AssetID.Valid || asm.MeasuredState != "measured" {
+		return "", fmt.Errorf("assembly is not a current, measured success")
 	}
 	shot, err := s.Store.GetShot(ctx, plan.ShotID)
 	if err != nil {
 		return "", err
 	}
-	if err := s.Store.CreateSelection(ctx, plan.ShotID, "motion", asm.AssetID.String, userID, shot.Revision); err != nil {
+	if err := s.Store.CreateSelection(ctx, plan.ShotID, "video", asm.AssetID.String, userID, shot.Revision); err != nil {
 		return "", err
 	}
 	return asm.AssetID.String, nil

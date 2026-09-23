@@ -122,6 +122,8 @@ type GenerationAttempt struct {
 	ErrorCode         sql.NullString
 	ErrorMessage      sql.NullString
 	DurationMs        sql.NullInt64
+	SegmentID         sql.NullString
+	AnchorID          sql.NullString
 }
 
 // Asset is a produced media file.
@@ -511,7 +513,7 @@ func (s *Store) ListAttempts(ctx context.Context, requestID string) ([]Generatio
 
 // GetAttempt fetches an attempt.
 func (s *Store) GetAttempt(ctx context.Context, id string) (*GenerationAttempt, error) {
-	row := s.QueryRowContext(ctx, `SELECT id, generation_request_id, attempt_number, execution_target_id, model_id, workflow_version_id, workflow_graph_sha256, resolved_prompts_json, seed, settings_json, status, queued_at, started_at, completed_at, error_code, error_message, duration_ms
+	row := s.QueryRowContext(ctx, `SELECT id, generation_request_id, attempt_number, execution_target_id, model_id, workflow_version_id, workflow_graph_sha256, resolved_prompts_json, seed, settings_json, status, queued_at, started_at, completed_at, error_code, error_message, duration_ms, segment_id, anchor_id
 		FROM generation_attempts WHERE id=?`, id)
 	return scanAttempt(row)
 }
@@ -520,7 +522,7 @@ type rowScanner interface{ Scan(dest ...any) error }
 
 func scanAttempt(sc rowScanner) (*GenerationAttempt, error) {
 	var a GenerationAttempt
-	err := sc.Scan(&a.ID, &a.RequestID, &a.AttemptNumber, &a.ExecutionTargetID, &a.ModelID, &a.WorkflowVersionID, &a.WorkflowGraphSHA, &a.ResolvedPrompts, &a.Seed, &a.SettingsJSON, &a.Status, &a.QueuedAt, &a.StartedAt, &a.CompletedAt, &a.ErrorCode, &a.ErrorMessage, &a.DurationMs)
+	err := sc.Scan(&a.ID, &a.RequestID, &a.AttemptNumber, &a.ExecutionTargetID, &a.ModelID, &a.WorkflowVersionID, &a.WorkflowGraphSHA, &a.ResolvedPrompts, &a.Seed, &a.SettingsJSON, &a.Status, &a.QueuedAt, &a.StartedAt, &a.CompletedAt, &a.ErrorCode, &a.ErrorMessage, &a.DurationMs, &a.SegmentID, &a.AnchorID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -919,7 +921,7 @@ func (s *Store) ListAssetsForRequest(ctx context.Context, requestID string) ([]A
 
 // GetAttemptByAsset returns the attempt that produced an asset.
 func (s *Store) GetAttemptByAsset(ctx context.Context, assetID string) (*GenerationAttempt, error) {
-	row := s.QueryRowContext(ctx, `SELECT a.id, a.generation_request_id, a.attempt_number, a.execution_target_id, a.model_id, a.workflow_version_id, a.workflow_graph_sha256, a.resolved_prompts_json, a.seed, a.settings_json, a.status, a.queued_at, a.started_at, a.completed_at, a.error_code, a.error_message, a.duration_ms
+	row := s.QueryRowContext(ctx, `SELECT a.id, a.generation_request_id, a.attempt_number, a.execution_target_id, a.model_id, a.workflow_version_id, a.workflow_graph_sha256, a.resolved_prompts_json, a.seed, a.settings_json, a.status, a.queued_at, a.started_at, a.completed_at, a.error_code, a.error_message, a.duration_ms, a.segment_id, a.anchor_id
 		FROM generation_attempts a JOIN assets ast ON ast.generation_attempt_id=a.id WHERE ast.id=?`, assetID)
 	return scanAttempt(row)
 }

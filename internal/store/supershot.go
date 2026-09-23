@@ -286,9 +286,9 @@ func (s *Store) NewSegmentAttempt(ctx context.Context, segmentID, requestID, wor
 		next = 1
 	}
 	aid := ids.New()
-	if _, err := s.ExecContext(ctx, `INSERT INTO generation_attempts (id, generation_request_id, attempt_number, workflow_version_id, resolved_prompts_json, settings_json, status, queued_at)
-		VALUES (?,?,?,?,?,?,?,?)`,
-		aid, requestID, next, nullIfEmpty(workflowVersionID), "{}", "{}", "queued", db.Now()); err != nil {
+	if _, err := s.ExecContext(ctx, `INSERT INTO generation_attempts (id, generation_request_id, attempt_number, workflow_version_id, resolved_prompts_json, settings_json, status, queued_at, segment_id)
+		VALUES (?,?,?,?,?,?,?,?,?)`,
+		aid, requestID, next, nullIfEmpty(workflowVersionID), "{}", "{}", "queued", db.Now(), segmentID); err != nil {
 		return "", err
 	}
 	if _, err := s.ExecContext(ctx, `UPDATE video_segments SET attempt_id=? WHERE id=?`, aid, segmentID); err != nil {
@@ -306,9 +306,9 @@ func (s *Store) NewAnchorAttempt(ctx context.Context, anchorID, requestID, workf
 		next = 1
 	}
 	aid := ids.New()
-	if _, err := s.ExecContext(ctx, `INSERT INTO generation_attempts (id, generation_request_id, attempt_number, workflow_version_id, resolved_prompts_json, settings_json, status, queued_at)
-		VALUES (?,?,?,?,?,?,?,?)`,
-		aid, requestID, next, nullIfEmpty(workflowVersionID), "{}", "{}", "queued", db.Now()); err != nil {
+	if _, err := s.ExecContext(ctx, `INSERT INTO generation_attempts (id, generation_request_id, attempt_number, workflow_version_id, resolved_prompts_json, settings_json, status, queued_at, anchor_id)
+		VALUES (?,?,?,?,?,?,?,?,?)`,
+		aid, requestID, next, nullIfEmpty(workflowVersionID), "{}", "{}", "queued", db.Now(), anchorID); err != nil {
 		return "", err
 	}
 	if _, err := s.ExecContext(ctx, `UPDATE video_anchors SET image_attempt_id=? WHERE id=?`, aid, anchorID); err != nil {
