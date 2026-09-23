@@ -251,9 +251,9 @@ go run ./cmd/vidbuild-restore -backup data/backups/backup-YYYYMMDD-HHMMSS -yes
 | Generate button disabled | ComfyUI unreachable. Start it and reload the form. |
 | "ComfyUI unreachable" during a job | The worker reports the preflight failure; the request is marked failed. |
 | Motion refused | Select **and approve** both endpoints, and choose a workflow that declares first/last bindings. |
-| Duration video refused | The shot needs an approved start and end frame, and the workflow must declare first/last bindings. |
-| A duration-video segment failed | Only that segment failed; press **Retry** on that row. The other segments are untouched. |
-| The assembled duration video is missing | It appears only once every segment has succeeded. Retry any failed segment. |
+| Super Shot rejected | The shot needs an approved start and end image, and the workflow must declare first/last bindings and a `video_timing` capability block (frame rule, frame bounds, supported FPS). |
+| A Super Shot segment failed | Only that segment failed; press **Retry** on that row. The other segments are untouched. |
+| The assembled Super Shot is missing | It appears only once every segment has a current output and the assembly's measured duration matches the plan. Retry any failed or stale segment. |
 | "Cannot demote/remove the last owner" | Add another owner before changing yours. |
 | 403 on submit | Session expired or CSRF mismatch — reload and sign in again. |
 | "Section/Scene/Shot changed elsewhere" | Optimistic revision conflict; the page reloaded with the current data. |
@@ -294,6 +294,8 @@ vid-build 0.02 is a working vertical slice. Known gaps:
 
 ## 12. Glossary
 
+**Anchor** — one ordered boundary state in a Super Shot: the supplied start, an intermediate, or the supplied end. Adjacent segments share their boundary anchor and, once rendered, its exact image.
+
 **Asset** — a produced file (image, video, document, export, thumbnail), stored
 on disk with a checksum.
 
@@ -310,7 +312,7 @@ SVG.
 
 **Candidate** — one attempt's output among several, compared during review.
 
-**Duration video** — a prompt plus 5, 15 or 30 seconds, compiled into fixed
+**Super Shot** — one perceived shot of 2.0–30.0 seconds, generated directly or as an ordered chain of adjacent segments sharing boundary anchors and, once rendered, their exact images.
 five-second segments and assembled into one playable video.
 
 **Execution target** — somewhere generation can run (local, rented, API).
@@ -324,7 +326,7 @@ interface.
 
 **Readiness** — a shot's derived production state.
 
-**Segment** — one fixed five-second anchor-to-anchor generation inside a duration
+**Segment** — one adjacent anchor-to-anchor generation inside a Super Shot; its start and end anchors are the specific boundary images for that interval, never silently the shot's outer endpoints.
 video.
 
 **Selection** — the current asset filling a shot role.

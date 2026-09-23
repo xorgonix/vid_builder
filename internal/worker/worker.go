@@ -125,6 +125,8 @@ func (w *Worker) process(ctx context.Context, job *store.Job) error {
 		return w.processExport(ctx, job)
 	case "generate_segment":
 		return w.processSegment(ctx, job)
+	case "generate_anchor":
+		return w.processAnchor(ctx, job)
 	case "assemble_video":
 		return w.processAssembly(ctx, job)
 	case "package":

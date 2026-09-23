@@ -3,7 +3,7 @@
 *From specifications to approved, assembled, exported work.*
 
 This manual covers **Workflows**, **model profiles and execution targets**,
-**Produce**, **Duration video**, **watching a job**, **Review**, **Edit and
+**Produce**, **Super Shot**, **watching a job**, **Review**, **Edit and
 export**, and the **compute planner and campaigns**.
 
 ---
@@ -13,7 +13,7 @@ export**, and the **compute planner and campaigns**.
 1. [Workflows — your ComfyUI graphs](#1-workflows--your-comfyui-graphs)
 2. [Model profiles and execution targets](#2-model-profiles-and-execution-targets)
 3. [Produce — generation](#3-produce--generation)
-4. [Duration video — 5, 15 or 30 seconds](#4-duration-video--5-15-or-30-seconds)
+4. [Super Shot — 2.0 to 30.0 seconds](#4-super-shot--20-to-300-seconds)
 5. [Watching a job](#5-watching-a-job)
 6. [Review — select and approve](#6-review--select-and-approve)
 7. [Edit and export](#7-edit-and-export)
@@ -185,43 +185,62 @@ start-only clip is a different, deliberate request (uncheck the box).
 
 ---
 
-## 4. Duration video — 5, 15 or 30 seconds
+## 4. Super Shot — 2.0 to 30.0 seconds
 
-**Duration video** (`.../videos/{video}/duration`) is the shortest path from a
-prompt to a playable clip. Enter a prompt, choose **5, 15 or 30 seconds**, and
-get **one video**.
+A **Super Shot** (`.../videos/{video}/duration` or
+`.../videos/{video}/super-shots/new`) is one perceived shot of **2.0–30.0
+seconds**. It is generated **directly** (one invocation) when the selected
+workflow can represent the whole duration, or as an ordered chain of adjacent
+segments. A chain of `N` segments persists `N+1` ordered **anchors**; adjacent
+segments share their boundary anchor and, once rendered, its exact image:
 
-- **5 seconds** = one first/last-frame generation.
-- **15 seconds** = three fixed five-second generations.
-- **30 seconds** = six fixed five-second generations.
+```text
+A → [Segment 1] → B → [Segment 2] → C → [Segment 3] → D
+```
 
-Each five-second **segment** is anchored between the shot's approved start and
-end frames, and assembled in order with FFmpeg. Arbitrary durations are
-deliberately not supported.
+`A` and `D` are the supplied, approved start and end images. `B` and `C` are
+intermediate anchor images the app proposes; you review and edit their states and
+each interval's movement prompt **before** any generation. The shot's own
+`duration_target_ms` is the default; 5, 15 and 30 seconds are just presets.
+Duration and frame rules come from the selected **workflow's declared
+capabilities**, not from application constants.
 
 ### 4.1 Requirements
 
-- A shot whose **start and end frames are selected and approved** (or
-  exception-approved). These anchors are reused for every segment.
+- A shot whose **start and end images are selected and approved** (or
+  exception-approved). These anchor the first and last anchors.
 - A **workflow that declares** `first_frame_asset` and `last_frame_asset`
-  bindings. There is no silent start-only fallback.
+  bindings **and** a `video_timing` capability block (frame rule, frame bounds,
+  supported FPS and direct maximum). A workflow without timing capability is
+  rejected server-side.
 
-### 4.2 The page
+### 4.2 The flow
 
-The form takes the **shot**, the **duration**, the **workflow**, and positive and
-negative prompts. Below it, each planned video shows:
+1. Open **Super Shot** and confirm or override the duration; choose a workflow,
+   strategy (Auto/Direct/Chained), the movement prompt and the negative prompt.
+2. **Create plan** persists a draft: anchors, segments and their movement
+   prompts. **Nothing is generated yet.**
+3. Review the plan: each anchor's visible state and each interval's movement
+   prompt are shown and editable.
+4. **Approve plan & generate** queues missing intermediate images, then the
+   segments whose two anchors are ready.
+5. Inspect the assembled video and retry only a weak anchor or segment.
 
-- every **segment** with its own status, preview and **Retry** control;
-- the **assembled video**, playable inline, once every segment has succeeded.
+### 4.3 What stays honest
 
-Each segment is a distinct generation with a distinct motion prompt, so adjacent
-clips are not identical. If one segment fails, the others are untouched and you
-retry **only** the failed segment. The final video records its ordered segment
-lineage.
+- Intermediate images and bounded actions are visible and editable before
+  generation; generation does not start before approval.
+- Replacing an intermediate anchor invalidates only the segments that touch it.
+- Every segment resolves its **own** adjacent anchors; an intermediate segment
+  never falls back to the shot's outer endpoints.
+- Motion context (**Previous frames** / **Native latent**) is present in the
+  schema but **unavailable** until a verified workflow combines continuation with
+  the supplied last image. Anchor-only (Shared images) is the supported mode.
+- Assembly concatenates each segment's frames once, measures the actual duration
+  and fails if it differs from the plan by more than one output frame plus
+  container rounding. Visible seams are expected; the guarantee is one correctly
+  assembled, playable video with every segment recoverable and inspectable.
 
-The final assembled video is an MP4 (H.264, `yuv420p`, faststart). Visible seams
-between segments are expected; the guarantee is one correctly assembled, playable
-video of the requested length, with every segment recoverable and inspectable.
 
 ---
 

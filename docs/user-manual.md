@@ -9,7 +9,7 @@ The user manual has been split into focused manuals under
 |---|---|
 | [Getting started](manuals/01-getting-started.md) | installation, first run, concepts, the shell, accounts and roles. |
 | [Creative development](manuals/02-creative-development.md) | Project Bible, Develop, Outline and beats, Board and blocking, Continuity, Animatic, Prompt workbench, Shot inspector. |
-| [Production and delivery](manuals/03-production-and-delivery.md) | Workflows, model profiles and targets, Produce, Duration video, jobs, Review, Edit and export, Compute and campaigns. |
+| [Production and delivery](manuals/03-production-and-delivery.md) | Workflows, model profiles and targets, Produce, Super Shot, jobs, Review, Edit and export, Compute and campaigns. |
 | [Operations and administration](manuals/04-operations-and-admin.md) | packages, backup/verify/restore, LAN, PWA and offline drafts, settings, diagnostics, security, config, CLI, troubleshooting, limitations, glossary. |
 | [Guided tours](manuals/05-guided-tours.md) | the software-driven tours that operate the real interface. |
 

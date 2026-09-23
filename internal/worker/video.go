@@ -2,10 +2,9 @@ package worker
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
-	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -17,123 +16,149 @@ import (
 	"vidbuild/internal/workflows"
 )
 
-// videoService wires the duration-video orchestration to real adapters.
+// videoService wires Super Shot orchestration to the real adapters.
 func (w *Worker) videoService() *video.Service {
-	return &video.Service{Store: w.store, Generate: w, Assemble: w, Log: w.log}
+	return &video.Service{Store: w.store, Generate: w, GenerateAnchor: w, Assemble: w, Log: w.log}
 }
 
-// processSegment generates exactly one video segment (retry-safe: it only touches
-// the segment it was queued for).
+// processAnchor generates one intermediate anchor image and, once it has an
+// asset, queues the segments that depend on it.
+func (w *Worker) processAnchor(ctx context.Context, job *store.Job) error {
+	anchor, err := w.store.GetAnchor(ctx, job.AggregateID)
+	if err != nil {
+		_ = w.store.UpdateJobState(ctx, job.ID, "failed", "anchor", "error", err.Error(), 10000)
+		return err
+	}
+	plan, err := w.store.GetSuperShotRequest(ctx, anchor.SuperShotRequestID)
+	if err != nil {
+		_ = w.store.UpdateJobState(ctx, job.ID, "failed", "anchor", "error", err.Error(), 10000)
+		return err
+	}
+	_ = w.store.SetAnchorStatus(ctx, anchor.ID, "running", "")
+	_ = w.store.UpdateJobState(ctx, job.ID, "running", "generate", "info", "Generating intermediate image", 3000)
+	assetID, err := w.GenerateAnchor(ctx, *anchor, *plan)
+	if err != nil {
+		_ = w.store.SetAnchorStatus(ctx, anchor.ID, "failed", err.Error())
+		_ = w.store.UpdateJobState(ctx, job.ID, "failed", "anchor", "error", err.Error(), 10000)
+		return err
+	}
+	_ = w.store.SetAnchorSucceeded(ctx, anchor.ID, assetID)
+	if err := w.videoService().AnchorReady(ctx, anchor.ID); err != nil {
+		return err
+	}
+	return w.store.UpdateJobState(ctx, job.ID, "succeeded", "anchor", "info", "Anchor generated", 10000)
+}
+
+// processSegment generates exactly one video segment from its adjacent anchors.
 func (w *Worker) processSegment(ctx context.Context, job *store.Job) error {
 	svc := w.videoService()
 	if err := svc.RunSegment(ctx, job.AggregateID); err != nil {
 		_ = w.store.UpdateJobState(ctx, job.ID, "failed", "segment", "error", err.Error(), 10000)
 		return err
 	}
-	return w.store.UpdateJobState(ctx, job.ID, "succeeded", "segment", "info", "segment generated", 10000)
+	return w.store.UpdateJobState(ctx, job.ID, "succeeded", "segment", "info", "Segment generated", 10000)
 }
 
-// processAssembly concatenates a request's segment assets into one video.
+// processAssembly concatenates a plan's current segments into one video.
 func (w *Worker) processAssembly(ctx context.Context, job *store.Job) error {
 	svc := w.videoService()
 	if err := svc.RunAssembly(ctx, job.AggregateID); err != nil {
 		_ = w.store.UpdateJobState(ctx, job.ID, "failed", "assemble", "error", err.Error(), 10000)
 		return err
 	}
-	return w.store.UpdateJobState(ctx, job.ID, "succeeded", "assemble", "info", "video assembled", 10000)
+	return w.store.UpdateJobState(ctx, job.ID, "succeeded", "assemble", "info", "Video assembled", 10000)
 }
 
-// GenerateSegment implements video.Generator using the bound FLF2V workflow.
-func (w *Worker) GenerateSegment(ctx context.Context, seg store.VideoSegment) (string, error) {
-	req, err := w.store.GetRequest(ctx, seg.RequestID)
+// GenerateSegment implements video.Generator. It conditions on the segment's own
+// start and end anchors and never falls back to the shot's outer endpoints
+// (spec §7.2).
+func (w *Worker) GenerateSegment(ctx context.Context, seg store.VideoSegment) (video.SegmentResult, error) {
+	if !seg.SuperShotRequestID.Valid || !seg.StartAnchorID.Valid || !seg.EndAnchorID.Valid {
+		return video.SegmentResult{}, fmt.Errorf("segment is not part of a Super Shot chain")
+	}
+	plan, err := w.store.GetSuperShotRequest(ctx, seg.SuperShotRequestID.String)
 	if err != nil {
-		return "", fmt.Errorf("load request: %w", err)
+		return video.SegmentResult{}, fmt.Errorf("load plan: %w", err)
 	}
-	if !req.WorkflowVersionID.Valid {
-		return "", fmt.Errorf("segment request has no workflow version")
-	}
-	version, err := w.store.GetWorkflowVersion(ctx, req.WorkflowVersionID.String)
+	start, err := w.store.GetAnchor(ctx, seg.StartAnchorID.String)
 	if err != nil {
-		return "", fmt.Errorf("load workflow version: %w", err)
+		return video.SegmentResult{}, fmt.Errorf("load start anchor: %w", err)
 	}
-	bindings, err := w.store.ListBindings(ctx, version.ID)
+	end, err := w.store.GetAnchor(ctx, seg.EndAnchorID.String)
 	if err != nil {
-		return "", err
+		return video.SegmentResult{}, fmt.Errorf("load end anchor: %w", err)
 	}
-	wfBindings := make([]workflows.Binding, 0, len(bindings))
-	for _, b := range bindings {
-		wfBindings = append(wfBindings, workflows.Binding{SemanticField: b.SemanticField, NodeID: b.NodeID, InputName: b.InputName, ValueType: b.ValueType, Required: b.Required})
+	if !start.AssetID.Valid || !end.AssetID.Valid {
+		return video.SegmentResult{}, fmt.Errorf("segment anchors do not both have images yet")
 	}
-	if !hasBinding(wfBindings, "first_frame_asset") || !hasBinding(wfBindings, "last_frame_asset") {
-		return "", fmt.Errorf("workflow does not declare first_frame_asset and last_frame_asset bindings")
+	version, err := w.store.GetWorkflowVersion(ctx, plan.WorkflowVersionID)
+	if err != nil {
+		return video.SegmentResult{}, fmt.Errorf("load workflow: %w", err)
+	}
+	dbBindings, err := w.store.ListBindings(ctx, version.ID)
+	if err != nil {
+		return video.SegmentResult{}, err
+	}
+	bindings := make([]workflows.Binding, 0, len(dbBindings))
+	for _, b := range dbBindings {
+		bindings = append(bindings, workflows.Binding{SemanticField: b.SemanticField, NodeID: b.NodeID, InputName: b.InputName, ValueType: b.ValueType, Required: b.Required})
+	}
+	startName, err := w.stageAssetCached(ctx, start.AssetID.String)
+	if err != nil {
+		return video.SegmentResult{}, fmt.Errorf("stage start anchor: %w", err)
+	}
+	endName, err := w.stageAssetCached(ctx, end.AssetID.String)
+	if err != nil {
+		return video.SegmentResult{}, fmt.Errorf("stage end anchor: %w", err)
 	}
 
-	var pl struct {
-		Width      int     `json:"width"`
-		Height     int     `json:"height"`
-		Checkpoint string  `json:"checkpoint"`
-		FPS        float64 `json:"fps"`
-		Seed       int64   `json:"seed"`
-	}
-	_ = json.Unmarshal([]byte(req.RequestJSON), &pl)
-
-	startName, err := w.stageAssetCached(ctx, seg.StartAssetID.String)
-	if err != nil {
-		return "", fmt.Errorf("stage start anchor: %w", err)
-	}
-	endName, err := w.stageAssetCached(ctx, seg.EndAssetID.String)
-	if err != nil {
-		return "", fmt.Errorf("stage end anchor: %w", err)
-	}
-
-	seed := pl.Seed
-	if seed == 0 {
-		seed = rand.Int63()
+	seed := rand.Int63()
+	positive := seg.ActionPrompt
+	if positive == "" {
+		positive = seg.Positive
 	}
 	values := map[string]any{
-		"first_frame_positive": seg.Positive,
+		"first_frame_positive": positive,
 		"first_frame_negative": seg.Negative,
-		"width":                pl.Width,
-		"height":               pl.Height,
-		"seed":                 seed,
 		"first_frame_asset":    startName,
 		"last_frame_asset":     endName,
+		"width":                plan.Width,
+		"height":               plan.Height,
+		"seed":                 seed,
 	}
 	if seg.FrameCount > 0 {
 		values["frame_count"] = seg.FrameCount
 	}
-	if seg.FPS > 0 {
-		values["fps"] = seg.FPS
-	} else if pl.FPS > 0 {
-		values["fps"] = pl.FPS
+	if seg.FPSNum > 0 && seg.FPSDen > 0 {
+		values["fps"] = float64(seg.FPSNum) / float64(seg.FPSDen)
 	}
-	if pl.Checkpoint != "" {
-		values["model_name"] = pl.Checkpoint
+	if cp := w.profileCheckpoint(ctx, plan); cp != "" {
+		values["model_name"] = cp
 	}
 
 	graph, err := workflows.CloneGraph(version.GraphJSON)
 	if err != nil {
-		return "", err
+		return video.SegmentResult{}, err
 	}
-	graph, err = workflows.ApplyBindings(graph, wfBindings, values)
+	graph, err = workflows.ApplyBindings(graph, bindings, values)
 	if err != nil {
-		return "", err
+		return video.SegmentResult{}, err
 	}
 	boundJSON, _ := json.Marshal(values)
 
 	started := time.Now()
 	resp, err := w.comfy.Submit(ctx, graph, w.owner)
 	if err != nil {
-		return "", fmt.Errorf("submit: %w", err)
+		return video.SegmentResult{}, fmt.Errorf("submit: %w", err)
 	}
 	entry, err := w.comfy.Wait(ctx, resp.PromptID, 0, nil)
 	if err != nil {
-		return "", fmt.Errorf("wait: %w", err)
+		return video.SegmentResult{}, fmt.Errorf("wait: %w", err)
 	}
 	if entry.Status.StatusStr != "success" {
-		return "", fmt.Errorf("comfyui status %q", entry.Status.StatusStr)
+		return video.SegmentResult{}, fmt.Errorf("comfyui status %q", entry.Status.StatusStr)
 	}
-	outputNode := workflows.OutputNodeID(wfBindings)
+	outputNode := workflows.OutputNodeID(bindings)
 	if outputNode == "" {
 		for n := range entry.Outputs {
 			outputNode = n
@@ -141,20 +166,19 @@ func (w *Worker) GenerateSegment(ctx context.Context, seg store.VideoSegment) (s
 	}
 	out, ok := entry.Outputs[outputNode]
 	if !ok || len(out.Images) == 0 {
-		return "", fmt.Errorf("no output on node %q", outputNode)
+		return video.SegmentResult{}, fmt.Errorf("no output on node %q", outputNode)
 	}
 	img := out.Images[0]
 	body, err := w.comfy.Fetch(ctx, img)
 	if err != nil {
-		return "", fmt.Errorf("fetch: %w", err)
+		return video.SegmentResult{}, fmt.Errorf("fetch: %w", err)
 	}
 	defer body.Close()
-
 	kind, mime := outputMedia(img.Filename)
-	relDir := fmt.Sprintf("%s/%s/videos/%s/shots/%s/segments", seg.WorkspaceID, seg.ProjectID, seg.VideoID, seg.ShotID)
-	uri, checksum, size, err := w.media.Put(relDir, fmt.Sprintf("seg-%02d-%s", seg.Index, img.Filename), io.LimitReader(body, 400<<20))
+	relDir := fmt.Sprintf("%s/%s/videos/%s/super-shots/%s/segments", seg.WorkspaceID, seg.ProjectID, seg.VideoID, seg.SuperShotRequestID.String)
+	uri, checksum, size, err := w.media.Put(relDir, fmt.Sprintf("seg-%02d-%s", seg.Index, img.Filename), body)
 	if err != nil {
-		return "", fmt.Errorf("store segment: %w", err)
+		return video.SegmentResult{}, fmt.Errorf("store segment: %w", err)
 	}
 	assetID, err := w.store.CreateAsset(ctx, store.Asset{
 		WorkspaceID: seg.WorkspaceID, ProjectID: seg.ProjectID,
@@ -162,47 +186,129 @@ func (w *Worker) GenerateSegment(ctx context.Context, seg store.VideoSegment) (s
 		StorageURI: uri, MimeType: mime, SizeBytes: size, Checksum: checksum,
 	})
 	if err != nil {
-		return "", fmt.Errorf("record segment asset: %w", err)
+		return video.SegmentResult{}, fmt.Errorf("record segment asset: %w", err)
 	}
 	w.makeThumbnail(ctx, seg.WorkspaceID, seg.ProjectID, assetID, kind, mime)
 	if seg.AttemptID.Valid {
 		receipt, _ := json.Marshal(map[string]any{"client_id": w.owner, "prompt_id": resp.PromptID})
 		_ = w.store.RecordAttemptSuccess(ctx, seg.AttemptID.String, version.GraphSHA, "{}", string(boundJSON), string(receipt), time.Since(started).Milliseconds())
 	}
-	return assetID, nil
+	return video.SegmentResult{AssetID: assetID, StartAssetID: start.AssetID.String, EndAssetID: end.AssetID.String}, nil
 }
 
-// Assemble implements video.Assembler: ordered segments become one MP4 asset.
-func (w *Worker) Assemble(ctx context.Context, asm store.VideoAssembly, segs []store.VideoSegment) (string, error) {
-	if len(segs) == 0 {
-		return "", fmt.Errorf("no segments to assemble")
-	}
-	vid, err := w.store.GetVideoByID(ctx, asm.VideoID)
+// GenerateAnchor implements video.AnchorGenerator using an image workflow.
+func (w *Worker) GenerateAnchor(ctx context.Context, anchor store.VideoAnchor, plan store.SuperShotRequest) (string, error) {
+	version, err := w.pickImageWorkflow(ctx)
 	if err != nil {
 		return "", err
 	}
+	dbBindings, err := w.store.ListBindings(ctx, version.ID)
+	if err != nil {
+		return "", err
+	}
+	bindings := make([]workflows.Binding, 0, len(dbBindings))
+	for _, b := range dbBindings {
+		bindings = append(bindings, workflows.Binding{SemanticField: b.SemanticField, NodeID: b.NodeID, InputName: b.InputName, ValueType: b.ValueType, Required: b.Required})
+	}
+	values := map[string]any{
+		"first_frame_positive": anchor.StatePrompt,
+		"first_frame_negative": anchor.NegativePrompt,
+		"width":                plan.Width,
+		"height":               plan.Height,
+		"seed":                 rand.Int63(),
+	}
+	if cp := w.profileCheckpoint(ctx, &plan); cp != "" {
+		values["model_name"] = cp
+	}
+	graph, err := workflows.CloneGraph(version.GraphJSON)
+	if err != nil {
+		return "", err
+	}
+	graph, err = workflows.ApplyBindings(graph, bindings, values)
+	if err != nil {
+		return "", err
+	}
+	resp, err := w.comfy.Submit(ctx, graph, w.owner)
+	if err != nil {
+		return "", fmt.Errorf("submit anchor: %w", err)
+	}
+	entry, err := w.comfy.Wait(ctx, resp.PromptID, 0, nil)
+	if err != nil {
+		return "", fmt.Errorf("wait anchor: %w", err)
+	}
+	if entry.Status.StatusStr != "success" {
+		return "", fmt.Errorf("comfyui status %q", entry.Status.StatusStr)
+	}
+	outputNode := workflows.OutputNodeID(bindings)
+	if outputNode == "" {
+		for n := range entry.Outputs {
+			outputNode = n
+		}
+	}
+	out, ok := entry.Outputs[outputNode]
+	if !ok || len(out.Images) == 0 {
+		return "", fmt.Errorf("no anchor output on node %q", outputNode)
+	}
+	img := out.Images[0]
+	body, err := w.comfy.Fetch(ctx, img)
+	if err != nil {
+		return "", fmt.Errorf("fetch anchor: %w", err)
+	}
+	defer body.Close()
+	kind, mime := outputMedia(img.Filename)
+	if kind != "image" {
+		kind, mime = "image", "image/png"
+	}
+	relDir := fmt.Sprintf("%s/%s/videos/%s/super-shots/%s/anchors", plan.WorkspaceID, plan.ProjectID, plan.VideoID, plan.ID)
+	uri, checksum, size, err := w.media.Put(relDir, fmt.Sprintf("anchor-%02d-%s", anchor.Index, img.Filename), body)
+	if err != nil {
+		return "", fmt.Errorf("store anchor: %w", err)
+	}
+	assetID, err := w.store.CreateAsset(ctx, store.Asset{
+		WorkspaceID: plan.WorkspaceID, ProjectID: plan.ProjectID,
+		Kind: kind, Role: "video_anchor", StorageURI: uri, MimeType: mime, SizeBytes: size, Checksum: checksum,
+	})
+	if err != nil {
+		return "", fmt.Errorf("record anchor asset: %w", err)
+	}
+	w.makeThumbnail(ctx, plan.WorkspaceID, plan.ProjectID, assetID, kind, mime)
+	return assetID, nil
+}
+
+// Assemble implements video.Assembler: ordered segment assets become one MP4, and
+// the measured duration and joins are returned for verification and review.
+func (w *Worker) Assemble(ctx context.Context, asm store.VideoAssembly, segs []store.VideoSegment) (video.AssemblyResult, error) {
+	if len(segs) == 0 {
+		return video.AssemblyResult{}, fmt.Errorf("no segments to assemble")
+	}
+	width, height, fpsNum := segs[0].FPSNum, 0, segs[0].FPSNum
+	if asm.SuperShotRequestID.Valid {
+		if plan, err := w.store.GetSuperShotRequest(ctx, asm.SuperShotRequestID.String); err == nil {
+			width, height, fpsNum = plan.Width, plan.Height, plan.FPSNum
+		}
+	}
 	clips := make([]exporter.Clip, 0, len(segs))
+	planned := 0
 	for _, seg := range segs {
 		asset, err := w.store.GetAsset(ctx, seg.AssetID.String)
 		if err != nil {
-			return "", fmt.Errorf("segment %d asset: %w", seg.Index, err)
+			return video.AssemblyResult{}, fmt.Errorf("segment %d asset: %w", seg.Index, err)
 		}
 		path, err := w.media.Resolve(asset.StorageURI)
 		if err != nil {
-			return "", fmt.Errorf("segment %d path: %w", seg.Index, err)
+			return video.AssemblyResult{}, fmt.Errorf("segment %d path: %w", seg.Index, err)
 		}
-		durMs := 0
-		if seg.FrameCount > 0 && seg.FPS > 0 {
-			durMs = int(math.Round(float64(seg.FrameCount) / seg.FPS * 1000))
+		dur := seg.DurationMS
+		if dur > 0 {
+			planned += dur
 		}
-		if durMs <= 0 {
-			durMs = video.SegmentSeconds * 1000
-		}
-		// Minimal cut; advanced transitions are deliberately out of scope.
-		clips = append(clips, exporter.Clip{Path: path, IsImage: false, DurationMs: durMs, TransitionOut: "cut"})
+		clips = append(clips, exporter.Clip{Path: path, IsImage: false, DurationMs: dur, TransitionOut: "cut"})
 	}
-
-	ex := exporter.New(w.cfg.FFmpeg.BinaryPath, vid.Width, vid.Height, vid.FPSNum, w.cfg.FFmpeg.RequestTimeoutSec)
+	fps := fpsNum
+	if fps <= 0 {
+		fps = 8
+	}
+	ex := exporter.New(w.cfg.FFmpeg.BinaryPath, width, height, fps, w.cfg.FFmpeg.RequestTimeoutSec)
 	tempDir := w.cfg.Media.TempDir
 	if !filepath.IsAbs(tempDir) {
 		if abs, err := filepath.Abs(tempDir); err == nil {
@@ -210,22 +316,30 @@ func (w *Worker) Assemble(ctx context.Context, asm store.VideoAssembly, segs []s
 		}
 	}
 	if err := os.MkdirAll(tempDir, 0o755); err != nil {
-		return "", err
+		return video.AssemblyResult{}, err
 	}
-	outPath := filepath.Join(tempDir, "assembly-"+asm.ID+".mp4")
+	outPath := filepath.Join(tempDir, "super-shot-"+asm.ID+".mp4")
 	defer os.Remove(outPath)
 	if err := ex.Assemble(ctx, clips, outPath); err != nil {
-		return "", fmt.Errorf("assemble: %w", err)
+		return video.AssemblyResult{}, fmt.Errorf("assemble: %w", err)
+	}
+	actual := planned
+	receipt := fmt.Sprintf("ffmpeg concat, %d segments", len(segs))
+	if measured, err := exporter.ProbeDurationMS(ctx, w.cfg.FFmpeg.BinaryPath, outPath); err == nil {
+		actual = measured
+		receipt += fmt.Sprintf(", ffprobe duration=%dms", measured)
+	} else {
+		receipt += ", duration not probed (ffprobe unavailable)"
 	}
 	f, err := os.Open(outPath)
 	if err != nil {
-		return "", err
+		return video.AssemblyResult{}, err
 	}
 	defer f.Close()
-	relDir := fmt.Sprintf("%s/%s/videos/%s/shot/%s/video", asm.WorkspaceID, asm.ProjectID, asm.VideoID, asm.ShotID)
-	uri, checksum, size, err := w.media.Put(relDir, "video-"+asm.ID+".mp4", f)
+	relDir := fmt.Sprintf("%s/%s/videos/%s/super-shots/%s/assembly", asm.WorkspaceID, asm.ProjectID, asm.VideoID, nullStrVal(asm.SuperShotRequestID))
+	uri, checksum, size, err := w.media.Put(relDir, "super-shot-"+asm.ID+".mp4", f)
 	if err != nil {
-		return "", fmt.Errorf("store assembled video: %w", err)
+		return video.AssemblyResult{}, fmt.Errorf("store assembled video: %w", err)
 	}
 	assetID, err := w.store.CreateAsset(ctx, store.Asset{
 		WorkspaceID: asm.WorkspaceID, ProjectID: asm.ProjectID,
@@ -233,21 +347,31 @@ func (w *Worker) Assemble(ctx context.Context, asm store.VideoAssembly, segs []s
 		SizeBytes: size, Checksum: checksum,
 	})
 	if err != nil {
-		return "", fmt.Errorf("record assembled asset: %w", err)
+		return video.AssemblyResult{}, fmt.Errorf("record assembled asset: %w", err)
 	}
 	w.makeThumbnail(ctx, asm.WorkspaceID, asm.ProjectID, assetID, "video", "video/mp4")
-	return assetID, nil
+
+	joins := make([]map[string]any, 0, len(segs)-1)
+	offset := 0
+	for i := 0; i < len(segs)-1; i++ {
+		offset += segs[i].DurationMS
+		joins = append(joins, map[string]any{
+			"index": i, "offset_ms": offset,
+			"before_asset": segs[i].AssetID.String, "after_asset": segs[i+1].AssetID.String,
+		})
+	}
+	joinsJSON, _ := json.Marshal(joins)
+	return video.AssemblyResult{AssetID: assetID, ActualDurationMS: actual, JoinsJSON: string(joinsJSON), Receipt: receipt}, nil
 }
 
-// stageAssetCached uploads an endpoint asset to ComfyUI once per checksum and
-// reuses the uploaded name across segments (endpoint reuse).
+// stageAssetCached uploads an asset to ComfyUI once per checksum.
 func (w *Worker) stageAssetCached(ctx context.Context, assetID string) (string, error) {
 	asset, err := w.store.GetAsset(ctx, assetID)
 	if err != nil {
 		return "", err
 	}
 	if asset.Checksum == "" {
-		return "", fmt.Errorf("endpoint asset has no verified checksum")
+		return "", fmt.Errorf("asset has no verified checksum")
 	}
 	w.upMu.Lock()
 	name, ok := w.uploads[asset.Checksum]
@@ -271,4 +395,41 @@ func (w *Worker) stageAssetCached(ctx context.Context, assetID string) (string, 
 	w.uploads[asset.Checksum] = up.Name
 	w.upMu.Unlock()
 	return up.Name, nil
+}
+
+// pickImageWorkflow finds a selectable image-task workflow for anchor generation.
+func (w *Worker) pickImageWorkflow(ctx context.Context) (*store.WorkflowVersion, error) {
+	versions, err := w.store.ListSelectableVersions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range versions {
+		pkg, err := w.store.GetWorkflowPackage(ctx, versions[i].WorkflowPackageID)
+		if err != nil {
+			continue
+		}
+		if pkg.Task == "image" {
+			return &versions[i], nil
+		}
+	}
+	return nil, fmt.Errorf("no image workflow is available to generate intermediate anchors; attach an image to each anchor instead")
+}
+
+// profileCheckpoint returns the plan's model checkpoint, if any.
+func (w *Worker) profileCheckpoint(ctx context.Context, plan *store.SuperShotRequest) string {
+	if plan == nil || !plan.ModelProfileID.Valid {
+		return ""
+	}
+	p, err := w.store.GetModelProfile(ctx, plan.WorkspaceID, plan.ModelProfileID.String)
+	if err != nil {
+		return ""
+	}
+	return p.ProfileCheckpoint()
+}
+
+func nullStrVal(v sql.NullString) string {
+	if v.Valid {
+		return v.String
+	}
+	return ""
 }

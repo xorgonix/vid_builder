@@ -147,11 +147,37 @@ func (e *Exporter) Assemble(ctx context.Context, clips []Clip, outPath string) e
 
 // Probe returns a duration in ms for a media file using ffprobe-like parsing
 // via ffmpeg is avoided; trim values are supplied by the edit instead.
-func tail(s string, n int) string {
-	if len(s) <= n {
+func tail(s string, n int) string {	if len(s) <= n {
 		return s
 	}
 	return s[len(s)-n:]
 }
 
 var _ = strconv.Itoa
+
+// ProbeDurationMS measures a media file's duration in milliseconds with ffprobe.
+// It verifies a Super Shot assembly against its planned duration (spec §7.4,
+// §15.7). Callers must treat an error as "not measured", not as success.
+func ProbeDurationMS(ctx context.Context, ffmpegBin, path string) (int, error) {
+	bin := ffprobeBin(ffmpegBin)
+	args := []string{"-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path}
+	out, err := exec.CommandContext(ctx, bin, args...).Output()
+	if err != nil {
+		return 0, fmt.Errorf("ffprobe: %w", err)
+	}
+	secs, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
+	if err != nil {
+		return 0, fmt.Errorf("ffprobe: parse duration: %w", err)
+	}
+	return int(secs*1000 + 0.5), nil
+}
+
+func ffprobeBin(ffmpegBin string) string {
+	if ffmpegBin == "" || ffmpegBin == "ffmpeg" {
+		return "ffprobe"
+	}
+	if strings.HasSuffix(ffmpegBin, "ffmpeg") {
+		return strings.TrimSuffix(ffmpegBin, "ffmpeg") + "ffprobe"
+	}
+	return "ffprobe"
+}

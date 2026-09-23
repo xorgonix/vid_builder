@@ -126,7 +126,7 @@ Supporting nouns:
 | **Model profile** | Named production settings (checkpoint, etc.) you reuse. |
 | **Execution target** | Somewhere work can run: local ComfyUI, a rented worker, an API. |
 | **Campaign** | A planned batch of compatible work assigned to one target. |
-| **Duration video** | A prompt plus a length (5, 15 or 30 seconds) compiled into fixed five-second segments and assembled into one playable video. |
+| **Super Shot** | One perceived shot of 2.0–30.0 seconds, generated directly or as an ordered chain of adjacent anchor-to-anchor segments (A→B, B→C, C→D), assembled into one playable video. |
 
 **Shot readiness** moves through a ladder and is always visible:
 
@@ -144,7 +144,7 @@ Every screen shares the same chrome:
   (Project / Video), and your account menu (Account, Guided tours, Administration
   for system admins, Sign out).
 - **Left navigation** — Dashboard, Projects, then the primary creative path:
-  **Develop · Outline · Board · Produce · Duration video · Review · Edit · More**,
+  **Develop · Outline · Board · Produce · Super Shot · Review · Edit · More**,
   plus Settings, Local services and Guided tours.
 - **Main area** — the current working surface.
 - **Status strip** (footer) — app version and host notes.

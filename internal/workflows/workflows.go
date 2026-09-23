@@ -45,6 +45,7 @@ type Manifest struct {
 	Bindings             []Binding           `json:"bindings"`
 	Requirements         map[string][]string `json:"requirements"`
 	ExpectedOutputs      []ExpectedOutput    `json:"expected_outputs"`
+	Capabilities         *Capabilities       `json:"capabilities,omitempty"`
 }
 
 // Packaged is a loaded bundled workflow.

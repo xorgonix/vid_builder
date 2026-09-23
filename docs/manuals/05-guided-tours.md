@@ -69,16 +69,18 @@ The tour opens **Outline**, adds a **section**, points out the scene field, then
 jumps to the **Board** and explains how blocking sketches render instantly as
 SVG with no model call.
 
-### 3. Make a 5/15/30-second video
+### 3. Make a Super Shot (2.0–30.0 seconds)
 
 *Run with a project and video open.*
 
-The tour opens **Duration video**, then walks through choosing a shot with an
-approved start and end frame, choosing 5, 15 or 30 seconds, choosing a workflow
-that declares first/last frame bindings, and writing the motion prompt. It
-explains that 5s is one generation, 15s is three and 30s is six, that each
-segment retries independently, and that the assembled video appears when every
-segment has succeeded.
+The tour opens **Super Shot**, then walks through choosing a shot with an
+approved start and end image, choosing a duration (5, 15 and 30 are presets),
+selecting a workflow with declared timing capability, and writing the movement
+prompt. It explains that a short shot is one generation while longer shots become
+an ordered chain of adjacent segments (A→B, B→C, C→D) whose intermediate images
+and movement prompts you review before generation, that each segment retries
+independently, and that the assembled video appears when every segment is
+current.
 
 ---
 

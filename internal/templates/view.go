@@ -652,6 +652,91 @@ type TutorialsData struct {
 	Tutorials []TutorialView
 }
 
+// SuperShotAnchorView is one ordered boundary state on the Super Shot review page.
+type SuperShotAnchorView struct {
+	ID           string
+	Index        int
+	TimeOffsetMS int
+	Kind         string
+	State        string
+	Status       string
+	Error        string
+	Asset        AssetView
+	HasAsset     bool
+	IsSupplied   bool
+	Revision     int
+}
+
+// SuperShotSegmentView is one adjacent-anchor segment on the review page.
+type SuperShotSegmentView struct {
+	ID            string
+	Index         int
+	Action        string
+	DurationMS    int
+	StartOffsetMS int
+	EndOffsetMS   int
+	Frames        int
+	Status        string
+	Stale         bool
+	Error         string
+	Asset         AssetView
+	HasFile       bool
+	Revision      int
+}
+
+// SuperShotView is one plan (list and review pages).
+type SuperShotView struct {
+	ID                  string
+	ShotID              string
+	ShotTitle           string
+	Strategy            string
+	RequestedDurationMS int
+	PlannedDurationMS   int
+	Status              string
+	PlanVersion         int
+	Summary             string
+	ContextMode         string
+	LegacyInvalid       bool
+	Anchors             []SuperShotAnchorView
+	Segments            []SuperShotSegmentView
+	Warnings            []string
+	Video               AssetView
+	HasVideo            bool
+	ActualDurationMS    int
+}
+
+// SuperShotListData backs the Super Shot overview for a video.
+type SuperShotListData struct {
+	Shell   ShellData
+	Project ProjectView
+	Video   VideoView
+	Plans   []SuperShotView
+}
+
+// SuperShotFormData backs the new Super Shot form.
+type SuperShotFormData struct {
+	Shell             ShellData
+	Project           ProjectView
+	Video             VideoView
+	Shots             []DurationShotView
+	Workflows         []WorkflowOption
+	PreselectShotID   string
+	DefaultDurationMS int
+}
+
+// SuperShotPageData backs the plan review page.
+type SuperShotPageData struct {
+	Shell     ShellData
+	Project   ProjectView
+	Video     VideoView
+	SuperShot SuperShotView
+}
+
+// MSecs renders milliseconds as seconds with two decimals.
+func MSecs(ms int) string {
+	return strconv.FormatFloat(float64(ms)/1000, 'f', 2, 64)
+}
+
 // JobEventView is a job event line.
 type JobEventView struct {
 	Sequence  int

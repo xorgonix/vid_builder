@@ -28,5 +28,21 @@
   },
   "expected_outputs": [
     { "node_id": "12", "type": "video", "field": "images" }
-  ]
+  ],
+  "capabilities": {
+    "video_timing": {
+      "minimum_duration_ms": 2000,
+      "maximum_direct_duration_ms": 5000,
+      "preferred_segment_duration_ms": 5000,
+      "minimum_frames": 17,
+      "maximum_frames": 121,
+      "frame_rule": { "type": "modulo", "modulus": 4, "remainder": 1 },
+      "supported_fps": [ { "num": 8, "den": 1 }, { "num": 16, "den": 1 } ]
+    },
+    "inputs": { "start_image": true, "end_image": true },
+    "continuation": { "mode": "anchor_only" },
+    "endpoint_policy": "conditioned",
+    "verified": false,
+    "verification_note": "First/last conditioning verified against ComfyUI 0.35.0. The 4n+1 frame convention and maximum window are declared, not yet confirmed by a live timing run; confirm against the installed graph before treating as release evidence. No verified graph yet combines continuation context with terminal-image conditioning, so context modes stay unavailable."
+  }
 }
