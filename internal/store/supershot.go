@@ -211,10 +211,44 @@ func (s *Store) CreateSuperShotPlan(ctx context.Context, in SuperShotRequestInpu
 	if err != nil {
 		return nil, err
 	}
+	// Create one generation attempt per segment (spec §15.5). Each attempt lives
+	// under the request and records the lineage the worker attaches.
+	for _, seg := range outSegments {
+		aid := ids.New()
+		if _, err := tx.ExecContext(ctx, `INSERT INTO generation_attempts (id, generation_request_id, attempt_number, workflow_version_id, resolved_prompts_json, settings_json, status, queued_at)
+			VALUES (?,?,?,?,?,?,?,?)`,
+			aid, req.ID, seg.Index+2, nullIfEmpty(in.WorkflowVersionID), "{}", "{}", "queued", now); err != nil {
+			return nil, fmt.Errorf("insert segment attempt: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE video_segments SET attempt_id=? WHERE id=?`, aid, seg.ID); err != nil {
+			return nil, fmt.Errorf("link segment attempt: %w", err)
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return &SuperShotPlan{GenerationRequest: req, SuperShot: ss, Anchors: outAnchors, Segments: outSegments}, nil
+}
+
+// NewSegmentAttempt creates a fresh attempt for a segment and points the segment
+// at it (spec §7.3: a retry creates a new attempt rather than overwriting the
+// failed one).
+func (s *Store) NewSegmentAttempt(ctx context.Context, segmentID, requestID, workflowVersionID string) (string, error) {
+	var next int
+	_ = s.QueryRowContext(ctx, `SELECT COALESCE(MAX(attempt_number),0)+1 FROM generation_attempts WHERE generation_request_id=?`, requestID).Scan(&next)
+	if next < 1 {
+		next = 1
+	}
+	aid := ids.New()
+	if _, err := s.ExecContext(ctx, `INSERT INTO generation_attempts (id, generation_request_id, attempt_number, workflow_version_id, resolved_prompts_json, settings_json, status, queued_at)
+		VALUES (?,?,?,?,?,?,?,?)`,
+		aid, requestID, next, nullIfEmpty(workflowVersionID), "{}", "{}", "queued", db.Now()); err != nil {
+		return "", err
+	}
+	if _, err := s.ExecContext(ctx, `UPDATE video_segments SET attempt_id=? WHERE id=?`, aid, segmentID); err != nil {
+		return "", err
+	}
+	return aid, nil
 }
 
 // GetSuperShotRequest loads one plan.

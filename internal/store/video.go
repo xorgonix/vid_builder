@@ -345,6 +345,14 @@ func (s *Store) ListAssembliesForVideo(ctx context.Context, videoID string) ([]V
 	return out, rows.Err()
 }
 
+// InvalidateAssembly marks an existing assembly as needing a rebuild (spec §7.3,
+// §11.11). After a segment or anchor changes, call this before re-running
+// generation so TryAssemble does not incorrectly early-return on a stale success.
+func (s *Store) InvalidateAssembly(ctx context.Context, requestID string) error {
+	_, err := s.ExecContext(ctx, `UPDATE video_assemblies SET status='pending', revision=revision+1, updated_at=? WHERE request_id=?`, db.Now(), requestID)
+	return err
+}
+
 // SetAssemblyRunning marks the assembly running.
 func (s *Store) SetAssemblyRunning(ctx context.Context, id string) error {
 	_, err := s.ExecContext(ctx, `UPDATE video_assemblies SET status='running', error='', revision=revision+1, updated_at=? WHERE id=?`, db.Now(), id)
@@ -367,12 +375,25 @@ func (s *Store) SetAssemblyFailed(ctx context.Context, id, errMsg string) error 
 	return err
 }
 
-// EnqueueJob queues a job of any supported type for an aggregate.
-func (s *Store) EnqueueJob(ctx context.Context, workspaceID, jobType, aggregateType, aggregateID string) (*Job, error) {
+// EnqueueJob queues a job of any supported type for an aggregate. When uniqueKey
+// is non-empty the enqueue is idempotent: a job with that key is created once and
+// reused (spec §15.6).
+func (s *Store) EnqueueJob(ctx context.Context, workspaceID, jobType, aggregateType, aggregateID, uniqueKey string) (*Job, error) {
 	now := db.Now()
+	if uniqueKey != "" {
+		var existingID string
+		err := s.QueryRowContext(ctx, `SELECT id FROM jobs WHERE unique_key=?`, uniqueKey).Scan(&existingID)
+		if err == nil {
+			return s.GetJob(ctx, existingID)
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+	}
 	j := &Job{ID: ids.New(), WorkspaceID: workspaceID, JobType: jobType, AggregateType: aggregateType, AggregateID: aggregateID, State: "queued", CreatedAt: now}
-	if _, err := s.ExecContext(ctx, `INSERT INTO jobs (id, workspace_id, job_type, aggregate_type, aggregate_id, state, priority, request_json, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?)`, j.ID, workspaceID, jobType, aggregateType, aggregateID, "queued", 0, "{}", now); err != nil {
+	_, err := s.ExecContext(ctx, `INSERT INTO jobs (id, workspace_id, job_type, aggregate_type, aggregate_id, state, priority, request_json, unique_key, created_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?)`, j.ID, workspaceID, jobType, aggregateType, aggregateID, "queued", 0, "{}", nullIfEmpty(uniqueKey), now)
+	if err != nil {
 		return nil, err
 	}
 	return j, nil

@@ -128,3 +128,9 @@ ALTER TABLE video_assemblies ADD COLUMN planned_duration_ms INTEGER NOT NULL DEF
 ALTER TABLE video_assemblies ADD COLUMN actual_duration_ms INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE video_assemblies ADD COLUMN joins_json TEXT NOT NULL DEFAULT '[]';
 ALTER TABLE video_assemblies ADD COLUMN ffmpeg_receipt TEXT NOT NULL DEFAULT '';
+
+-- Idempotent job dispatch (spec §15.6): workers must not duplicate enqueue the
+-- same logical work. A unique index on the nullable key allows legacy NULL keys
+-- (which are distinct) while enforcing uniqueness among real keys.
+ALTER TABLE jobs ADD COLUMN unique_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_unique_key ON jobs (unique_key);

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"vidbuild/internal/store"
 	"vidbuild/internal/workflows"
@@ -220,7 +221,7 @@ func (s *Service) Approve(ctx context.Context, superShotID string, revision int)
 		if a.Kind != AnchorIntermediate || a.AssetID.Valid {
 			continue
 		}
-		if _, err := s.Store.EnqueueJob(ctx, plan.WorkspaceID, "generate_anchor", "video_anchor", a.ID); err != nil {
+		if _, err := s.Store.EnqueueJob(ctx, plan.WorkspaceID, "generate_anchor", "video_anchor", a.ID, "supershot:"+plan.ID+":anchor:"+strconv.Itoa(a.Index)); err != nil {
 			return err
 		}
 		_ = s.Store.SetAnchorStatus(ctx, a.ID, "queued", "")
@@ -256,7 +257,7 @@ func (s *Service) enqueueReadySegments(ctx context.Context, superShotID string) 
 			// context artifact; it remains unavailable until a verified adapter.
 			continue
 		}
-		if _, err := s.Store.EnqueueJob(ctx, seg.WorkspaceID, "generate_segment", "video_segment", seg.ID); err != nil {
+		if _, err := s.Store.EnqueueJob(ctx, seg.WorkspaceID, "generate_segment", "video_segment", seg.ID, "supershot:"+seg.RequestID+":segment:"+strconv.Itoa(seg.Index)); err != nil {
 			return err
 		}
 		queued++
@@ -290,6 +291,10 @@ func (s *Service) ChangeAnchor(ctx context.Context, anchorID string) error {
 	if anchor.Kind != AnchorIntermediate {
 		return fmt.Errorf("only intermediate anchors can be changed here")
 	}
+	plan, err := s.Store.GetSuperShotRequest(ctx, anchor.SuperShotRequestID)
+	if err != nil {
+		return err
+	}
 	segments, err := s.Store.ListSegmentsForSuperShot(ctx, anchor.SuperShotRequestID)
 	if err != nil {
 		return err
@@ -298,10 +303,14 @@ func (s *Service) ChangeAnchor(ctx context.Context, anchorID string) error {
 		if (seg.StartAnchorID.Valid && seg.StartAnchorID.String == anchorID) ||
 			(seg.EndAnchorID.Valid && seg.EndAnchorID.String == anchorID) {
 			_ = s.Store.MarkSegmentStale(ctx, seg.ID)
-			if seg.ContextMode != ContextAnchorOnly {
-				_, _ = s.Store.MarkDownstreamStale(ctx, anchor.SuperShotRequestID, seg.ID)
+			if seg.ContextMode != ContextAnchorOnly && plan.GenerationRequestID.Valid {
+				_, _ = s.Store.MarkDownstreamStale(ctx, plan.GenerationRequestID.String, seg.ID)
 			}
 		}
+	}
+	// Any change to a contributing segment or anchor invalidates the assembly.
+	if plan.GenerationRequestID.Valid {
+		_ = s.Store.InvalidateAssembly(ctx, plan.GenerationRequestID.String)
 	}
 	return nil
 }
@@ -329,15 +338,28 @@ func (s *Service) RunSegment(ctx context.Context, segmentID string) error {
 }
 
 // RetrySegment resets one failed segment and queues only that segment again.
+// A retry creates a new generation attempt; the old one is preserved as history
+// (spec §7.3).
 func (s *Service) RetrySegment(ctx context.Context, segmentID string) error {
 	seg, err := s.Store.GetSegment(ctx, segmentID)
 	if err != nil {
 		return err
 	}
+	// The old segment attempt is history; create a new one.
+	wfID := ""
+	if seg.SuperShotRequestID.Valid {
+		if plan, err := s.Store.GetSuperShotRequest(ctx, seg.SuperShotRequestID.String); err == nil {
+			wfID = plan.WorkflowVersionID
+		}
+	}
+	if _, err := s.Store.NewSegmentAttempt(ctx, seg.ID, seg.RequestID, wfID); err != nil {
+		return err
+	}
 	if err := s.Store.ResetSegmentForRetry(ctx, seg.ID); err != nil {
 		return err
 	}
-	_, err = s.Store.EnqueueJob(ctx, seg.WorkspaceID, "generate_segment", "video_segment", seg.ID)
+	_ = s.Store.InvalidateAssembly(ctx, seg.RequestID)
+	_, err = s.Store.EnqueueJob(ctx, seg.WorkspaceID, "generate_segment", "video_segment", seg.ID, "supershot:"+seg.RequestID+":segment:"+strconv.Itoa(seg.Index))
 	return err
 }
 
@@ -354,7 +376,10 @@ func (s *Service) RetryAnchor(ctx context.Context, anchorID string) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.Store.EnqueueJob(ctx, plan.WorkspaceID, "generate_anchor", "video_anchor", anchor.ID)
+	if plan.GenerationRequestID.Valid {
+		_ = s.Store.InvalidateAssembly(ctx, plan.GenerationRequestID.String)
+	}
+	_, err = s.Store.EnqueueJob(ctx, plan.WorkspaceID, "generate_anchor", "video_anchor", anchor.ID, "supershot:"+plan.ID+":anchor:"+strconv.Itoa(anchor.Index))
 	return err
 }
 
@@ -383,7 +408,7 @@ func (s *Service) TryAssemble(ctx context.Context, requestID string) (bool, erro
 	if asm.Status == "succeeded" || asm.Status == "running" {
 		return true, nil
 	}
-	if _, err := s.Store.EnqueueJob(ctx, first.WorkspaceID, "assemble_video", "video_assembly", requestID); err != nil {
+	if _, err := s.Store.EnqueueJob(ctx, first.WorkspaceID, "assemble_video", "video_assembly", requestID, "supershot:"+requestID+":assemble"); err != nil {
 		return false, err
 	}
 	return true, nil

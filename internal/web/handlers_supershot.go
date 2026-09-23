@@ -310,7 +310,7 @@ func (s *Server) handleSuperShotAssemble(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) enqueueAnchor(r *http.Request, plan *store.SuperShotRequest, anchor *store.VideoAnchor) error {
-	if _, err := s.store.EnqueueJob(r.Context(), plan.WorkspaceID, "generate_anchor", "video_anchor", anchor.ID); err != nil {
+	if _, err := s.store.EnqueueJob(r.Context(), plan.WorkspaceID, "generate_anchor", "video_anchor", anchor.ID, "supershot:"+plan.ID+":anchor:"+strconv.Itoa(anchor.Index)); err != nil {
 		return err
 	}
 	return s.store.SetAnchorStatus(r.Context(), anchor.ID, "queued", "")
