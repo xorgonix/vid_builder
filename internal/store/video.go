@@ -28,6 +28,8 @@ type VideoSegment struct {
 	Positive           string
 	Negative           string
 	ActionPrompt       string
+	RawAction          string
+	CompiledPrompt     string
 	ContinuityJSON     string
 	StartAssetID       sql.NullString
 	EndAssetID         sql.NullString
@@ -43,6 +45,7 @@ type VideoSegment struct {
 	Stale              bool
 	Status             string
 	AttemptID          sql.NullString
+	SelectedAttemptID  sql.NullString
 	AssetID            sql.NullString
 	Error              string
 	CreatedAt          string
@@ -66,6 +69,9 @@ type VideoAssembly struct {
 	ActualDurationMS   int
 	JoinsJSON          string
 	FFmpegReceipt      string
+	InputRevision      int
+	InputHash          string
+	MeasuredState      string
 	Error              string
 	CreatedAt          string
 	UpdatedAt          string
@@ -73,10 +79,10 @@ type VideoAssembly struct {
 }
 
 const segmentColumns = `id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, idx,
-	start_anchor_id, end_anchor_id, positive, negative, action_prompt, continuity_json,
+	start_anchor_id, end_anchor_id, positive, negative, action_prompt, raw_action, compiled_prompt, continuity_json,
 	start_asset_id, end_asset_id, start_offset_ms, end_offset_ms, duration_ms, frame_count,
 	fps_num, fps_den, context_mode, context_input_id, depends_on_segment_id, stale,
-	status, attempt_id, asset_id, error, created_at, updated_at, revision`
+	status, attempt_id, selected_attempt_id, asset_id, error, created_at, updated_at, revision`
 
 // SegmentInput is one segment to persist when planning a Super Shot.
 type SegmentInput struct {
@@ -85,6 +91,8 @@ type SegmentInput struct {
 	Positive           string
 	Negative           string
 	ActionPrompt       string
+	RawAction          string
+	CompiledPrompt     string
 	ContinuityJSON     string
 	StartAssetID       string
 	EndAssetID         string
@@ -124,11 +132,15 @@ func insertSegmentsTx(ctx context.Context, tx *sql.Tx, requestID, superShotID, w
 		seg := VideoSegment{
 			ID: ids.New(), RequestID: requestID, WorkspaceID: workspaceID, ProjectID: projectID,
 			VideoID: videoID, ShotID: shotID, Index: i, Positive: in.Positive, Negative: in.Negative,
-			ActionPrompt: in.ActionPrompt, ContinuityJSON: defaultJSONArray(in.ContinuityJSON),
+			ActionPrompt: in.ActionPrompt, RawAction: in.RawAction, CompiledPrompt: defaultString(in.CompiledPrompt, in.ActionPrompt),
+			ContinuityJSON: defaultJSONArray(in.ContinuityJSON),
 			StartOffsetMS: in.StartOffsetMS, EndOffsetMS: in.EndOffsetMS, DurationMS: in.DurationMS,
 			FrameCount: in.FrameCount, FPSNum: in.FPSNum, FPSDen: in.FPSDen,
 			ContextMode: defaultString(in.ContextMode, "anchor_only"), Status: "pending",
 			CreatedAt: now, UpdatedAt: now, Revision: 1,
+		}
+		if seg.RawAction == "" {
+			seg.RawAction = seg.ActionPrompt
 		}
 		if superShotID != "" {
 			seg.SuperShotRequestID = sql.NullString{String: superShotID, Valid: true}
@@ -144,14 +156,15 @@ func insertSegmentsTx(ctx context.Context, tx *sql.Tx, requestID, superShotID, w
 		seg.StartAssetID = ns(in.StartAssetID)
 		seg.EndAssetID = ns(in.EndAssetID)
 		seg.AttemptID = ns(in.AttemptID)
+		seg.SelectedAttemptID = seg.AttemptID
 		seg.DependsOnSegmentID = ns(in.DependsOnSegmentID)
 		if _, err := tx.ExecContext(ctx, `INSERT INTO video_segments (`+segmentColumns+`)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			seg.ID, seg.RequestID, nullSQL(seg.SuperShotRequestID), seg.WorkspaceID, seg.ProjectID, seg.VideoID, seg.ShotID, seg.Index,
-			nullSQL(seg.StartAnchorID), nullSQL(seg.EndAnchorID), seg.Positive, seg.Negative, seg.ActionPrompt, seg.ContinuityJSON,
+			nullSQL(seg.StartAnchorID), nullSQL(seg.EndAnchorID), seg.Positive, seg.Negative, seg.ActionPrompt, seg.RawAction, seg.CompiledPrompt, seg.ContinuityJSON,
 			nullSQL(seg.StartAssetID), nullSQL(seg.EndAssetID), seg.StartOffsetMS, seg.EndOffsetMS, seg.DurationMS, seg.FrameCount,
 			seg.FPSNum, seg.FPSDen, seg.ContextMode, nullSQL(seg.ContextInputID), nullSQL(seg.DependsOnSegmentID), boolInt(seg.Stale),
-			seg.Status, nullSQL(seg.AttemptID), nullSQL(seg.AssetID), "", now, now, 1); err != nil {
+			seg.Status, nullSQL(seg.AttemptID), nullSQL(seg.SelectedAttemptID), nullSQL(seg.AssetID), "", now, now, 1); err != nil {
 			return nil, fmt.Errorf("insert video segment: %w", err)
 		}
 		out = append(out, seg)
@@ -307,14 +320,14 @@ func (s *Store) UpsertAssembly(ctx context.Context, requestID, superShotID, work
 	a := &VideoAssembly{
 		ID: ids.New(), RequestID: requestID, WorkspaceID: workspaceID, ProjectID: projectID,
 		VideoID: videoID, ShotID: shotID, Status: "pending", SegmentAssetJSON: "[]",
-		PlannedDurationMS: plannedMS, JoinsJSON: "[]", CreatedAt: now, UpdatedAt: now, Revision: 1,
+		PlannedDurationMS: plannedMS, JoinsJSON: "[]", MeasuredState: "unmeasured", CreatedAt: now, UpdatedAt: now, Revision: 1,
 	}
 	if superShotID != "" {
 		a.SuperShotRequestID = sql.NullString{String: superShotID, Valid: true}
 	}
-	if _, err := s.ExecContext(ctx, `INSERT INTO video_assemblies (id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, status, asset_id, segment_asset_ids_json, planned_duration_ms, actual_duration_ms, joins_json, ffmpeg_receipt, error, created_at, updated_at, revision)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		a.ID, a.RequestID, nullSQL(a.SuperShotRequestID), a.WorkspaceID, a.ProjectID, a.VideoID, a.ShotID, a.Status, nil, a.SegmentAssetJSON, a.PlannedDurationMS, 0, a.JoinsJSON, "", "", now, now, 1); err != nil {
+	if _, err := s.ExecContext(ctx, `INSERT INTO video_assemblies (id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, status, asset_id, segment_asset_ids_json, planned_duration_ms, actual_duration_ms, joins_json, ffmpeg_receipt, input_revision, input_hash, measured_state, error, created_at, updated_at, revision)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		a.ID, a.RequestID, nullSQL(a.SuperShotRequestID), a.WorkspaceID, a.ProjectID, a.VideoID, a.ShotID, a.Status, nil, a.SegmentAssetJSON, a.PlannedDurationMS, 0, a.JoinsJSON, "", 0, "", a.MeasuredState, "", now, now, 1); err != nil {
 		return nil, fmt.Errorf("insert video assembly: %w", err)
 	}
 	return a, nil
@@ -322,14 +335,14 @@ func (s *Store) UpsertAssembly(ctx context.Context, requestID, superShotID, work
 
 // GetAssembly returns the request's assembly, or ErrNotFound.
 func (s *Store) GetAssembly(ctx context.Context, requestID string) (*VideoAssembly, error) {
-	row := s.QueryRowContext(ctx, `SELECT id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, status, asset_id, segment_asset_ids_json, planned_duration_ms, actual_duration_ms, joins_json, ffmpeg_receipt, error, created_at, updated_at, revision
+	row := s.QueryRowContext(ctx, `SELECT id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, status, asset_id, segment_asset_ids_json, planned_duration_ms, actual_duration_ms, joins_json, ffmpeg_receipt, input_revision, input_hash, measured_state, error, created_at, updated_at, revision
 		FROM video_assemblies WHERE request_id=?`, requestID)
 	return scanAssembly(row)
 }
 
 // ListAssembliesForVideo returns a video's assemblies, newest first.
 func (s *Store) ListAssembliesForVideo(ctx context.Context, videoID string) ([]VideoAssembly, error) {
-	rows, err := s.QueryContext(ctx, `SELECT id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, status, asset_id, segment_asset_ids_json, planned_duration_ms, actual_duration_ms, joins_json, ffmpeg_receipt, error, created_at, updated_at, revision
+	rows, err := s.QueryContext(ctx, `SELECT id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, status, asset_id, segment_asset_ids_json, planned_duration_ms, actual_duration_ms, joins_json, ffmpeg_receipt, input_revision, input_hash, measured_state, error, created_at, updated_at, revision
 		FROM video_assemblies WHERE video_id=? ORDER BY created_at DESC`, videoID)
 	if err != nil {
 		return nil, err
@@ -361,11 +374,14 @@ func (s *Store) SetAssemblyRunning(ctx context.Context, id string) error {
 }
 
 // SetAssemblySucceeded records the assembled asset, ordered segment lineage and
-// the duration/joins receipts (spec §7.4, §15.7).
-func (s *Store) SetAssemblySucceeded(ctx context.Context, id, assetID string, segmentAssetIDs []string, actualDurationMS int, joinsJSON, ffmpegReceipt string) error {
+// the duration/joins/input-snapshot receipts (spec §7.4, §15.7, contract C08).
+func (s *Store) SetAssemblySucceeded(ctx context.Context, id, assetID string, segmentAssetIDs []string, actualDurationMS, inputRevision int, inputHash, joinsJSON, ffmpegReceipt, measuredState string) error {
 	raw, _ := json.Marshal(segmentAssetIDs)
-	_, err := s.ExecContext(ctx, `UPDATE video_assemblies SET status='succeeded', asset_id=?, segment_asset_ids_json=?, actual_duration_ms=?, joins_json=?, ffmpeg_receipt=?, error='', revision=revision+1, updated_at=? WHERE id=?`,
-		assetID, string(raw), actualDurationMS, defaultJSONArray(joinsJSON), ffmpegReceipt, db.Now(), id)
+	if measuredState == "" {
+		measuredState = "measured"
+	}
+	_, err := s.ExecContext(ctx, `UPDATE video_assemblies SET status='succeeded', asset_id=?, segment_asset_ids_json=?, actual_duration_ms=?, input_revision=?, input_hash=?, measured_state=?, joins_json=?, ffmpeg_receipt=?, error='', revision=revision+1, updated_at=? WHERE id=?`,
+		assetID, string(raw), actualDurationMS, inputRevision, inputHash, measuredState, defaultJSONArray(joinsJSON), ffmpegReceipt, db.Now(), id)
 	return err
 }
 
@@ -382,6 +398,16 @@ func (s *Store) SetAssemblyFailed(ctx context.Context, id, errMsg string) error 
 // submission of the same work returns its existing job. Races on the unique
 // index fall back to the winning insert.
 func (s *Store) EnqueueJob(ctx context.Context, workspaceID, jobType, aggregateType, aggregateID, uniqueKey string) (*Job, error) {
+	return s.enqueueJob(ctx, workspaceID, jobType, aggregateType, aggregateID, "", uniqueKey)
+}
+
+// EnqueueAttemptJob is EnqueueJob with an explicit immutable attempt link, so a
+// job row records exactly which attempt it executes (contract C04/C05).
+func (s *Store) EnqueueAttemptJob(ctx context.Context, workspaceID, jobType, aggregateType, aggregateID, attemptID, uniqueKey string) (*Job, error) {
+	return s.enqueueJob(ctx, workspaceID, jobType, aggregateType, aggregateID, attemptID, uniqueKey)
+}
+
+func (s *Store) enqueueJob(ctx context.Context, workspaceID, jobType, aggregateType, aggregateID, attemptID, uniqueKey string) (*Job, error) {
 	now := db.Now()
 	if uniqueKey != "" {
 		var existingID string
@@ -394,8 +420,8 @@ func (s *Store) EnqueueJob(ctx context.Context, workspaceID, jobType, aggregateT
 		}
 	}
 	j := &Job{ID: ids.New(), WorkspaceID: workspaceID, JobType: jobType, AggregateType: aggregateType, AggregateID: aggregateID, State: "queued", CreatedAt: now}
-	_, err := s.ExecContext(ctx, `INSERT INTO jobs (id, workspace_id, job_type, aggregate_type, aggregate_id, state, priority, request_json, unique_key, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?)`, j.ID, workspaceID, jobType, aggregateType, aggregateID, "queued", 0, "{}", nullIfEmpty(uniqueKey), now)
+	_, err := s.ExecContext(ctx, `INSERT INTO jobs (id, workspace_id, job_type, aggregate_type, aggregate_id, state, priority, request_json, unique_key, attempt_id, created_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?)`, j.ID, workspaceID, jobType, aggregateType, aggregateID, "queued", 0, "{}", nullIfEmpty(uniqueKey), nullIfEmpty(attemptID), now)
 	if err != nil {
 		// Lost an insert race on the unique key: return the winning job.
 		if uniqueKey != "" {
@@ -425,10 +451,10 @@ func scanSegment(sc scanner) (*VideoSegment, error) {
 	var x VideoSegment
 	var stale int
 	err := sc.Scan(&x.ID, &x.RequestID, &x.SuperShotRequestID, &x.WorkspaceID, &x.ProjectID, &x.VideoID, &x.ShotID, &x.Index,
-		&x.StartAnchorID, &x.EndAnchorID, &x.Positive, &x.Negative, &x.ActionPrompt, &x.ContinuityJSON,
+		&x.StartAnchorID, &x.EndAnchorID, &x.Positive, &x.Negative, &x.ActionPrompt, &x.RawAction, &x.CompiledPrompt, &x.ContinuityJSON,
 		&x.StartAssetID, &x.EndAssetID, &x.StartOffsetMS, &x.EndOffsetMS, &x.DurationMS, &x.FrameCount,
 		&x.FPSNum, &x.FPSDen, &x.ContextMode, &x.ContextInputID, &x.DependsOnSegmentID, &stale,
-		&x.Status, &x.AttemptID, &x.AssetID, &x.Error, &x.CreatedAt, &x.UpdatedAt, &x.Revision)
+		&x.Status, &x.AttemptID, &x.SelectedAttemptID, &x.AssetID, &x.Error, &x.CreatedAt, &x.UpdatedAt, &x.Revision)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -443,7 +469,7 @@ func scanAssembly(sc scanner) (*VideoAssembly, error) {
 	var a VideoAssembly
 	err := sc.Scan(&a.ID, &a.RequestID, &a.SuperShotRequestID, &a.WorkspaceID, &a.ProjectID, &a.VideoID, &a.ShotID,
 		&a.Status, &a.AssetID, &a.SegmentAssetJSON, &a.PlannedDurationMS, &a.ActualDurationMS, &a.JoinsJSON, &a.FFmpegReceipt,
-		&a.Error, &a.CreatedAt, &a.UpdatedAt, &a.Revision)
+		&a.InputRevision, &a.InputHash, &a.MeasuredState, &a.Error, &a.CreatedAt, &a.UpdatedAt, &a.Revision)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -484,6 +510,13 @@ func defaultString(v, def string) string {
 func defaultJSONArray(v string) string {
 	if v == "" {
 		return "[]"
+	}
+	return v
+}
+
+func defaultJSONObject(v string) string {
+	if v == "" {
+		return "{}"
 	}
 	return v
 }

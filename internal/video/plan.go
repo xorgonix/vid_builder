@@ -32,6 +32,7 @@ type PlanSegment struct {
 	StartAnchor   int // index into ChainPlan.Anchors
 	EndAnchor     int
 	ActionPrompt  string // compiled movement prompt sent to the workflow
+	RawAction     string // editable interval action (contract C06)
 	Continuity    []string
 	StartFrame    int
 	EndFrame      int
@@ -143,6 +144,7 @@ func BuildPlan(in PlanBuildInput) (*ChainPlan, error) {
 		}
 		plan.Segments = append(plan.Segments, PlanSegment{
 			Index: i, StartAnchor: i, EndAnchor: i + 1,
+			RawAction:    action,
 			ActionPrompt: compileMovementPrompt(in, plan.Anchors[i], plan.Anchors[i+1], action),
 			Continuity:   locks,
 			StartFrame:   seg.StartFrame, EndFrame: seg.EndFrame, Frames: seg.Frames,

@@ -37,6 +37,14 @@ type SuperShotRequest struct {
 	LegacyInvalidPlan     bool
 	PlanSummary           string
 	ContinuityJSON        string
+	ShotPurpose           string
+	CompleteMovement      string
+	PlannerStatus         string
+	PlannerWarningsJSON   string
+	PlannerProvenanceJSON string
+	ImageWorkflowVersionID sql.NullString
+	ImageModelProfileID   sql.NullString
+	SupersededBy          sql.NullString
 	CreatedByUserID       string
 	CreatedAt             string
 	UpdatedAt             string
@@ -56,6 +64,7 @@ type VideoAnchor struct {
 	Status               string
 	AssetID              sql.NullString
 	SourceAnchorID       sql.NullString
+	ImageAttemptID       sql.NullString
 	Error                string
 	CreatedAt            string
 	UpdatedAt            string
@@ -108,26 +117,33 @@ type AnchorInput struct {
 
 // SuperShotRequestInput is the plan header.
 type SuperShotRequestInput struct {
-	WorkspaceID         string
-	ProjectID           string
-	VideoID             string
-	ShotID              string
-	ShotSpecID          string
-	SpecVersion         int
-	WorkflowVersionID   string
-	ModelProfileID      string
-	Strategy            string
-	RequestedDurationMS int
-	PlannedDurationMS   int
-	FPSNum              int
-	FPSDen              int
-	Width               int
-	Height              int
-	BasePositive        string
-	BaseNegative        string
-	ContextMode         string
-	PlanSummary         string
-	ContinuityJSON      string
+	WorkspaceID            string
+	ProjectID              string
+	VideoID                string
+	ShotID                 string
+	ShotSpecID             string
+	SpecVersion            int
+	WorkflowVersionID      string
+	ModelProfileID         string
+	Strategy               string
+	RequestedDurationMS    int
+	PlannedDurationMS      int
+	FPSNum                 int
+	FPSDen                 int
+	Width                  int
+	Height                 int
+	BasePositive           string
+	BaseNegative           string
+	ContextMode            string
+	PlanSummary            string
+	ContinuityJSON         string
+	ShotPurpose            string
+	CompleteMovement       string
+	PlannerStatus          string
+	PlannerWarningsJSON    string
+	PlannerProvenanceJSON  string
+	ImageWorkflowVersionID string
+	ImageModelProfileID    string
 }
 
 // SuperShotPlan is a persisted draft plan.
@@ -141,57 +157,76 @@ type SuperShotPlan struct {
 const superShotColumns = `id, generation_request_id, workspace_id, project_id, video_id, shot_id, workflow_version_id,
 	model_profile_id, strategy, requested_duration_ms, planned_duration_ms, fps_num, fps_den, width, height,
 	base_positive, base_negative, context_mode, status, plan_version, legacy_invalid_plan, plan_summary,
-	continuity_json, created_by_user_id, created_at, updated_at, revision`
+	continuity_json, created_by_user_id, created_at, updated_at, revision,
+	shot_purpose, complete_movement, planner_status, planner_warnings_json, planner_provenance_json,
+	image_workflow_version_id, image_model_profile_id, superseded_by`
 
-// CreateSuperShotPlan persists a draft plan: a linked generation request (not
-// enqueued), the Super Shot request, its anchors and its segments. Generation
-// begins only on approval (spec §4.8).
+// CreateSuperShotPlan persists a draft plan atomically (contract C11): the linked
+// generation request, the Super Shot request, its anchors, its segments and one
+// immutable attempt per segment are written in a single transaction, so a failure
+// never leaves an approved plan with no dispatch or an orphaned request.
+// Generation begins only on approval (spec §4.8).
 func (s *Store) CreateSuperShotPlan(ctx context.Context, in SuperShotRequestInput, anchors []AnchorInput, segments []SegmentInput, userID string) (*SuperShotPlan, error) {
 	if len(anchors) != len(segments)+1 {
 		return nil, fmt.Errorf("super shot: %d anchors must equal %d segments + 1", len(anchors), len(segments))
 	}
+	now := db.Now()
+	reqID := ids.New()
+	ssID := ids.New()
 	reqJSON, _ := json.Marshal(map[string]any{
 		"super_shot": true, "duration_ms": in.RequestedDurationMS, "planned_duration_ms": in.PlannedDurationMS,
 		"strategy": in.Strategy, "segments": len(segments), "anchors": len(anchors),
 		"fps_num": in.FPSNum, "fps_den": in.FPSDen, "context_mode": in.ContextMode,
 	})
-	req, _, _, err := s.CreateGenerationRequest(ctx, RequestInput{
-		WorkspaceID: in.WorkspaceID, ProjectID: in.ProjectID, VideoID: in.VideoID, ShotID: in.ShotID,
-		ShotSpecID: in.ShotSpecID, SpecVersion: in.SpecVersion, OutputRole: "motion", QualityTier: "motion",
-		CandidateCount: 1, WorkflowVersionID: in.WorkflowVersionID, ModelProfileID: in.ModelProfileID,
-		RequestJSON: string(reqJSON), Enqueue: false,
-	}, userID)
-	if err != nil {
-		return nil, err
-	}
 
-	now := db.Now()
 	tx, err := s.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
+	// 1. Generation request (not enqueued) in the same transaction (C11).
+	if _, err := tx.ExecContext(ctx, `INSERT INTO generation_requests (id, project_id, video_id, shot_id, shot_spec_id, spec_version, workflow_version_id, model_profile_id, output_role, quality_tier, candidate_count, status, request_json, prompt_compilation_json, created_by_user_id, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		reqID, in.ProjectID, in.VideoID, in.ShotID, in.ShotSpecID, in.SpecVersion,
+		nullIfEmpty(in.WorkflowVersionID), nullIfEmpty(in.ModelProfileID), "motion", "motion", 1, "draft",
+		string(reqJSON), "{}", userID, now, now); err != nil {
+		return nil, fmt.Errorf("insert request: %w", err)
+	}
+
+	// 2. Super Shot request.
 	ss := &SuperShotRequest{
-		ID: ids.New(), WorkspaceID: in.WorkspaceID, ProjectID: in.ProjectID, VideoID: in.VideoID, ShotID: in.ShotID,
+		ID: ssID, WorkspaceID: in.WorkspaceID, ProjectID: in.ProjectID, VideoID: in.VideoID, ShotID: in.ShotID,
 		WorkflowVersionID: in.WorkflowVersionID, Strategy: in.Strategy,
 		RequestedDurationMS: in.RequestedDurationMS, PlannedDurationMS: in.PlannedDurationMS,
 		FPSNum: in.FPSNum, FPSDen: in.FPSDen, Width: in.Width, Height: in.Height,
 		BasePositive: in.BasePositive, BaseNegative: in.BaseNegative,
 		ContextMode: defaultString(in.ContextMode, "anchor_only"), Status: "awaiting_approval",
 		PlanVersion: 1, PlanSummary: in.PlanSummary, ContinuityJSON: defaultJSONArray(in.ContinuityJSON),
-		CreatedByUserID: userID, CreatedAt: now, UpdatedAt: now, Revision: 1,
+		ShotPurpose: in.ShotPurpose, CompleteMovement: defaultString(in.CompleteMovement, in.BasePositive),
+		PlannerStatus:         defaultString(in.PlannerStatus, "incomplete"),
+		PlannerWarningsJSON:   defaultJSONArray(in.PlannerWarningsJSON),
+		PlannerProvenanceJSON: defaultJSONObject(in.PlannerProvenanceJSON),
+		CreatedByUserID:       userID, CreatedAt: now, UpdatedAt: now, Revision: 1,
 	}
-	ss.GenerationRequestID = sql.NullString{String: req.ID, Valid: true}
+	ss.GenerationRequestID = sql.NullString{String: reqID, Valid: true}
 	if in.ModelProfileID != "" {
 		ss.ModelProfileID = sql.NullString{String: in.ModelProfileID, Valid: true}
 	}
+	if in.ImageWorkflowVersionID != "" {
+		ss.ImageWorkflowVersionID = sql.NullString{String: in.ImageWorkflowVersionID, Valid: true}
+	}
+	if in.ImageModelProfileID != "" {
+		ss.ImageModelProfileID = sql.NullString{String: in.ImageModelProfileID, Valid: true}
+	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO super_shot_requests (`+superShotColumns+`)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		ss.ID, req.ID, ss.WorkspaceID, ss.ProjectID, ss.VideoID, ss.ShotID, ss.WorkflowVersionID,
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		ss.ID, reqID, ss.WorkspaceID, ss.ProjectID, ss.VideoID, ss.ShotID, ss.WorkflowVersionID,
 		nullSQL(ss.ModelProfileID), ss.Strategy, ss.RequestedDurationMS, ss.PlannedDurationMS, ss.FPSNum, ss.FPSDen,
 		ss.Width, ss.Height, ss.BasePositive, ss.BaseNegative, ss.ContextMode, ss.Status, ss.PlanVersion,
-		0, ss.PlanSummary, ss.ContinuityJSON, ss.CreatedByUserID, now, now, 1); err != nil {
+		0, ss.PlanSummary, ss.ContinuityJSON, ss.CreatedByUserID, now, now, 1,
+		ss.ShotPurpose, ss.CompleteMovement, ss.PlannerStatus, ss.PlannerWarningsJSON, ss.PlannerProvenanceJSON,
+		nullSQL(ss.ImageWorkflowVersionID), nullSQL(ss.ImageModelProfileID), nil); err != nil {
 		return nil, fmt.Errorf("insert super shot request: %w", err)
 	}
 
@@ -207,7 +242,7 @@ func (s *Store) CreateSuperShotPlan(ctx context.Context, in SuperShotRequestInpu
 			segments[i].EndAnchorID = outAnchors[i+1].ID
 		}
 	}
-	outSegments, err := insertSegmentsTx(ctx, tx, req.ID, ss.ID, in.WorkspaceID, in.ProjectID, in.VideoID, in.ShotID, segments)
+	outSegments, err := insertSegmentsTx(ctx, tx, reqID, ss.ID, in.WorkspaceID, in.ProjectID, in.VideoID, in.ShotID, segments)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +252,7 @@ func (s *Store) CreateSuperShotPlan(ctx context.Context, in SuperShotRequestInpu
 		aid := ids.New()
 		if _, err := tx.ExecContext(ctx, `INSERT INTO generation_attempts (id, generation_request_id, attempt_number, workflow_version_id, resolved_prompts_json, settings_json, status, queued_at)
 			VALUES (?,?,?,?,?,?,?,?)`,
-			aid, req.ID, seg.Index+2, nullIfEmpty(in.WorkflowVersionID), "{}", "{}", "queued", now); err != nil {
+			aid, reqID, seg.Index+2, nullIfEmpty(in.WorkflowVersionID), "{}", "{}", "queued", now); err != nil {
 			return nil, fmt.Errorf("insert segment attempt: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE video_segments SET attempt_id=? WHERE id=?`, aid, seg.ID); err != nil {
@@ -226,6 +261,17 @@ func (s *Store) CreateSuperShotPlan(ctx context.Context, in SuperShotRequestInpu
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
+	}
+	req := &GenerationRequest{
+		ID: reqID, ProjectID: in.ProjectID, VideoID: in.VideoID, ShotID: in.ShotID, ShotSpecID: in.ShotSpecID,
+		SpecVersion: in.SpecVersion, OutputRole: "motion", QualityTier: "motion", CandidateCount: 1,
+		Status: "draft", Revision: 1, RequestJSON: string(reqJSON), CompilationJSON: "{}", CreatedAt: now,
+	}
+	if in.WorkflowVersionID != "" {
+		req.WorkflowVersionID = sql.NullString{String: in.WorkflowVersionID, Valid: true}
+	}
+	if in.ModelProfileID != "" {
+		req.ModelProfileID = sql.NullString{String: in.ModelProfileID, Valid: true}
 	}
 	return &SuperShotPlan{GenerationRequest: req, SuperShot: ss, Anchors: outAnchors, Segments: outSegments}, nil
 }
@@ -303,7 +349,7 @@ func (s *Store) MarkLegacyInvalidPlan(ctx context.Context, id string) error {
 // --- Anchors ---
 
 const anchorColumns = `id, super_shot_request_id, idx, time_offset_ms, kind, state_prompt, negative_prompt,
-	continuity_json, status, asset_id, source_anchor_id, error, created_at, updated_at, revision`
+	continuity_json, status, asset_id, source_anchor_id, error, created_at, updated_at, revision, image_attempt_id`
 
 func insertAnchorsTx(ctx context.Context, tx *sql.Tx, superShotID string, anchors []AnchorInput) ([]VideoAnchor, error) {
 	now := db.Now()
@@ -323,9 +369,9 @@ func insertAnchorsTx(ctx context.Context, tx *sql.Tx, superShotID string, anchor
 			an.SourceAnchorID = sql.NullString{String: a.SourceAnchorID, Valid: true}
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO video_anchors (`+anchorColumns+`)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			an.ID, an.SuperShotRequestID, an.Index, an.TimeOffsetMS, an.Kind, an.StatePrompt, an.NegativePrompt,
-			an.ContinuityJSON, an.Status, nullSQL(an.AssetID), nullSQL(an.SourceAnchorID), "", now, now, 1); err != nil {
+			an.ContinuityJSON, an.Status, nullSQL(an.AssetID), nullSQL(an.SourceAnchorID), "", now, now, 1, nullSQL(an.ImageAttemptID)); err != nil {
 			return nil, fmt.Errorf("insert video anchor: %w", err)
 		}
 		out = append(out, an)
@@ -444,7 +490,9 @@ func scanSuperShot(sc scanner) (*SuperShotRequest, error) {
 		&x.WorkflowVersionID, &x.ModelProfileID, &x.Strategy, &x.RequestedDurationMS, &x.PlannedDurationMS,
 		&x.FPSNum, &x.FPSDen, &x.Width, &x.Height, &x.BasePositive, &x.BaseNegative, &x.ContextMode,
 		&x.Status, &x.PlanVersion, &legacy, &x.PlanSummary, &x.ContinuityJSON, &x.CreatedByUserID,
-		&x.CreatedAt, &x.UpdatedAt, &x.Revision)
+		&x.CreatedAt, &x.UpdatedAt, &x.Revision,
+		&x.ShotPurpose, &x.CompleteMovement, &x.PlannerStatus, &x.PlannerWarningsJSON, &x.PlannerProvenanceJSON,
+		&x.ImageWorkflowVersionID, &x.ImageModelProfileID, &x.SupersededBy)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -459,7 +507,7 @@ func scanAnchor(sc scanner) (*VideoAnchor, error) {
 	var x VideoAnchor
 	err := sc.Scan(&x.ID, &x.SuperShotRequestID, &x.Index, &x.TimeOffsetMS, &x.Kind, &x.StatePrompt,
 		&x.NegativePrompt, &x.ContinuityJSON, &x.Status, &x.AssetID, &x.SourceAnchorID, &x.Error,
-		&x.CreatedAt, &x.UpdatedAt, &x.Revision)
+		&x.CreatedAt, &x.UpdatedAt, &x.Revision, &x.ImageAttemptID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

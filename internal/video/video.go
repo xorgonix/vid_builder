@@ -6,7 +6,9 @@ package video
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -86,6 +88,12 @@ type PlanRequest struct {
 	ContinuityLocks     []string
 	PreferredStrategy   string
 	ContextMode         string
+	// Planner provenance and image-workflow selection (contract C02/C03).
+	PlannerStatus          string
+	PlannerWarningsJSON    string
+	PlannerProvenanceJSON  string
+	ImageWorkflowVersionID string
+	ImageModelProfileID    string
 }
 
 // PlanResult carries the persisted draft plan and the compiled chain.
@@ -168,7 +176,8 @@ func (s *Service) PlanDraft(ctx context.Context, in PlanRequest, userID string) 
 	segments := make([]store.SegmentInput, 0, len(chain.Segments))
 	for _, seg := range chain.Segments {
 		segments = append(segments, store.SegmentInput{
-			ActionPrompt: seg.ActionPrompt, Positive: seg.ActionPrompt, Negative: in.BaseNegative,
+			ActionPrompt: seg.ActionPrompt, RawAction: seg.RawAction, CompiledPrompt: seg.ActionPrompt,
+			Positive: seg.ActionPrompt, Negative: in.BaseNegative,
 			ContinuityJSON: mustJSON(seg.Continuity),
 			StartOffsetMS:  seg.StartOffsetMS, EndOffsetMS: seg.EndOffsetMS, DurationMS: seg.DurationMS,
 			FrameCount: seg.Frames, FPSNum: fps.Num, FPSDen: fps.Den, ContextMode: mode,
@@ -183,6 +192,10 @@ func (s *Service) PlanDraft(ctx context.Context, in PlanRequest, userID string) 
 		FPSNum: fps.Num, FPSDen: fps.Den, Width: in.Width, Height: in.Height,
 		BasePositive: in.BasePositive, BaseNegative: in.BaseNegative, ContextMode: mode,
 		PlanSummary: chain.Summary, ContinuityJSON: continuityJSON,
+		ShotPurpose: in.ShotIntent, CompleteMovement: in.BasePositive,
+		PlannerStatus: in.PlannerStatus, PlannerWarningsJSON: in.PlannerWarningsJSON,
+		PlannerProvenanceJSON: in.PlannerProvenanceJSON,
+		ImageWorkflowVersionID: in.ImageWorkflowVersionID, ImageModelProfileID: in.ImageModelProfileID,
 	}, anchors, segments, userID)
 	if err != nil {
 		return nil, err
@@ -476,16 +489,23 @@ func (s *Service) RunAssembly(ctx context.Context, requestID string) error {
 	}
 	current := make([]store.VideoSegment, 0, len(segs))
 	assetIDs := make([]string, 0, len(segs))
+	inputRevision := 0
+	hash := sha256.New()
 	for _, seg := range segs {
 		if seg.Status != "succeeded" || !seg.AssetID.Valid || seg.Stale {
 			return fmt.Errorf("cannot assemble; segment %d is not current", seg.Index)
 		}
 		current = append(current, seg)
 		assetIDs = append(assetIDs, seg.AssetID.String)
+		if seg.Revision > inputRevision {
+			inputRevision = seg.Revision
+		}
+		fmt.Fprintf(hash, "%s:%d;", seg.AssetID.String, seg.Revision)
 	}
 	if len(current) == 0 {
 		return fmt.Errorf("cannot assemble; no current segments")
 	}
+	inputHash := hex.EncodeToString(hash.Sum(nil))
 	if err := s.Store.SetAssemblyRunning(ctx, asm.ID); err != nil {
 		return err
 	}
@@ -498,7 +518,7 @@ func (s *Service) RunAssembly(ctx context.Context, requestID string) error {
 		_ = s.Store.SetAssemblyFailed(ctx, asm.ID, err.Error())
 		return err
 	}
-	return s.Store.SetAssemblySucceeded(ctx, asm.ID, result.AssetID, assetIDs, result.ActualDurationMS, result.JoinsJSON, result.Receipt)
+	return s.Store.SetAssemblySucceeded(ctx, asm.ID, result.AssetID, assetIDs, result.ActualDurationMS, inputRevision, inputHash, result.JoinsJSON, result.Receipt, "measured")
 }
 
 // ValidatePersistedPlan re-checks the chain invariants on stored rows.
