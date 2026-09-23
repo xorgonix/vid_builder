@@ -258,7 +258,117 @@ func TestChainGenerateApproveRetryAssembly(t *testing.T) {
 	}
 }
 
-// TestChangeAnchorInvalidatesAdjacentSegments proves replacing an intermediate
+// TestAttemptRetentionAndRetryNewJob proves C04 (the persisted attempt link
+// survives execution) and C05 (a retry creates a new attempt/key rather than
+// reusing the terminal job).
+func TestAttemptRetentionAndRetryNewJob(t *testing.T) {
+	gen := &chainGen{failIndex: -1}
+	svc, st, vid, shot, versionID, startA, endA, wsID := newChainService(t, gen, &chainAsm{})
+	gen.st = st
+	res := planChain(t, svc, vid, shot, versionID, startA, endA, wsID, 15000)
+	ssID := res.Plan.SuperShot.ID
+	requestID := res.Plan.GenerationRequest.ID
+	if err := svc.Approve(t.Context(), ssID, res.Plan.SuperShot.Revision); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	anchors, _ := st.ListAnchors(t.Context(), ssID)
+	for i := range anchors {
+		if anchors[i].Kind != "intermediate" {
+			continue
+		}
+		_ = st.SetAnchorSucceeded(t.Context(), anchors[i].ID, fmt.Sprintf("anchor-asset-%d", i))
+		_ = svc.AnchorReady(t.Context(), anchors[i].ID)
+	}
+	segs, _ := st.ListSegmentsForSuperShot(t.Context(), ssID)
+	for _, seg := range segs {
+		if err := svc.RunSegment(t.Context(), seg.ID); err != nil {
+			t.Fatalf("run segment %d: %v", seg.Index, err)
+		}
+	}
+
+	// C04: the attempt link persists across execution.
+	reloaded, _ := st.ListSegments(t.Context(), requestID)
+	before := reloaded[0].AttemptID
+	if !before.Valid {
+		t.Fatal("segment must retain a persisted attempt id after execution (C04)")
+	}
+	jobsBefore := activeJobsFor(t, st, "generate_segment", reloaded[0].ID)
+
+	// C05: retry creates a new attempt and enqueues a NEW job; a reused terminal
+	// job would leave the job count unchanged.
+	if err := svc.RetrySegment(t.Context(), reloaded[0].ID); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	after, _ := st.GetSegment(t.Context(), reloaded[0].ID)
+	if !after.AttemptID.Valid || after.AttemptID.String == before.String {
+		t.Fatalf("retry must create a new attempt id (was %s, now %s)", before.String, after.AttemptID.String)
+	}
+	if jobsAfter := activeJobsFor(t, st, "generate_segment", reloaded[0].ID); jobsAfter != jobsBefore+1 {
+		t.Fatalf("retry must enqueue a new job (was %d, now %d); reusing the terminal job would not change the count", jobsBefore, jobsAfter)
+	}
+	// The retried attempt renders and keeps its new attempt link.
+	if err := svc.RunSegment(t.Context(), after.ID); err != nil {
+		t.Fatalf("retry run: %v", err)
+	}
+	final, _ := st.GetSegment(t.Context(), after.ID)
+	if !final.AttemptID.Valid || final.AttemptID.String != after.AttemptID.String {
+		t.Fatal("retried segment must keep its new attempt link through execution (C04)")
+	}
+}
+
+// TestBundledWorkflowUpgrade proves C09: seeding a changed bundled manifest
+// inserts a new immutable version rather than being skipped, and re-seeding the
+// same manifest is idempotent.
+func TestBundledWorkflowUpgrade(t *testing.T) {
+	st := testutil.NewStore(t)
+	bindings := []store.WorkflowBinding{{SemanticField: "output_node", NodeID: "1", ValueType: "node", Required: true}}
+	m1 := `{"name":"W","slug":"upg","task":"video"}`
+	m2 := `{"name":"W","slug":"upg","task":"video","capabilities":{"inputs":{"start_image":true,"end_image":true},"continuation":{"mode":"anchor_only"},"verified":false}}`
+	seed := func(manifestJSON, sha string) {
+		t.Helper()
+		if err := st.SeedBundledWorkflow(t.Context(), "W", "upg", "video", "d", "{}", sha, manifestJSON, "0.35.0", bindings); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+	latest := func() string {
+		t.Helper()
+		pkgs, _ := st.ListWorkflowPackages(t.Context())
+		for _, p := range pkgs {
+			if p.Slug == "upg" && p.LatestVersion.Valid {
+				return p.LatestVersion.String
+			}
+		}
+		t.Fatal("no latest version")
+		return ""
+	}
+	seed(m1, "sha-1")
+	v1 := latest()
+	seed(m2, "sha-2") // upgraded manifest
+	v2 := latest()
+	if v2 == v1 {
+		t.Fatal("a changed bundled manifest must insert a new version (C09)")
+	}
+	seed(m2, "sha-2") // idempotent
+	if v3 := latest(); v3 != v2 {
+		t.Fatal("re-seeding the same manifest must be idempotent (C09)")
+	}
+}
+
+func activeJobsFor(t *testing.T, st *store.Store, jobType, aggregateID string) int {
+	t.Helper()
+	jobs, err := st.ListActiveJobs(t.Context())
+	if err != nil {
+		t.Fatalf("list jobs: %v", err)
+	}
+	n := 0
+	for _, j := range jobs {
+		if j.JobType == jobType && j.AggregateID == aggregateID {
+			n++
+		}
+	}
+	return n
+}
+
 // anchor stale-marks only the segments that touch it (spec §7.1).
 func TestChangeAnchorInvalidatesAdjacentSegments(t *testing.T) {
 	gen := &chainGen{failIndex: -1}

@@ -106,7 +106,7 @@ func TestSuperShotWebFlow(t *testing.T) {
 
 	// Review shows the chain states and movement prompts.
 	body := testutil.MustStatus(t, c.Get(loc), http.StatusOK)
-	for _, want := range []string{"Approve plan", "intermediate", "Overall shot intent", "Transition from", "Segment 1"} {
+	for _, want := range []string{"Approve plan", "intermediate", "Complete-shot movement", "Transition from", "Segment 1"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("plan review missing %q (loc=%s)", want, loc)
 		}

@@ -174,14 +174,20 @@ func (s *Server) handleSuperShotView(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, templates.SuperShotPage(data))
 }
 
-// handleSuperShotApprove freezes the plan and queues initial work.
+// handleSuperShotApprove freezes the plan and queues initial work. The approval
+// carries the revision the creator saw; a stale revision conflicts (contract C07,
+// T12).
 func (s *Server) handleSuperShotApprove(w http.ResponseWriter, r *http.Request) {
 	vid, plan, ok := s.loadSuperShotForAction(w, r)
 	if !ok {
 		return
 	}
+	rev, _ := strconv.Atoi(r.FormValue("revision"))
+	if rev <= 0 {
+		rev = plan.Revision
+	}
 	svc := &video.Service{Store: s.store}
-	if err := svc.Approve(r.Context(), plan.ID, plan.Revision); err != nil {
+	if err := svc.Approve(r.Context(), plan.ID, rev); err != nil {
 		s.superShotRedirect(w, r, vid, plan.ID, err.Error(), "error")
 		return
 	}
@@ -310,10 +316,10 @@ func (s *Server) handleSuperShotAssemble(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) enqueueAnchor(r *http.Request, plan *store.SuperShotRequest, anchor *store.VideoAnchor) error {
-	if _, err := s.store.EnqueueJob(r.Context(), plan.WorkspaceID, "generate_anchor", "video_anchor", anchor.ID, "supershot:"+plan.ID+":anchor:"+strconv.Itoa(anchor.Index)); err != nil {
-		return err
-	}
-	return s.store.SetAnchorStatus(r.Context(), anchor.ID, "queued", "")
+	// Route through the service so the reset bumps the anchor revision and the job
+	// key is attempt/revision-scoped (contract C05, C07).
+	svc := &video.Service{Store: s.store}
+	return svc.RetryAnchor(r.Context(), anchor.ID)
 }
 
 func (s *Server) superShotRedirect(w http.ResponseWriter, r *http.Request, vid *store.Video, planID, msg, kind string) {
@@ -346,7 +352,7 @@ func (s *Server) superShotView(r *http.Request, plan *store.SuperShotRequest) te
 	v := templates.SuperShotView{
 		ID: plan.ID, ShotID: plan.ShotID, Strategy: plan.Strategy,
 		RequestedDurationMS: plan.RequestedDurationMS, PlannedDurationMS: plan.PlannedDurationMS,
-		Status: plan.Status, PlanVersion: plan.PlanVersion, Summary: plan.PlanSummary,
+		Status: plan.Status, PlanVersion: plan.PlanVersion, Revision: plan.Revision, Summary: plan.PlanSummary,
 		ContextMode: plan.ContextMode, LegacyInvalid: plan.LegacyInvalidPlan,
 	}
 	if shot, err := s.store.GetShot(r.Context(), plan.ShotID); err == nil {

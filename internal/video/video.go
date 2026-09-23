@@ -221,7 +221,7 @@ func (s *Service) Approve(ctx context.Context, superShotID string, revision int)
 		if a.Kind != AnchorIntermediate || a.AssetID.Valid {
 			continue
 		}
-		if _, err := s.Store.EnqueueJob(ctx, plan.WorkspaceID, "generate_anchor", "video_anchor", a.ID, "supershot:"+plan.ID+":anchor:"+strconv.Itoa(a.Index)); err != nil {
+		if _, err := s.Store.EnqueueJob(ctx, plan.WorkspaceID, "generate_anchor", "video_anchor", a.ID, "supershot:anchor:"+a.ID+":gen:"+strconv.Itoa(a.Revision)); err != nil {
 			return err
 		}
 		_ = s.Store.SetAnchorStatus(ctx, a.ID, "queued", "")
@@ -232,6 +232,17 @@ func (s *Service) Approve(ctx context.Context, superShotID string, revision int)
 
 // onAnchorReady queues any pending segments whose two anchors now have assets.
 func (s *Service) enqueueReadySegments(ctx context.Context, superShotID string) error {
+	// C07: dispatch is a barrier. A pre-approval draft or a cancelled plan never
+	// dispatches video segments, even when an anchor job just completed.
+	plan, err := s.Store.GetSuperShotRequest(ctx, superShotID)
+	if err != nil {
+		return err
+	}
+	switch plan.Status {
+	case "approved", "generating_anchors", "generating_segments", "assembling":
+	default:
+		return nil
+	}
 	anchors, err := s.Store.ListAnchors(ctx, superShotID)
 	if err != nil {
 		return err
@@ -257,7 +268,12 @@ func (s *Service) enqueueReadySegments(ctx context.Context, superShotID string) 
 			// context artifact; it remains unavailable until a verified adapter.
 			continue
 		}
-		if _, err := s.Store.EnqueueJob(ctx, seg.WorkspaceID, "generate_segment", "video_segment", seg.ID, "supershot:"+seg.RequestID+":segment:"+strconv.Itoa(seg.Index)); err != nil {
+		attemptRef := "none"
+		if seg.AttemptID.Valid {
+			attemptRef = seg.AttemptID.String
+		}
+		key := "supershot:segment:" + seg.ID + ":attempt:" + attemptRef
+		if _, err := s.Store.EnqueueJob(ctx, seg.WorkspaceID, "generate_segment", "video_segment", seg.ID, key); err != nil {
 			return err
 		}
 		queued++
@@ -316,13 +332,27 @@ func (s *Service) ChangeAnchor(ctx context.Context, anchorID string) error {
 }
 
 // RunSegment generates one segment from its adjacent anchors, then attempts
-// assembly when the whole chain is ready.
+// assembly when the whole chain is ready. It refuses to start when the parent
+// plan was cancelled, and never clears the persisted attempt link (C04, C07).
 func (s *Service) RunSegment(ctx context.Context, segmentID string) error {
 	seg, err := s.Store.GetSegment(ctx, segmentID)
 	if err != nil {
 		return err
 	}
-	if err := s.Store.SetSegmentRunning(ctx, seg.ID, ""); err != nil {
+	if seg.SuperShotRequestID.Valid {
+		plan, err := s.Store.GetSuperShotRequest(ctx, seg.SuperShotRequestID.String)
+		if err != nil {
+			return err
+		}
+		if plan.Status == "cancelled" {
+			return fmt.Errorf("plan cancelled; segment %d not started", seg.Index)
+		}
+	}
+	attemptID := ""
+	if seg.AttemptID.Valid {
+		attemptID = seg.AttemptID.String
+	}
+	if err := s.Store.SetSegmentRunning(ctx, seg.ID, attemptID); err != nil {
 		return err
 	}
 	result, err := s.Generate.GenerateSegment(ctx, *seg)
@@ -345,25 +375,30 @@ func (s *Service) RetrySegment(ctx context.Context, segmentID string) error {
 	if err != nil {
 		return err
 	}
-	// The old segment attempt is history; create a new one.
+	// The old segment attempt is history; create a new one and key the job on it
+	// (C05) so a retry never reuses a terminal job.
 	wfID := ""
 	if seg.SuperShotRequestID.Valid {
 		if plan, err := s.Store.GetSuperShotRequest(ctx, seg.SuperShotRequestID.String); err == nil {
 			wfID = plan.WorkflowVersionID
+			if plan.Status == "cancelled" {
+				return fmt.Errorf("plan cancelled; segment not retried")
+			}
 		}
 	}
-	if _, err := s.Store.NewSegmentAttempt(ctx, seg.ID, seg.RequestID, wfID); err != nil {
+	attemptID, err := s.Store.NewSegmentAttempt(ctx, seg.ID, seg.RequestID, wfID)
+	if err != nil {
 		return err
 	}
 	if err := s.Store.ResetSegmentForRetry(ctx, seg.ID); err != nil {
 		return err
 	}
 	_ = s.Store.InvalidateAssembly(ctx, seg.RequestID)
-	_, err = s.Store.EnqueueJob(ctx, seg.WorkspaceID, "generate_segment", "video_segment", seg.ID, "supershot:"+seg.RequestID+":segment:"+strconv.Itoa(seg.Index))
+	_, err = s.Store.EnqueueJob(ctx, seg.WorkspaceID, "generate_segment", "video_segment", seg.ID, "supershot:segment:"+seg.ID+":attempt:"+attemptID)
 	return err
 }
 
-// RetryAnchor re-queues one failed intermediate anchor.
+// RetryAnchor re-queues one failed intermediate anchor under a new revision key.
 func (s *Service) RetryAnchor(ctx context.Context, anchorID string) error {
 	anchor, err := s.Store.GetAnchor(ctx, anchorID)
 	if err != nil {
@@ -376,10 +411,18 @@ func (s *Service) RetryAnchor(ctx context.Context, anchorID string) error {
 	if err != nil {
 		return err
 	}
+	if plan.Status == "cancelled" {
+		return fmt.Errorf("plan cancelled; anchor not retried")
+	}
 	if plan.GenerationRequestID.Valid {
 		_ = s.Store.InvalidateAssembly(ctx, plan.GenerationRequestID.String)
 	}
-	_, err = s.Store.EnqueueJob(ctx, plan.WorkspaceID, "generate_anchor", "video_anchor", anchor.ID, "supershot:"+plan.ID+":anchor:"+strconv.Itoa(anchor.Index))
+	// Re-read the anchor: the reset bumped its revision, which is the new job key.
+	fresh, err := s.Store.GetAnchor(ctx, anchor.ID)
+	if err != nil {
+		return err
+	}
+	_, err = s.Store.EnqueueJob(ctx, plan.WorkspaceID, "generate_anchor", "video_anchor", anchor.ID, "supershot:anchor:"+anchor.ID+":gen:"+strconv.Itoa(fresh.Revision))
 	return err
 }
 
@@ -398,6 +441,9 @@ func (s *Service) TryAssemble(ctx context.Context, requestID string) (bool, erro
 	planned := 0
 	if first.SuperShotRequestID.Valid {
 		if plan, err := s.Store.GetSuperShotRequest(ctx, first.SuperShotRequestID.String); err == nil {
+			if plan.Status == "cancelled" {
+				return false, nil
+			}
 			planned = plan.PlannedDurationMS
 		}
 	}
@@ -408,7 +454,10 @@ func (s *Service) TryAssemble(ctx context.Context, requestID string) (bool, erro
 	if asm.Status == "succeeded" || asm.Status == "running" {
 		return true, nil
 	}
-	if _, err := s.Store.EnqueueJob(ctx, first.WorkspaceID, "assemble_video", "video_assembly", requestID, "supershot:"+requestID+":assemble"); err != nil {
+	// Key on the assembly revision: an invalidated assembly gets a new revision and
+	// therefore a new job, while a duplicate dispatch of the same revision is inert.
+	key := "supershot:assemble:" + requestID + ":rev:" + strconv.Itoa(asm.Revision)
+	if _, err := s.Store.EnqueueJob(ctx, first.WorkspaceID, "assemble_video", "video_assembly", requestID, key); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -509,12 +558,11 @@ func VerifyAssemblyDuration(actualMS, plannedMS int, segments []store.VideoSegme
 			break
 		}
 	}
-	tolerance := 250 // container rounding floor
+	// Tolerance is one output frame plus a small documented container allowance
+	// (C08), derived from the rational frame rate rather than a fixed floor.
+	tolerance := 200
 	if fpsNum > 0 && fpsDen > 0 {
-		frameMS := 1000 * fpsDen / fpsNum
-		if frameMS > tolerance {
-			tolerance = frameMS
-		}
+		tolerance = (1000*fpsDen)/fpsNum + 40
 	}
 	diff := actualMS - plannedMS
 	if diff < 0 {

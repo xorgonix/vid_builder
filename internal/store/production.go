@@ -196,12 +196,25 @@ func (s *Store) SeedBundledWorkflow(ctx context.Context, name, slug, task, descr
 	if err := s.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflow_versions WHERE workflow_package_id=?`, pkgID).Scan(&versionCount); err != nil {
 		return err
 	}
-	if versionCount > 0 {
+	// C09: bundle upgrades are versioned, not skipped. If the newest version
+	// already matches this manifest and graph, there is nothing to do; otherwise
+	// insert a NEW immutable version so existing installations receive updated
+	// capabilities (and new bindings) without rewriting history or resetting data.
+	var latestManifest, latestSHA string
+	err = s.QueryRowContext(ctx, `SELECT manifest_json, graph_sha256 FROM workflow_versions WHERE workflow_package_id=? ORDER BY created_at DESC, rowid DESC LIMIT 1`, pkgID).Scan(&latestManifest, &latestSHA)
+	if err == nil && latestManifest == manifestJSON && latestSHA == graphSHA {
 		return nil
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	semver := "1.0.0"
+	if versionCount > 0 {
+		semver = fmt.Sprintf("1.0.%d", versionCount)
 	}
 	verID := ids.New()
 	if _, err := s.ExecContext(ctx, `INSERT INTO workflow_versions (id, workflow_package_id, semantic_version, graph_json, graph_sha256, manifest_json, status, tested_comfyui_version, created_at)
-		VALUES (?,?,'1.0.0',?,?,?, 'validated', ?, ?)`, verID, pkgID, graphJSON, graphSHA, manifestJSON, tested, now); err != nil {
+		VALUES (?,?,?,?,?,?, 'validated', ?, ?)`, verID, pkgID, semver, graphJSON, graphSHA, manifestJSON, tested, now); err != nil {
 		return err
 	}
 	for _, b := range bindings {
@@ -224,8 +237,8 @@ func (s *Store) SeedBundledWorkflow(ctx context.Context, name, slug, task, descr
 // ListWorkflowPackages returns packages with their latest version.
 func (s *Store) ListWorkflowPackages(ctx context.Context) ([]WorkflowPackage, error) {
 	rows, err := s.QueryContext(ctx, `SELECT p.id, p.workspace_id, p.name, p.slug, p.task, p.description, p.source, p.active, p.revision,
-		(SELECT v.id FROM workflow_versions v WHERE v.workflow_package_id=p.id ORDER BY v.created_at DESC LIMIT 1),
-		(SELECT v.status FROM workflow_versions v WHERE v.workflow_package_id=p.id ORDER BY v.created_at DESC LIMIT 1)
+		(SELECT v.id FROM workflow_versions v WHERE v.workflow_package_id=p.id ORDER BY v.created_at DESC, v.rowid DESC LIMIT 1),
+		(SELECT v.status FROM workflow_versions v WHERE v.workflow_package_id=p.id ORDER BY v.created_at DESC, v.rowid DESC LIMIT 1)
 		FROM workflow_packages p WHERE p.active=1 ORDER BY p.name`)
 	if err != nil {
 		return nil, err

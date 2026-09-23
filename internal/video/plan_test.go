@@ -49,8 +49,14 @@ func TestBuildPlanChain(t *testing.T) {
 		if plan.Anchors[seg.StartAnchor].AssetID == "A" && plan.Anchors[seg.EndAnchor].AssetID == "D" {
 			t.Fatalf("segment %d repeats the outer A→D endpoints", i)
 		}
-		if !strings.Contains(seg.ActionPrompt, "Overall shot intent") {
-			t.Fatalf("segment %d movement prompt should carry the overall intent", i)
+		if !strings.Contains(seg.ActionPrompt, "Complete-shot movement") {
+			t.Fatalf("segment %d movement prompt must carry the complete-shot movement", i)
+		}
+		if !strings.Contains(seg.ActionPrompt, "Shot purpose") {
+			t.Fatalf("segment %d movement prompt must retain the shot purpose separately (C01)", i)
+		}
+		if !strings.Contains(seg.ActionPrompt, "walk to the chair and sit") {
+			t.Fatalf("segment %d lost the movement text (C01)", i)
 		}
 	}
 	// Adjacent segments share their boundary anchor.

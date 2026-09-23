@@ -164,8 +164,13 @@ func BuildPlan(in PlanBuildInput) (*ChainPlan, error) {
 // this interval — not the whole action as though the shot restarted.
 func compileMovementPrompt(in PlanBuildInput, start, end PlanAnchor, action string) string {
 	var b strings.Builder
-	if s := strings.TrimSpace(firstNonEmpty(in.ShotIntent, in.BasePositive)); s != "" {
-		fmt.Fprintf(&b, "Overall shot intent: %s\n", s)
+	// Contract C01: purpose and complete movement are distinct and both retained.
+	// Never substitute one for the other, and never present purpose as movement.
+	if m := strings.TrimSpace(in.BasePositive); m != "" {
+		fmt.Fprintf(&b, "Complete-shot movement: %s\n", m)
+	}
+	if p := strings.TrimSpace(in.ShotIntent); p != "" {
+		fmt.Fprintf(&b, "Shot purpose (why this exists, not the motion): %s\n", p)
 	}
 	b.WriteString("Preserve the first and last images exactly as conditioning endpoints.\n")
 	if start.StatePrompt != "" {
@@ -252,7 +257,8 @@ func LegacyInvalidPlan(segmentStarts, segmentEnds []string) bool {
 }
 
 func summarize(in PlanBuildInput, n int) string {
-	base := strings.TrimSpace(firstNonEmpty(in.ShotIntent, in.BasePositive))
+	// The summary describes the movement; purpose is separate context (C01).
+	base := strings.TrimSpace(firstNonEmpty(in.BasePositive, in.ShotIntent))
 	if base == "" {
 		base = "the described movement"
 	}

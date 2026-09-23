@@ -694,6 +694,7 @@ type SuperShotView struct {
 	PlannedDurationMS   int
 	Status              string
 	PlanVersion         int
+	Revision            int
 	Summary             string
 	ContextMode         string
 	LegacyInvalid       bool
@@ -735,6 +736,11 @@ type SuperShotPageData struct {
 // MSecs renders milliseconds as seconds with two decimals.
 func MSecs(ms int) string {
 	return strconv.FormatFloat(float64(ms)/1000, 'f', 2, 64)
+}
+
+// IntStr renders an int for templ attributes.
+func IntStr(v int) string {
+	return strconv.Itoa(v)
 }
 
 // JobEventView is a job event line.

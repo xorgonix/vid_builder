@@ -159,6 +159,7 @@ templ superShotBody(data SuperShotPageData) {
 				if data.SuperShot.Status == "awaiting_approval" || data.SuperShot.Status == "draft" {
 					<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/super-shots/" + data.SuperShot.ID + "/approve") }>
 						<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+						<input type="hidden" name="revision" value={ IntStr(data.SuperShot.Revision) }/>
 						<button type="submit" class="btn btn-primary btn-sm">Approve plan &amp; generate</button>
 					</form>
 				}
@@ -208,6 +209,9 @@ templ superShotBody(data SuperShotPageData) {
 							</div>
 							<div class="flex flex-col items-end gap-1 shrink-0">
 								<span class={ "badge badge-sm", jobStateClass(a.Status) }>{ a.Status }</span>
+								if a.Error != "" {
+									<div class="text-xs text-error max-w-xs text-right">{ a.Error }</div>
+								}
 								if a.HasAsset {
 									if IsVideoAsset(a.Asset) {
 										<video controls preload="metadata" src={ templ.URL(a.Asset.URL) } class="w-24 rounded"></video>
@@ -260,12 +264,15 @@ templ superShotSegmentRow(data SuperShotPageData, seg SuperShotSegmentView) {
 					if seg.Stale {
 						<span class="badge badge-error badge-sm">stale</span>
 					}
+					if seg.Error != "" {
+						<div class="text-xs text-error max-w-xs text-right">{ seg.Error }</div>
+					}
 					if seg.HasFile {
 						if IsVideoAsset(seg.Asset) {
 							<video controls preload="metadata" src={ templ.URL(seg.Asset.URL) } class="w-32 rounded"></video>
 						}
 					}
-					if seg.Status == "failed" || seg.Status == "stale" {
+					if seg.Status == "failed" || seg.Stale {
 						<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/super-shots/" + data.SuperShot.ID + "/segments/" + seg.ID + "/retry") }>
 							<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
 							<button type="submit" class="btn btn-xs">Retry</button>

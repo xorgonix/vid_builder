@@ -484,7 +484,11 @@ func (w *Worker) processExport(ctx context.Context, job *store.Job) error {
 		})
 	}
 
-	ex := exporter.New(w.cfg.FFmpeg.BinaryPath, video.Width, video.Height, video.FPSNum, w.cfg.FFmpeg.RequestTimeoutSec)
+	fpsDen := video.FPSDen
+	if fpsDen <= 0 {
+		fpsDen = 1
+	}
+	ex := exporter.New(w.cfg.FFmpeg.BinaryPath, video.Width, video.Height, video.FPSNum, fpsDen, w.cfg.FFmpeg.RequestTimeoutSec)
 	if err := ex.Available(ctx); err != nil {
 		_ = w.store.FailExport(ctx, exp.ID, err.Error())
 		return err

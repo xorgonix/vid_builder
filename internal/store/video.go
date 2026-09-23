@@ -185,13 +185,14 @@ func (s *Store) GetSegment(ctx context.Context, id string) (*VideoSegment, error
 	return scanSegment(row)
 }
 
-// SetSegmentRunning marks a segment running with its attempt id.
+// SetSegmentRunning marks a segment running. An empty attemptID retains the
+// persisted attempt link (contract C04: starting execution must never clear it).
 func (s *Store) SetSegmentRunning(ctx context.Context, id, attemptID string) error {
 	var attempt any
 	if attemptID != "" {
 		attempt = attemptID
 	}
-	_, err := s.ExecContext(ctx, `UPDATE video_segments SET status='running', attempt_id=?, stale=0, error='', revision=revision+1, updated_at=? WHERE id=?`,
+	_, err := s.ExecContext(ctx, `UPDATE video_segments SET status='running', attempt_id=COALESCE(?, attempt_id), stale=0, error='', revision=revision+1, updated_at=? WHERE id=?`,
 		attempt, db.Now(), id)
 	return err
 }
@@ -376,8 +377,10 @@ func (s *Store) SetAssemblyFailed(ctx context.Context, id, errMsg string) error 
 }
 
 // EnqueueJob queues a job of any supported type for an aggregate. When uniqueKey
-// is non-empty the enqueue is idempotent: a job with that key is created once and
-// reused (spec §15.6).
+// is non-empty the enqueue is idempotent: the key must identify immutable work
+// (attempt, anchor revision or assembly revision, contract C05), so duplicate
+// submission of the same work returns its existing job. Races on the unique
+// index fall back to the winning insert.
 func (s *Store) EnqueueJob(ctx context.Context, workspaceID, jobType, aggregateType, aggregateID, uniqueKey string) (*Job, error) {
 	now := db.Now()
 	if uniqueKey != "" {
@@ -394,6 +397,13 @@ func (s *Store) EnqueueJob(ctx context.Context, workspaceID, jobType, aggregateT
 	_, err := s.ExecContext(ctx, `INSERT INTO jobs (id, workspace_id, job_type, aggregate_type, aggregate_id, state, priority, request_json, unique_key, created_at)
 		VALUES (?,?,?,?,?,?,?,?,?,?)`, j.ID, workspaceID, jobType, aggregateType, aggregateID, "queued", 0, "{}", nullIfEmpty(uniqueKey), now)
 	if err != nil {
+		// Lost an insert race on the unique key: return the winning job.
+		if uniqueKey != "" {
+			var existingID string
+			if qerr := s.QueryRowContext(ctx, `SELECT id FROM jobs WHERE unique_key=?`, uniqueKey).Scan(&existingID); qerr == nil {
+				return s.GetJob(ctx, existingID)
+			}
+		}
 		return nil, err
 	}
 	return j, nil

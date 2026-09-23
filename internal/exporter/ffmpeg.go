@@ -24,12 +24,14 @@ type Exporter struct {
 	Bin     string
 	Width   int
 	Height  int
-	FPS     int
+	FPSNum  int
+	FPSDen  int
 	Timeout time.Duration
 }
 
-// New constructs an exporter with sane defaults.
-func New(bin string, width, height, fps int, timeoutSec int) *Exporter {
+// New constructs an exporter with sane defaults. The frame rate is carried as a
+// rational so rates such as 30000/1001 survive to the FFmpeg filter (C08).
+func New(bin string, width, height, fpsNum, fpsDen, timeoutSec int) *Exporter {
 	if bin == "" {
 		bin = "ffmpeg"
 	}
@@ -39,14 +41,22 @@ func New(bin string, width, height, fps int, timeoutSec int) *Exporter {
 	if height <= 0 {
 		height = 1080
 	}
-	if fps <= 0 {
-		fps = 30
+	if fpsNum <= 0 || fpsDen <= 0 {
+		fpsNum, fpsDen = 30, 1
 	}
 	t := time.Duration(timeoutSec) * time.Second
 	if t <= 0 {
 		t = 30 * time.Minute
 	}
-	return &Exporter{Bin: bin, Width: width, Height: height, FPS: fps, Timeout: t}
+	return &Exporter{Bin: bin, Width: width, Height: height, FPSNum: fpsNum, FPSDen: fpsDen, Timeout: t}
+}
+
+// fpsExpr is the FFmpeg filter frame-rate expression for this exporter.
+func (e *Exporter) fpsExpr() string {
+	if e.FPSDen <= 1 {
+		return strconv.Itoa(e.FPSNum)
+	}
+	return strconv.Itoa(e.FPSNum) + "/" + strconv.Itoa(e.FPSDen)
 }
 
 // Available reports whether the FFmpeg binary can be executed.
@@ -88,8 +98,8 @@ func (e *Exporter) Assemble(ctx context.Context, clips []Clip, outPath string) e
 	var filters []string
 	for i := range clips {
 		filters = append(filters, fmt.Sprintf(
-			"[%d:v]scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=%d,format=yuv420p[v%d]",
-			i, e.Width, e.Height, e.Width, e.Height, e.FPS, i))
+			"[%d:v]scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=%s,format=yuv420p[v%d]",
+			i, e.Width, e.Height, e.Width, e.Height, e.fpsExpr(), i))
 	}
 
 	if len(clips) == 1 {

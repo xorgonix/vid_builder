@@ -281,11 +281,26 @@ func (w *Worker) Assemble(ctx context.Context, asm store.VideoAssembly, segs []s
 	if len(segs) == 0 {
 		return video.AssemblyResult{}, fmt.Errorf("no segments to assemble")
 	}
-	width, height, fpsNum := segs[0].FPSNum, 0, segs[0].FPSNum
+	width, height, fpsNum, fpsDen := 0, 0, 0, 1
 	if asm.SuperShotRequestID.Valid {
 		if plan, err := w.store.GetSuperShotRequest(ctx, asm.SuperShotRequestID.String); err == nil {
-			width, height, fpsNum = plan.Width, plan.Height, plan.FPSNum
+			width, height, fpsNum, fpsDen = plan.Width, plan.Height, plan.FPSNum, plan.FPSDen
 		}
+	}
+	if width <= 0 {
+		width = 1920
+	}
+	if height <= 0 {
+		height = 1080
+	}
+	if fpsNum <= 0 {
+		fpsNum, fpsDen = segs[0].FPSNum, segs[0].FPSDen
+	}
+	if fpsNum <= 0 {
+		fpsNum, fpsDen = 8, 1
+	}
+	if fpsDen <= 0 {
+		fpsDen = 1
 	}
 	clips := make([]exporter.Clip, 0, len(segs))
 	planned := 0
@@ -304,11 +319,7 @@ func (w *Worker) Assemble(ctx context.Context, asm store.VideoAssembly, segs []s
 		}
 		clips = append(clips, exporter.Clip{Path: path, IsImage: false, DurationMs: dur, TransitionOut: "cut"})
 	}
-	fps := fpsNum
-	if fps <= 0 {
-		fps = 8
-	}
-	ex := exporter.New(w.cfg.FFmpeg.BinaryPath, width, height, fps, w.cfg.FFmpeg.RequestTimeoutSec)
+	ex := exporter.New(w.cfg.FFmpeg.BinaryPath, width, height, fpsNum, fpsDen, w.cfg.FFmpeg.RequestTimeoutSec)
 	tempDir := w.cfg.Media.TempDir
 	if !filepath.IsAbs(tempDir) {
 		if abs, err := filepath.Abs(tempDir); err == nil {
@@ -323,14 +334,14 @@ func (w *Worker) Assemble(ctx context.Context, asm store.VideoAssembly, segs []s
 	if err := ex.Assemble(ctx, clips, outPath); err != nil {
 		return video.AssemblyResult{}, fmt.Errorf("assemble: %w", err)
 	}
-	actual := planned
-	receipt := fmt.Sprintf("ffmpeg concat, %d segments", len(segs))
-	if measured, err := exporter.ProbeDurationMS(ctx, w.cfg.FFmpeg.BinaryPath, outPath); err == nil {
-		actual = measured
-		receipt += fmt.Sprintf(", ffprobe duration=%dms", measured)
-	} else {
-		receipt += ", duration not probed (ffprobe unavailable)"
+	// C08: the measured duration must come from the file. A failed probe yields an
+	// unverified delivery, never a synthetic "measured" duration.
+	measured, perr := exporter.ProbeDurationMS(ctx, w.cfg.FFmpeg.BinaryPath, outPath)
+	if perr != nil {
+		return video.AssemblyResult{}, fmt.Errorf("duration unverified (ffprobe failed): %w", perr)
 	}
+	actual := measured
+	receipt := fmt.Sprintf("ffmpeg concat, %d segments, %dx%d @%d/%d, planned=%dms, ffprobe duration=%dms", len(segs), width, height, fpsNum, fpsDen, planned, measured)
 	f, err := os.Open(outPath)
 	if err != nil {
 		return video.AssemblyResult{}, err
