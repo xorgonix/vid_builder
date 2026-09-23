@@ -21,6 +21,11 @@ templ superShotListBody(data SuperShotListData) {
 			<a class="btn btn-primary btn-sm" href={ templ.URL(data.Shell.VideoBase() + "/super-shots/new") }>New Super Shot</a>
 		</div>
 		<div class="grid gap-3">
+			if data.LegacyCount > 0 {
+				<div class="alert alert-error text-sm">
+					{ data.LegacyCount } legacy plan(s) reuse the shot's outer endpoints for every segment. They are marked and require re-planning; their outputs are preserved.
+				</div>
+			}
 			for _, p := range data.Plans {
 				<a class="card bg-base-100 shadow card-body hover:border hover:border-primary" href={ templ.URL(data.Shell.VideoBase() + "/super-shots/" + p.ID) }>
 					<div class="flex items-center justify-between">
@@ -190,6 +195,12 @@ templ superShotBody(data SuperShotPageData) {
 						<button type="submit" class="btn btn-primary btn-sm">Approve plan &amp; generate</button>
 					</form>
 				}
+				if data.SuperShot.Status == "failed" || data.SuperShot.Status == "generating_anchors" || data.SuperShot.Status == "generating_segments" {
+					<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/super-shots/" + data.SuperShot.ID + "/resume") }>
+						<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+						<button type="submit" class="btn btn-sm">Resume</button>
+					</form>
+				}
 				<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/super-shots/" + data.SuperShot.ID + "/cancel") }>
 					<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
 					<button type="submit" class="btn btn-ghost btn-sm">Cancel</button>
@@ -210,6 +221,26 @@ templ superShotBody(data SuperShotPageData) {
 					<h2 class="text-lg font-semibold">Assembled video</h2>
 					<video controls preload="metadata" src={ templ.URL(data.SuperShot.Video.URL) } class="w-full rounded-box border border-base-300"></video>
 					<p class="text-xs opacity-70 mt-1">planned { MSecs(data.SuperShot.PlannedDurationMS) }s · measured { MSecs(data.SuperShot.ActualDurationMS) }s</p>
+					<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/super-shots/" + data.SuperShot.ID + "/select-video") } class="mt-2">
+						<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+						<button type="submit" class="btn btn-sm">Use as the shot's video (Review &amp; Edit)</button>
+					</form>
+					if len(data.SuperShot.Segments) > 1 {
+						<h3 class="text-sm font-semibold mt-3">Join review</h3>
+						for i := 0; i < len(data.SuperShot.Segments)-1; i++ {
+							<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/super-shots/" + data.SuperShot.ID + "/joins/" + IntStr(i) + "/review") } class="flex items-center gap-2 mt-1">
+								<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+								<span class="text-xs opacity-70">join { i + 1 }</span>
+								<select name="status" class="select select-bordered select-xs">
+									<option value="accepted">accept</option>
+									<option value="rejected">reject</option>
+									<option value="unreviewed">unreviewed</option>
+								</select>
+								<input name="notes" class="input input-bordered input-xs flex-1" placeholder="notes"/>
+								<button type="submit" class="btn btn-xs">Save</button>
+							</form>
+						}
+					}
 				</div>
 			</div>
 		}

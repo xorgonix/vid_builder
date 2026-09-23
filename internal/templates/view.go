@@ -708,10 +708,11 @@ type SuperShotView struct {
 
 // SuperShotListData backs the Super Shot overview for a video.
 type SuperShotListData struct {
-	Shell   ShellData
-	Project ProjectView
-	Video   VideoView
-	Plans   []SuperShotView
+	Shell       ShellData
+	Project     ProjectView
+	Video       VideoView
+	Plans       []SuperShotView
+	LegacyCount int
 }
 
 // SuperShotFormData backs the new Super Shot form.

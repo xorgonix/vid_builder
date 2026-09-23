@@ -373,7 +373,10 @@ func (s *Service) AnchorReady(ctx context.Context, anchorID string) error {
 	if anchor.Kind != AnchorIntermediate {
 		return nil
 	}
-	return s.enqueueReadySegments(ctx, anchor.SuperShotRequestID)
+	if err := s.enqueueReadySegments(ctx, anchor.SuperShotRequestID); err != nil {
+		return err
+	}
+	return s.RefreshPlanStatus(ctx, anchor.SuperShotRequestID)
 }
 
 // ChangeAnchor marks an intermediate anchor's asset as changed and invalidates
@@ -452,6 +455,11 @@ func (s *Service) RunSegment(ctx context.Context, segmentID string) error {
 		return nil
 	}
 	_, err = s.TryAssemble(ctx, seg.RequestID)
+	if seg.SuperShotRequestID.Valid {
+		if rerr := s.RefreshPlanStatus(ctx, seg.SuperShotRequestID.String); rerr != nil && err == nil {
+			err = rerr
+		}
+	}
 	return err
 }
 
@@ -641,7 +649,11 @@ func (s *Service) RunAssembly(ctx context.Context, requestID string) error {
 		_ = s.Store.SetAssemblyFailed(ctx, asm.ID, err.Error())
 		return err
 	}
-	return s.Store.SetAssemblySucceeded(ctx, asm.ID, result.AssetID, assetIDs, result.ActualDurationMS, inputRevision, inputHash, result.JoinsJSON, result.Receipt, "measured")
+	err = s.Store.SetAssemblySucceeded(ctx, asm.ID, result.AssetID, assetIDs, result.ActualDurationMS, inputRevision, inputHash, result.JoinsJSON, result.Receipt, "measured")
+	if err == nil && asm.SuperShotRequestID.Valid {
+		_ = s.RefreshPlanStatus(ctx, asm.SuperShotRequestID.String)
+	}
+	return err
 }
 
 // ValidatePersistedPlan re-checks the chain invariants on stored rows.

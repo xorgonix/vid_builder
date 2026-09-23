@@ -38,3 +38,16 @@ UPDATE super_shot_requests SET complete_movement = base_positive WHERE complete_
 UPDATE video_segments SET raw_action = action_prompt WHERE raw_action = '';
 UPDATE video_segments SET compiled_prompt = action_prompt WHERE compiled_prompt = '';
 UPDATE video_segments SET selected_attempt_id = attempt_id WHERE selected_attempt_id IS NULL;
+
+-- Join review notes: a creator's accept/reject/notes for each boundary of an
+-- assembled Super Shot (contract C10 / §15.9). Never an automated quality claim.
+CREATE TABLE IF NOT EXISTS assembly_join_reviews (
+    id          TEXT PRIMARY KEY,
+    assembly_id TEXT NOT NULL REFERENCES video_assemblies(id) ON DELETE CASCADE,
+    idx         INTEGER NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'unreviewed' CHECK (status IN ('unreviewed','accepted','rejected')),
+    notes       TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    UNIQUE (assembly_id, idx)
+) STRICT;

@@ -61,6 +61,9 @@ func (s *Server) handleSuperShotList(w http.ResponseWriter, r *http.Request) {
 	for i := range plans {
 		data.Plans = append(data.Plans, s.superShotView(r, &plans[i]))
 	}
+	if legacy, err := s.store.ListLegacyInvalidPlans(r.Context(), vid.ID); err == nil {
+		data.LegacyCount = len(legacy)
+	}
 	if m := r.URL.Query().Get("msg"); m != "" {
 		data.Shell.Flash = m
 		data.Shell.FlashKind = r.URL.Query().Get("kind")
@@ -398,6 +401,70 @@ func (s *Server) handleSuperShotAnchorAttach(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	s.superShotRedirect(w, r, vid, plan.ID, "Image attached; dependent segments marked stale.", "success")
+}
+
+// handleSuperShotResume queues ready work in dependency order.
+func (s *Server) handleSuperShotResume(w http.ResponseWriter, r *http.Request) {
+	vid, plan, ok := s.loadSuperShotForAction(w, r)
+	if !ok {
+		return
+	}
+	svc := &video.Service{Store: s.store}
+	if err := svc.Resume(r.Context(), plan.ID); err != nil {
+		s.superShotRedirect(w, r, vid, plan.ID, err.Error(), "error")
+		return
+	}
+	s.superShotRedirect(w, r, vid, plan.ID, "Ready work queued.", "success")
+}
+
+// handleSuperShotSelectAttempt selects one take for a segment.
+func (s *Server) handleSuperShotSelectAttempt(w http.ResponseWriter, r *http.Request) {
+	vid, plan, ok := s.loadSuperShotForAction(w, r)
+	if !ok {
+		return
+	}
+	seg, err := s.store.GetSegment(r.Context(), chiURLParam(r, "segmentID"))
+	if err != nil || !seg.SuperShotRequestID.Valid || seg.SuperShotRequestID.String != plan.ID {
+		s.notFound(w, r)
+		return
+	}
+	svc := &video.Service{Store: s.store}
+	if err := svc.SelectSegmentAttempt(r.Context(), plan.ID, seg.ID, r.FormValue("attempt_id")); err != nil {
+		s.superShotRedirect(w, r, vid, plan.ID, "Could not select the take: "+err.Error(), "error")
+		return
+	}
+	s.superShotRedirect(w, r, vid, plan.ID, "Take selected; downstream work marked stale.", "success")
+}
+
+// handleSuperShotJoinReview saves a boundary review.
+func (s *Server) handleSuperShotJoinReview(w http.ResponseWriter, r *http.Request) {
+	vid, plan, ok := s.loadSuperShotForAction(w, r)
+	if !ok {
+		return
+	}
+	idx, _ := strconv.Atoi(chiURLParam(r, "index"))
+	svc := &video.Service{Store: s.store}
+	if err := svc.SetJoinReview(r.Context(), plan.ID, idx, r.FormValue("status"), r.FormValue("notes")); err != nil {
+		s.superShotRedirect(w, r, vid, plan.ID, "Could not save the join review: "+err.Error(), "error")
+		return
+	}
+	s.superShotRedirect(w, r, vid, plan.ID, "Join review saved.", "success")
+}
+
+// handleSuperShotSelectVideo selects the assembled video as the shot's motion
+// candidate so it enters the ordinary Review/Edit flow.
+func (s *Server) handleSuperShotSelectVideo(w http.ResponseWriter, r *http.Request) {
+	vid, plan, ok := s.loadSuperShotForAction(w, r)
+	if !ok {
+		return
+	}
+	user := UserFrom(r.Context())
+	svc := &video.Service{Store: s.store}
+	if _, err := svc.SelectAssembledVideo(r.Context(), plan.ID, user.ID); err != nil {
+		s.superShotRedirect(w, r, vid, plan.ID, "Could not select the video: "+err.Error(), "error")
+		return
+	}
+	s.superShotRedirect(w, r, vid, plan.ID, "Assembled video selected for the shot; it now appears in Review and Edit.", "success")
 }
 
 func (s *Server) enqueueAnchor(r *http.Request, plan *store.SuperShotRequest, anchor *store.VideoAnchor) error {
