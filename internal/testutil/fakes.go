@@ -74,17 +74,19 @@ func (f *LMStudio) Calls() int {
 // ComfyUI is a fake ComfyUI server covering the calls the adapter makes.
 type ComfyUI struct {
 	*httptest.Server
-	mu          sync.Mutex
-	checkpoints []string
-	fail        bool
-	promptID    string
-	uploads     int
+	mu             sync.Mutex
+	checkpoints    []string
+	fail           bool
+	promptID       string
+	uploads        int
+	lastPrompt     map[string]any
+	outputFilename string
 }
 
 // NewComfyUI starts a fake ComfyUI server.
 func NewComfyUI(t *testing.T) *ComfyUI {
 	t.Helper()
-	f := &ComfyUI{checkpoints: []string{"photon_v1.safetensors"}, promptID: "fake-prompt-1"}
+	f := &ComfyUI{checkpoints: []string{"photon_v1.safetensors"}, promptID: "fake-prompt-1", outputFilename: "fake_00001_.png"}
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/system_stats", func(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +122,12 @@ func NewComfyUI(t *testing.T) *ComfyUI {
 	mux.HandleFunc("/object_info", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, map[string]any{}) })
 
 	mux.HandleFunc("/prompt", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Prompt map[string]any `json:"prompt"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
 		f.mu.Lock()
+		f.lastPrompt = body.Prompt
 		id := f.promptID
 		f.mu.Unlock()
 		writeJSON(w, map[string]any{"prompt_id": id, "number": 1, "node_errors": map[string]any{}})
@@ -129,12 +136,14 @@ func NewComfyUI(t *testing.T) *ComfyUI {
 	mux.HandleFunc("/history/", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		id := f.promptID
+		filename := f.outputFilename
 		f.mu.Unlock()
 		writeJSON(w, map[string]any{
 			id: map[string]any{
 				"status": map[string]any{"status_str": "success", "completed": true},
 				"outputs": map[string]any{
-					"7": map[string]any{"images": []map[string]any{{"filename": "fake_00001_.png", "subfolder": "", "type": "output"}}},
+					"7":  map[string]any{"images": []map[string]any{{"filename": filename, "subfolder": "", "type": "output"}}},
+					"12": map[string]any{"images": []map[string]any{{"filename": filename, "subfolder": "", "type": "output"}}},
 				},
 			},
 		})
@@ -178,6 +187,21 @@ func (f *ComfyUI) Uploads() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.uploads
+}
+
+// LastPrompt returns the most recently submitted graph (API format), so tests can
+// assert which bindings actually reached the workflow.
+func (f *ComfyUI) LastPrompt() map[string]any {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.lastPrompt
+}
+
+// SetOutputFilename controls the filename the fake reports for outputs.
+func (f *ComfyUI) SetOutputFilename(name string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.outputFilename = name
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

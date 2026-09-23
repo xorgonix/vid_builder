@@ -175,7 +175,7 @@ func (s *Server) handleSuperShotPlan(w http.ResponseWriter, r *http.Request) {
 	ws := WorkspaceFrom(r.Context())
 	user := UserFrom(r.Context())
 	svc := &video.Service{Store: s.store}
-	if s.planner != nil && s.planner.Enabled() {
+	if s.cfg.LLM.Enabled && s.planner != nil && s.planner.Enabled() {
 		svc.Planner = superShotPlanner{p: s.planner}
 	}
 	result, err := svc.PlanDraft(r.Context(), video.PlanRequest{
