@@ -34,10 +34,19 @@ func (w *Worker) processAnchor(ctx context.Context, job *store.Job) error {
 		_ = w.store.UpdateJobState(ctx, job.ID, "failed", "anchor", "error", err.Error(), 10000)
 		return err
 	}
+	// C07: cancellation is a barrier; no anchor is generated for a cancelled plan.
+	if plan.Status == "cancelled" {
+		_ = w.store.SetAnchorStatus(ctx, anchor.ID, "planned", "plan cancelled")
+		return w.store.UpdateJobState(ctx, job.ID, "cancelled", "anchor", "info", "Plan cancelled; anchor not generated", 10000)
+	}
 	_ = w.store.SetAnchorStatus(ctx, anchor.ID, "running", "")
 	_ = w.store.UpdateJobState(ctx, job.ID, "running", "generate", "info", "Generating intermediate image", 3000)
 	assetID, err := w.GenerateAnchor(ctx, *anchor, *plan)
 	if err != nil {
+		fresh, _ := w.store.GetAnchor(ctx, anchor.ID)
+		if fresh != nil && fresh.ImageAttemptID.Valid {
+			_ = w.store.RecordAttemptFailure(ctx, fresh.ImageAttemptID.String, "anchor_failed", err.Error())
+		}
 		_ = w.store.SetAnchorStatus(ctx, anchor.ID, "failed", err.Error())
 		_ = w.store.UpdateJobState(ctx, job.ID, "failed", "anchor", "error", err.Error(), 10000)
 		return err
@@ -201,10 +210,11 @@ func (w *Worker) GenerateSegment(ctx context.Context, seg store.VideoSegment) (v
 
 // GenerateAnchor implements video.AnchorGenerator using an image workflow.
 func (w *Worker) GenerateAnchor(ctx context.Context, anchor store.VideoAnchor, plan store.SuperShotRequest) (string, error) {
-	version, err := w.pickImageWorkflow(ctx)
+	version, err := w.anchorImageWorkflow(ctx, &plan)
 	if err != nil {
 		return "", err
 	}
+	caps, _ := workflows.ParseCapabilities(version.ManifestJSON)
 	dbBindings, err := w.store.ListBindings(ctx, version.ID)
 	if err != nil {
 		return "", err
@@ -213,6 +223,18 @@ func (w *Worker) GenerateAnchor(ctx context.Context, anchor store.VideoAnchor, p
 	for _, b := range dbBindings {
 		bindings = append(bindings, workflows.Binding{SemanticField: b.SemanticField, NodeID: b.NodeID, InputName: b.InputName, ValueType: b.ValueType, Required: b.Required})
 	}
+
+	// A dedicated image attempt records the anchor's provenance (C03).
+	attemptID := ""
+	if plan.GenerationRequestID.Valid {
+		if id, aerr := w.store.NewAnchorAttempt(ctx, anchor.ID, plan.GenerationRequestID.String, version.ID); aerr == nil {
+			attemptID = id
+		}
+	}
+	if attemptID != "" {
+		_ = w.store.MarkAttemptRunning(ctx, attemptID, "", "", 0)
+	}
+
 	values := map[string]any{
 		"first_frame_positive": anchor.StatePrompt,
 		"first_frame_negative": anchor.NegativePrompt,
@@ -220,9 +242,32 @@ func (w *Worker) GenerateAnchor(ctx context.Context, anchor store.VideoAnchor, p
 		"height":               plan.Height,
 		"seed":                 rand.Int63(),
 	}
-	if cp := w.profileCheckpoint(ctx, &plan); cp != "" {
+	// Use the image model profile, never the video checkpoint (C03).
+	if cp := w.imageProfileCheckpoint(ctx, &plan); cp != "" {
 		values["model_name"] = cp
 	}
+
+	// Reference conditioning: stage the supplied endpoints and the previous
+	// accepted anchor through whatever reference bindings the graph declares.
+	refs := w.anchorReferences(ctx, anchor, &plan)
+	boundRefs := map[string]string{}
+	for _, b := range bindings {
+		if assetID, ok := refs[b.SemanticField]; ok && assetID != "" {
+			up, uerr := w.stageAssetCached(ctx, assetID)
+			if uerr != nil {
+				return "", fmt.Errorf("stage reference %s: %w", b.SemanticField, uerr)
+			}
+			values[b.SemanticField] = up
+			boundRefs[b.SemanticField] = up
+		}
+	}
+	hasRefBindings := len(boundRefs) > 0
+	if caps == nil || !caps.SupportsReferences() {
+		// Text-only anchors are allowed, but we do not claim references reached
+		// a graph that declares no reference input.
+		_ = hasRefBindings
+	}
+
 	graph, err := workflows.CloneGraph(version.GraphJSON)
 	if err != nil {
 		return "", err
@@ -231,6 +276,8 @@ func (w *Worker) GenerateAnchor(ctx context.Context, anchor store.VideoAnchor, p
 	if err != nil {
 		return "", err
 	}
+	boundJSON, _ := json.Marshal(values)
+	started := time.Now()
 	resp, err := w.comfy.Submit(ctx, graph, w.owner)
 	if err != nil {
 		return "", fmt.Errorf("submit anchor: %w", err)
@@ -258,24 +305,88 @@ func (w *Worker) GenerateAnchor(ctx context.Context, anchor store.VideoAnchor, p
 		return "", fmt.Errorf("fetch anchor: %w", err)
 	}
 	defer body.Close()
+	// Validate it is actually an image, not a relabelled video (C03).
 	kind, mime := outputMedia(img.Filename)
 	if kind != "image" {
-		kind, mime = "image", "image/png"
+		return "", fmt.Errorf("anchor workflow returned %s (%s), expected an image", img.Filename, mime)
 	}
 	relDir := fmt.Sprintf("%s/%s/videos/%s/super-shots/%s/anchors", plan.WorkspaceID, plan.ProjectID, plan.VideoID, plan.ID)
 	uri, checksum, size, err := w.media.Put(relDir, fmt.Sprintf("anchor-%02d-%s", anchor.Index, img.Filename), body)
 	if err != nil {
 		return "", fmt.Errorf("store anchor: %w", err)
 	}
-	assetID, err := w.store.CreateAsset(ctx, store.Asset{
+	asset := store.Asset{
 		WorkspaceID: plan.WorkspaceID, ProjectID: plan.ProjectID,
 		Kind: kind, Role: "video_anchor", StorageURI: uri, MimeType: mime, SizeBytes: size, Checksum: checksum,
-	})
+	}
+	if attemptID != "" {
+		asset.GenerationAttemptID = sql.NullString{String: attemptID, Valid: true}
+	}
+	assetID, err := w.store.CreateAsset(ctx, asset)
 	if err != nil {
 		return "", fmt.Errorf("record anchor asset: %w", err)
 	}
 	w.makeThumbnail(ctx, plan.WorkspaceID, plan.ProjectID, assetID, kind, mime)
+	if attemptID != "" {
+		receipt, _ := json.Marshal(map[string]any{
+			"client_id": w.owner, "prompt_id": resp.PromptID, "image_workflow": version.ID,
+			"reference_bound": boundRefs,
+		})
+		resolved, _ := json.Marshal(map[string]string{"state": anchor.StatePrompt, "negative": anchor.NegativePrompt})
+		_ = w.store.RecordAttemptSuccess(ctx, attemptID, version.GraphSHA, string(resolved), string(boundJSON), string(receipt), time.Since(started).Milliseconds())
+	}
 	return assetID, nil
+}
+
+// anchorImageWorkflow resolves the plan's chosen image workflow, or the first
+// selectable image package.
+func (w *Worker) anchorImageWorkflow(ctx context.Context, plan *store.SuperShotRequest) (*store.WorkflowVersion, error) {
+	if plan.ImageWorkflowVersionID.Valid && plan.ImageWorkflowVersionID.String != "" {
+		if v, err := w.store.GetWorkflowVersion(ctx, plan.ImageWorkflowVersionID.String); err == nil {
+			return v, nil
+		}
+	}
+	return w.pickImageWorkflow(ctx)
+}
+
+// imageProfileCheckpoint returns the plan's image model checkpoint, if any. It
+// deliberately ignores the video model profile (contract C03).
+func (w *Worker) imageProfileCheckpoint(ctx context.Context, plan *store.SuperShotRequest) string {
+	if plan == nil || !plan.ImageModelProfileID.Valid {
+		return ""
+	}
+	p, err := w.store.GetModelProfile(ctx, plan.WorkspaceID, plan.ImageModelProfileID.String)
+	if err != nil {
+		return ""
+	}
+	return p.ProfileCheckpoint()
+}
+
+// anchorReferences maps reference semantic fields to the asset ids that should
+// condition an intermediate image: the supplied endpoints and the previous
+// accepted anchor.
+func (w *Worker) anchorReferences(ctx context.Context, anchor store.VideoAnchor, plan *store.SuperShotRequest) map[string]string {
+	out := map[string]string{}
+	anchors, err := w.store.ListAnchors(ctx, plan.ID)
+	if err != nil || len(anchors) == 0 {
+		return out
+	}
+	if anchors[0].AssetID.Valid {
+		out["first_frame_asset"] = anchors[0].AssetID.String
+		out["reference_asset"] = anchors[0].AssetID.String
+	}
+	last := anchors[len(anchors)-1]
+	if last.AssetID.Valid {
+		out["last_frame_asset"] = last.AssetID.String
+		out["reference_asset_2"] = last.AssetID.String
+	}
+	// The previous accepted anchor is the strongest local reference.
+	for i := range anchors {
+		if anchors[i].Index == anchor.Index-1 && anchors[i].AssetID.Valid {
+			out["reference_asset"] = anchors[i].AssetID.String
+		}
+	}
+	return out
 }
 
 // Assemble implements video.Assembler: ordered segment assets become one MP4, and

@@ -297,6 +297,34 @@ func (s *Store) NewSegmentAttempt(ctx context.Context, segmentID, requestID, wor
 	return aid, nil
 }
 
+// NewAnchorAttempt creates a fresh image-generation attempt for an intermediate
+// anchor and records it on the anchor (contract C03).
+func (s *Store) NewAnchorAttempt(ctx context.Context, anchorID, requestID, workflowVersionID string) (string, error) {
+	var next int
+	_ = s.QueryRowContext(ctx, `SELECT COALESCE(MAX(attempt_number),0)+1 FROM generation_attempts WHERE generation_request_id=?`, requestID).Scan(&next)
+	if next < 1 {
+		next = 1
+	}
+	aid := ids.New()
+	if _, err := s.ExecContext(ctx, `INSERT INTO generation_attempts (id, generation_request_id, attempt_number, workflow_version_id, resolved_prompts_json, settings_json, status, queued_at)
+		VALUES (?,?,?,?,?,?,?,?)`,
+		aid, requestID, next, nullIfEmpty(workflowVersionID), "{}", "{}", "queued", db.Now()); err != nil {
+		return "", err
+	}
+	if _, err := s.ExecContext(ctx, `UPDATE video_anchors SET image_attempt_id=? WHERE id=?`, aid, anchorID); err != nil {
+		return "", err
+	}
+	return aid, nil
+}
+
+// SetAnchorAsset attaches a creator-supplied image to an intermediate anchor and
+// marks it succeeded. The caller must verify workspace/project scope first.
+func (s *Store) SetAnchorAsset(ctx context.Context, anchorID, assetID string) error {
+	_, err := s.ExecContext(ctx, `UPDATE video_anchors SET asset_id=?, status='succeeded', error='', revision=revision+1, updated_at=? WHERE id=? AND kind='intermediate'`,
+		assetID, db.Now(), anchorID)
+	return err
+}
+
 // GetSuperShotRequest loads one plan.
 func (s *Store) GetSuperShotRequest(ctx context.Context, id string) (*SuperShotRequest, error) {
 	row := s.QueryRowContext(ctx, `SELECT `+superShotColumns+` FROM super_shot_requests WHERE id=?`, id)

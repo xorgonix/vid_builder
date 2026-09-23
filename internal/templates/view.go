@@ -721,6 +721,8 @@ type SuperShotFormData struct {
 	Video             VideoView
 	Shots             []DurationShotView
 	Workflows         []WorkflowOption
+	ImageWorkflows    []WorkflowOption
+	Profiles          []ProfileOption
 	PreselectShotID   string
 	DefaultDurationMS int
 }
@@ -731,6 +733,7 @@ type SuperShotPageData struct {
 	Project   ProjectView
 	Video     VideoView
 	SuperShot SuperShotView
+	Images    []AssetView
 }
 
 // MSecs renders milliseconds as seconds with two decimals.

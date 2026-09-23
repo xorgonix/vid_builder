@@ -104,6 +104,33 @@ templ superShotFormBody(data SuperShotFormData) {
 						<span class="label-text">Camera (optional)</span>
 						<input name="camera" class="input input-bordered" placeholder="slow push in"/>
 					</label>
+					<label class="form-control">
+						<span class="label-text">Video model profile (optional)</span>
+						<select name="model_profile_id" class="select select-bordered">
+							<option value="">None</option>
+							for _, p := range data.Profiles {
+								<option value={ p.ID }>{ p.Name } · { p.Checkpoint }</option>
+							}
+						</select>
+					</label>
+					<label class="form-control">
+						<span class="label-text">Image workflow (for intermediate images)</span>
+						<select name="image_workflow_id" class="select select-bordered">
+							<option value="">Auto (first image workflow)</option>
+							for _, w := range data.ImageWorkflows {
+								<option value={ w.ID }>{ w.Name } · { w.Version }</option>
+							}
+						</select>
+					</label>
+					<label class="form-control">
+						<span class="label-text">Image model profile (optional)</span>
+						<select name="image_profile_id" class="select select-bordered">
+							<option value="">None</option>
+							for _, p := range data.Profiles {
+								<option value={ p.ID }>{ p.Name } · { p.Checkpoint }</option>
+							}
+						</select>
+					</label>
 				</div>
 				<label class="form-control">
 					<span class="label-text">Movement prompt (the complete shot's action)</span>
@@ -223,6 +250,17 @@ templ superShotBody(data SuperShotPageData) {
 										<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
 										<button type="submit" class="btn btn-xs">Generate image</button>
 									</form>
+									if len(data.Images) > 0 {
+										<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/super-shots/" + data.SuperShot.ID + "/anchors/" + a.ID + "/attach") } class="flex gap-1 items-center">
+											<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+											<select name="asset_id" class="select select-bordered select-xs max-w-[9rem]">
+												for _, img := range data.Images {
+													<option value={ img.ID }>{ shortID(img.ID) }</option>
+												}
+											</select>
+											<button type="submit" class="btn btn-xs">Attach</button>
+										</form>
+									}
 								}
 							</div>
 						</div>

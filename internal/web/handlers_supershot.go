@@ -1,15 +1,42 @@
 package web
 
 import (
+	"context"
+	"encoding/json"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"vidbuild/internal/planner"
 	"vidbuild/internal/store"
 	"vidbuild/internal/templates"
 	"vidbuild/internal/video"
 )
+
+// superShotPlanner adapts the LM Studio planner to video.Planner (contract C02).
+type superShotPlanner struct{ p *planner.Planner }
+
+func (a superShotPlanner) ProposeSuperShot(ctx context.Context, req video.SuperShotPromptRequest) (video.SuperShotSuggestion, error) {
+	payload, err := a.p.SuperShotProposal(ctx, planner.SuperShotPromptInput{
+		ShotPurpose: req.ShotPurpose, CompleteMovement: req.CompleteMovement,
+		StartState: req.StartState, EndState: req.EndState,
+		SegmentDurationsMS: req.SegmentDurationsMS, ContinuityLocks: req.ContinuityLocks,
+	})
+	if err != nil {
+		return video.SuperShotSuggestion{}, err
+	}
+	states := make([]string, 0, len(payload.Anchors))
+	for _, a := range payload.Anchors {
+		states = append(states, a.State)
+	}
+	movements := make([]string, 0, len(payload.Segments))
+	for _, seg := range payload.Segments {
+		movements = append(movements, seg.Movement)
+	}
+	prov, _ := json.Marshal(map[string]any{"summary": payload.Summary, "continuity_locks": payload.ContinuityLocks, "source": "lmstudio"})
+	return video.SuperShotSuggestion{IntermediateStates: states, SegmentMovements: movements, ProvenanceJSON: string(prov)}, nil
+}
 
 func ssAssetView(a *store.Asset) templates.AssetView {
 	if a == nil {
@@ -82,10 +109,22 @@ func (s *Server) handleSuperShotNew(w http.ResponseWriter, r *http.Request) {
 	if versions, err := s.store.ListSelectableVersions(r.Context()); err == nil {
 		for _, v := range versions {
 			name := "Workflow"
+			task := ""
 			if p, err := s.store.GetWorkflowPackage(r.Context(), v.WorkflowPackageID); err == nil {
 				name = p.Name
+				task = p.Task
 			}
-			data.Workflows = append(data.Workflows, templates.WorkflowOption{ID: v.ID, Name: name, Version: v.SemanticVersion, Status: v.Status})
+			opt := templates.WorkflowOption{ID: v.ID, Name: name, Version: v.SemanticVersion, Status: v.Status}
+			if task == "image" {
+				data.ImageWorkflows = append(data.ImageWorkflows, opt)
+			} else {
+				data.Workflows = append(data.Workflows, opt)
+			}
+		}
+	}
+	if profiles, err := s.store.ListModelProfiles(r.Context(), WorkspaceFrom(r.Context()).ID); err == nil {
+		for _, p := range profiles {
+			data.Profiles = append(data.Profiles, templates.ProfileOption{ID: p.ID, Name: p.Name, Checkpoint: p.ProfileCheckpoint()})
 		}
 	}
 	if m := r.URL.Query().Get("msg"); m != "" {
@@ -133,10 +172,14 @@ func (s *Server) handleSuperShotPlan(w http.ResponseWriter, r *http.Request) {
 	ws := WorkspaceFrom(r.Context())
 	user := UserFrom(r.Context())
 	svc := &video.Service{Store: s.store}
+	if s.planner != nil && s.planner.Enabled() {
+		svc.Planner = superShotPlanner{p: s.planner}
+	}
 	result, err := svc.PlanDraft(r.Context(), video.PlanRequest{
 		WorkspaceID: ws.ID, ProjectID: project.ID, VideoID: vid.ID, ShotID: shot.ID,
 		ShotSpecID: specID, SpecVersion: specVersion,
 		WorkflowVersionID: r.FormValue("workflow_id"), ModelProfileID: r.FormValue("model_profile_id"),
+		ImageWorkflowVersionID: r.FormValue("image_workflow_id"), ImageModelProfileID: r.FormValue("image_profile_id"),
 		RequestedDurationMS: durationMS, FPSNum: fpsNum, FPSDen: fpsDen, Width: vid.Width, Height: vid.Height,
 		BasePositive: r.FormValue("positive"), BaseNegative: r.FormValue("negative"),
 		ShotIntent: shot.Purpose, Camera: r.FormValue("camera"),
@@ -167,6 +210,14 @@ func (s *Server) handleSuperShotView(w http.ResponseWriter, r *http.Request) {
 	}
 	shell.ActiveNav = "duration"
 	data := templates.SuperShotPageData{Shell: shell, Project: toProjectView(project), Video: toVideoView(vid), SuperShot: s.superShotView(r, plan)}
+	if assets, err := s.store.ListAssetsForVideo(r.Context(), vid.ID); err == nil {
+		for i := range assets {
+			a := assets[i]
+			if strings.HasPrefix(a.MimeType, "image/") {
+				data.Images = append(data.Images, ssAssetView(&a))
+			}
+		}
+	}
 	if m := r.URL.Query().Get("msg"); m != "" {
 		data.Shell.Flash = m
 		data.Shell.FlashKind = r.URL.Query().Get("kind")
@@ -314,6 +365,39 @@ func (s *Server) handleSuperShotAssemble(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	s.superShotRedirect(w, r, vid, plan.ID, "Assembly queued if every segment is ready.", "success")
+}
+
+// handleSuperShotAnchorAttach attaches a creator-supplied image to an
+// intermediate anchor and invalidates the segments that depend on it (C03/C06).
+func (s *Server) handleSuperShotAnchorAttach(w http.ResponseWriter, r *http.Request) {
+	vid, plan, ok := s.loadSuperShotForAction(w, r)
+	if !ok {
+		return
+	}
+	anchor, err := s.store.GetAnchor(r.Context(), chiURLParam(r, "anchorID"))
+	if err != nil || anchor.SuperShotRequestID != plan.ID || anchor.Kind != "intermediate" {
+		s.notFound(w, r)
+		return
+	}
+	asset, err := s.store.GetAsset(r.Context(), r.FormValue("asset_id"))
+	if err != nil || asset.WorkspaceID != plan.WorkspaceID || asset.ProjectID != plan.ProjectID {
+		s.superShotRedirect(w, r, vid, plan.ID, "That image is not available in this project.", "error")
+		return
+	}
+	if !strings.HasPrefix(asset.MimeType, "image/") {
+		s.superShotRedirect(w, r, vid, plan.ID, "Only image assets can be attached to an anchor.", "error")
+		return
+	}
+	if err := s.store.SetAnchorAsset(r.Context(), anchor.ID, asset.ID); err != nil {
+		s.superShotRedirect(w, r, vid, plan.ID, "Could not attach the image: "+err.Error(), "error")
+		return
+	}
+	svc := &video.Service{Store: s.store}
+	if err := svc.ChangeAnchor(r.Context(), anchor.ID); err != nil {
+		s.superShotRedirect(w, r, vid, plan.ID, "Attached, but could not invalidate dependants: "+err.Error(), "error")
+		return
+	}
+	s.superShotRedirect(w, r, vid, plan.ID, "Image attached; dependent segments marked stale.", "success")
 }
 
 func (s *Server) enqueueAnchor(r *http.Request, plan *store.SuperShotRequest, anchor *store.VideoAnchor) error {

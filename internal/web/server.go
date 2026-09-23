@@ -211,6 +211,7 @@ func (s *Server) Handler() http.Handler {
 				r.With(canEdit).Post("/super-shots/{id}/assemble", s.handleSuperShotAssemble)
 				r.With(canEdit).Post("/super-shots/{id}/anchors/generate-missing", s.handleSuperShotGenerateMissing)
 				r.With(canEdit).Post("/super-shots/{id}/anchors/{anchorID}/generate", s.handleSuperShotAnchorGenerate)
+				r.With(canEdit).Post("/super-shots/{id}/anchors/{anchorID}/attach", s.handleSuperShotAnchorAttach)
 				r.With(canEdit).Patch("/super-shots/{id}/anchors/{anchorID}", s.handleSuperShotAnchorUpdate)
 				r.With(canEdit).Patch("/super-shots/{id}/segments/{segmentID}", s.handleSuperShotSegmentUpdate)
 				r.With(canEdit).Post("/super-shots/{id}/segments/{segmentID}/retry", s.handleSuperShotSegmentRetry)

@@ -50,14 +50,40 @@ type Assembler interface {
 	Assemble(ctx context.Context, asm store.VideoAssembly, segments []store.VideoSegment) (AssemblyResult, error)
 }
 
+// SuperShotSuggestion is a planner's concrete proposal: intermediate states and
+// one movement per interval, plus provenance for the record.
+type SuperShotSuggestion struct {
+	IntermediateStates []string
+	SegmentMovements   []string
+	ProvenanceJSON     string
+}
+
+// SuperShotPromptRequest is the creative input handed to a planner.
+type SuperShotPromptRequest struct {
+	ProjectContext     string
+	ShotPurpose        string
+	CompleteMovement   string
+	StartState         string
+	EndState           string
+	SegmentDurationsMS []int
+	ContinuityLocks    []string
+}
+
+// Planner proposes concrete Super Shot plans (contract C02). It is implemented
+// by an adapter over the LM Studio planner in the web layer.
+type Planner interface {
+	ProposeSuperShot(ctx context.Context, req SuperShotPromptRequest) (SuperShotSuggestion, error)
+}
+
 // Service orchestrates Super Shot planning, per-segment generation and final
 // assembly. It is driven by the worker but is fully testable with fakes.
 type Service struct {
-	Store         *store.Store
-	Generate      Generator
+	Store          *store.Store
+	Generate       Generator
 	GenerateAnchor AnchorGenerator
-	Assemble      Assembler
-	Log           *slog.Logger
+	Assemble       Assembler
+	Planner        Planner
+	Log            *slog.Logger
 }
 
 // PlanRequest is one Super Shot planning request (spec §6.1).
@@ -155,6 +181,44 @@ func (s *Service) PlanDraft(ctx context.Context, in PlanRequest, userID string) 
 	if err != nil {
 		return nil, err
 	}
+
+	// C02: concrete intermediate states and interval movements. If the creator
+	// supplied them, they are authoritative (manual). Otherwise ask the planner;
+	// if it is unavailable or fails, keep a visibly incomplete draft with the
+	// real error and do not queue placeholder prompts.
+	plannerStatus := in.PlannerStatus
+	if plannerStatus == "" {
+		plannerStatus = "incomplete"
+	}
+	plannerWarnings := []string{}
+	if len(in.IntermediateStates) > 0 {
+		plannerStatus = "manual"
+	} else if s.Planner != nil {
+		durations := make([]int, 0, len(timing.Segments))
+		for _, st := range timing.Segments {
+			durations = append(durations, st.DurationMS)
+		}
+		sug, perr := s.Planner.ProposeSuperShot(ctx, SuperShotPromptRequest{
+			ShotPurpose: in.ShotIntent, CompleteMovement: in.BasePositive,
+			StartState: in.StartState, EndState: in.EndState,
+			SegmentDurationsMS: durations, ContinuityLocks: in.ContinuityLocks,
+		})
+		if perr != nil {
+			plannerWarnings = append(plannerWarnings, "planner unavailable: "+perr.Error())
+			in.PlannerStatus = "incomplete"
+		} else {
+			in.IntermediateStates = sug.IntermediateStates
+			if len(in.SegmentActions) == 0 {
+				in.SegmentActions = sug.SegmentMovements
+			}
+			plannerStatus = "validated"
+			in.PlannerProvenanceJSON = sug.ProvenanceJSON
+		}
+	} else {
+		plannerWarnings = append(plannerWarnings, "no planner is configured; describe the intermediate states manually before approval")
+	}
+	in.PlannerStatus = plannerStatus
+
 	chain, err := BuildPlan(PlanBuildInput{
 		Timing: timing, StartAssetID: in.StartAssetID, EndAssetID: in.EndAssetID,
 		StartState: in.StartState, EndState: in.EndState, BasePositive: in.BasePositive, BaseNegative: in.BaseNegative,
@@ -164,6 +228,8 @@ func (s *Service) PlanDraft(ctx context.Context, in PlanRequest, userID string) 
 	if err != nil {
 		return nil, err
 	}
+	plannerWarnings = append(plannerWarnings, chain.Warnings...)
+	in.PlannerWarningsJSON = mustJSON(plannerWarnings)
 
 	anchors := make([]store.AnchorInput, 0, len(chain.Anchors))
 	for _, a := range chain.Anchors {

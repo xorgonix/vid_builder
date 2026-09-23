@@ -33,8 +33,9 @@ type VideoTiming struct {
 
 // Inputs declares which terminal images the workflow accepts.
 type Inputs struct {
-	StartImage bool `json:"start_image"`
-	EndImage   bool `json:"end_image"`
+	StartImage     bool `json:"start_image"`
+	EndImage       bool `json:"end_image"`
+	ReferenceImage bool `json:"reference_image"`
 }
 
 // Continuation declares how (if at all) the workflow consumes predecessor motion
@@ -58,6 +59,13 @@ type Capabilities struct {
 // SupportsEndpoints reports whether both terminal images are accepted.
 func (c *Capabilities) SupportsEndpoints() bool {
 	return c != nil && c.Inputs.StartImage && c.Inputs.EndImage
+}
+
+// SupportsReferences reports whether the image workflow accepts at least one
+// reference/conditioning image, which reference-conditioned anchors require
+// (contract C03).
+func (c *Capabilities) SupportsReferences() bool {
+	return c != nil && c.Inputs.ReferenceImage
 }
 
 // SupportsContext reports whether the workflow consumes predecessor motion
