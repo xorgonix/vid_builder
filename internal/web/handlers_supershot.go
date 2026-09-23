@@ -235,7 +235,8 @@ func (s *Server) handleSuperShotSegmentUpdate(w http.ResponseWriter, r *http.Req
 		return
 	}
 	rev, _ := strconv.Atoi(r.FormValue("revision"))
-	if err := s.store.UpdateSegmentAction(r.Context(), seg.ID, r.FormValue("action"), rev); err != nil {
+	svc := &video.Service{Store: s.store}
+	if err := svc.EditSegmentAction(r.Context(), seg.ID, r.FormValue("action"), rev); err != nil {
 		s.superShotRedirect(w, r, vid, plan.ID, "Could not save the movement prompt: "+err.Error(), "error")
 		return
 	}

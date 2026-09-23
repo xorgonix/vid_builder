@@ -92,7 +92,7 @@ func TestSuperShotWebFlow(t *testing.T) {
 		"shot_id": {shot.ID}, "duration_s": {"15"}, "workflow_id": {versionID},
 		"positive": {"person walks to a chair and sits"}, "negative": {"lowres"},
 		"start_state": {"standing"}, "end_state": {"seated"},
-		"intermediate_states": {"turning toward the seat\nbeginning to lower"},
+		"intermediate_states": {"turning toward the seat\nbeginning to lower\nsettling into the seat"},
 		"strategy":            {"auto"}, "context_mode": {"anchor_only"},
 	})
 	testutil.MustStatus(t, resp, http.StatusSeeOther)

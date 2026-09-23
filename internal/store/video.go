@@ -238,6 +238,33 @@ func (s *Store) UpdateSegmentAction(ctx context.Context, id, actionPrompt string
 	return nil
 }
 
+// UpdateSegmentActionRaw edits a segment's raw interval action and the compiled
+// prompt derived from it, with an optimistic revision check (contract C06).
+func (s *Store) UpdateSegmentActionRaw(ctx context.Context, id, rawAction, compiledPrompt string, revision int) error {
+	res, err := s.ExecContext(ctx, `UPDATE video_segments SET raw_action=?, compiled_prompt=?, action_prompt=?, positive=?, revision=revision+1, updated_at=? WHERE id=? AND revision=?`,
+		rawAction, compiledPrompt, rawAction, compiledPrompt, db.Now(), id, revision)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrConflict
+	}
+	return nil
+}
+
+// SetSegmentSucceededIfCurrent records a segment success only when the segment's
+// current attempt still matches the attempt that produced the output. A late
+// result from a superseded attempt cannot overwrite the new selection (C06).
+func (s *Store) SetSegmentSucceededIfCurrent(ctx context.Context, id, expectedAttemptID, assetID, startAssetID, endAssetID string) (int64, error) {
+	res, err := s.ExecContext(ctx, `UPDATE video_segments SET status='succeeded', asset_id=?, start_asset_id=?, end_asset_id=?, stale=0, error='', revision=revision+1, updated_at=?
+		WHERE id=? AND (attempt_id IS ? OR attempt_id=?)`,
+		assetID, nullIfEmpty(startAssetID), nullIfEmpty(endAssetID), db.Now(), id, nullIfEmpty(expectedAttemptID), expectedAttemptID)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 // ResetSegmentForRetry returns a failed/stale segment to pending, preserving its
 // anchors and prompt so only that segment is regenerated (spec §7.3).
 func (s *Store) ResetSegmentForRetry(ctx context.Context, id string) error {

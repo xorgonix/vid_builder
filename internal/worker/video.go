@@ -113,7 +113,10 @@ func (w *Worker) GenerateSegment(ctx context.Context, seg store.VideoSegment) (v
 	}
 
 	seed := rand.Int63()
-	positive := seg.ActionPrompt
+	positive := seg.CompiledPrompt
+	if positive == "" {
+		positive = seg.ActionPrompt
+	}
 	if positive == "" {
 		positive = seg.Positive
 	}

@@ -373,11 +373,68 @@ func (s *Service) RunSegment(ctx context.Context, segmentID string) error {
 		_ = s.Store.SetSegmentFailed(ctx, seg.ID, err.Error())
 		return err
 	}
-	if err := s.Store.SetSegmentSucceeded(ctx, seg.ID, result.AssetID, result.StartAssetID, result.EndAssetID); err != nil {
+	expected := ""
+	if seg.AttemptID.Valid {
+		expected = seg.AttemptID.String
+	}
+	n, err := s.Store.SetSegmentSucceededIfCurrent(ctx, seg.ID, expected, result.AssetID, result.StartAssetID, result.EndAssetID)
+	if err != nil {
 		return err
+	}
+	if n == 0 {
+		// A newer attempt superseded this one; the result is history only (C06).
+		return nil
 	}
 	_, err = s.TryAssemble(ctx, seg.RequestID)
 	return err
+}
+
+// EditSegmentAction updates a segment's raw interval action and recompiles the
+// movement prompt. In a draft plan this is cheap; once production has begun the
+// affected output is marked stale and the assembly invalidated, so a stale
+// compiled prompt cannot stay current (contract C06).
+func (s *Service) EditSegmentAction(ctx context.Context, segmentID, rawAction string, revision int) error {
+	seg, err := s.Store.GetSegment(ctx, segmentID)
+	if err != nil {
+		return err
+	}
+	if !seg.SuperShotRequestID.Valid {
+		return fmt.Errorf("segment is not part of a Super Shot plan")
+	}
+	plan, err := s.Store.GetSuperShotRequest(ctx, seg.SuperShotRequestID.String)
+	if err != nil {
+		return err
+	}
+	anchors, err := s.Store.ListAnchors(ctx, seg.SuperShotRequestID.String)
+	if err != nil {
+		return err
+	}
+	startState, endState := "", ""
+	if seg.Index < len(anchors) {
+		startState = anchors[seg.Index].StatePrompt
+	}
+	if seg.Index+1 < len(anchors) {
+		endState = anchors[seg.Index+1].StatePrompt
+	}
+	var locks []string
+	_ = json.Unmarshal([]byte(plan.ContinuityJSON), &locks)
+	compiled := CompileSegmentMovement(plan.ShotPurpose, plan.CompleteMovement, startState, endState, rawAction, "", plan.BaseNegative, locks)
+	if err := s.Store.UpdateSegmentActionRaw(ctx, seg.ID, rawAction, compiled, revision); err != nil {
+		return err
+	}
+	switch plan.Status {
+	case "draft", "awaiting_approval":
+		// Cheap draft edit; no outputs exist yet.
+	default:
+		_ = s.Store.MarkSegmentStale(ctx, seg.ID)
+		if plan.GenerationRequestID.Valid {
+			_ = s.Store.InvalidateAssembly(ctx, plan.GenerationRequestID.String)
+			if seg.ContextMode != ContextAnchorOnly {
+				_, _ = s.Store.MarkDownstreamStale(ctx, plan.GenerationRequestID.String, seg.ID)
+			}
+		}
+	}
+	return nil
 }
 
 // RetrySegment resets one failed segment and queues only that segment again.
@@ -541,6 +598,9 @@ func ValidatePersistedPlan(plan *store.SuperShotRequest, anchors []store.VideoAn
 		}
 		if anchors[i].Kind == AnchorIntermediate && anchors[i].StatePrompt == "" {
 			return fmt.Errorf("plan: intermediate anchor %d has no state", i)
+		}
+		if anchors[i].Kind == AnchorIntermediate && IsPlaceholderState(anchors[i].StatePrompt) {
+			return fmt.Errorf("plan: intermediate anchor %d is still a placeholder; describe it before approval", i)
 		}
 	}
 	total := 0

@@ -120,7 +120,7 @@ func BuildPlan(in PlanBuildInput) (*ChainPlan, error) {
 			state = strings.TrimSpace(in.IntermediateStates[i-1])
 		}
 		if state == "" {
-			state = fmt.Sprintf("Intermediate state %d: a plausible visible state %s through the shot.", i, fractionPhrase(i, n))
+			state = fmt.Sprintf("PLACEHOLDER: describe what is visibly true %s (state %d of %d).", fractionPhrase(i, n), i, n)
 			plan.Warnings = append(plan.Warnings, fmt.Sprintf("anchor %d state is a placeholder; describe it before generating", i))
 		}
 		plan.Anchors = append(plan.Anchors, PlanAnchor{
@@ -192,6 +192,26 @@ func compileMovementPrompt(in PlanBuildInput, start, end PlanAnchor, action stri
 		fmt.Fprintf(&b, "Avoid: %s\n", neg)
 	}
 	return strings.TrimSpace(b.String())
+}
+
+// PlaceholderPrefix marks an anchor state the planner did not (or could not)
+// describe. Approval rejects such states so an incomplete draft never becomes an
+// executable plan (contract C02).
+const PlaceholderPrefix = "PLACEHOLDER:"
+
+// IsPlaceholderState reports whether an anchor state is still an unresolved
+// placeholder.
+func IsPlaceholderState(s string) bool {
+	return strings.HasPrefix(strings.TrimSpace(s), PlaceholderPrefix)
+}
+
+// CompileSegmentMovement builds a movement prompt from stored plan context and a
+// raw interval action. It is used to recompile after an edit without rebuilding
+// the whole chain (contract C06).
+func CompileSegmentMovement(purpose, movement, startState, endState, action, camera, negative string, locks []string) string {
+	return compileMovementPrompt(
+		PlanBuildInput{ShotIntent: purpose, BasePositive: movement, Camera: camera, BaseNegative: negative, ContinuityLocks: locks},
+		PlanAnchor{StatePrompt: startState}, PlanAnchor{StatePrompt: endState}, action)
 }
 
 // ValidatePlan enforces the chain invariants (spec §6.6). Duplicate adjacent
