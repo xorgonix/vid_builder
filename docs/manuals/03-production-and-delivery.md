@@ -276,9 +276,26 @@ attaching invalidates only the segments that touch that boundary.
 - **Join review** — record accept / reject / notes for each boundary. This is a
   human note, not an automated quality claim.
 - **Use as the shot's video** — selects the assembled video as the shot's motion
-  candidate so it enters the ordinary **Review / Edit / Export** flow.
+  candidate so it enters the ordinary **Review / Edit / Export** flow. The video
+  panel labels the export **Current shot** (its frozen input snapshot still
+  matches the chain) or **Previous output** (inputs changed after the export —
+  re-assemble to make it current). Selecting a previous output is refused.
+- **Edit-while-queued** — every queued generation executes the *frozen* queue-time
+  inputs. Editing a segment's movement or changing an anchor while it is queued
+  supersedes that job **before it is submitted** (no provider work, no failed
+  provider run); the new inputs dispatch as a fresh job under a new identity.
+  A completion that races an edit is recorded as history and never becomes
+  current.
 - **Cancel** — stops future dispatch; work already running is retained as
   history and cannot un-cancel the plan.
+
+### 4.6.1 Truthful plan status
+
+- A **failed anchor** or a **failed assembly** makes the plan show **Failed**
+  with the child's error, together with the retry action — not a permanently
+  "generating"/"assembling" progress label.
+- Pre-Super-Shot duration generations (motion generations with no Super Shot
+  parent) remain counted and diagnosed on the plan list.
 
 ### 4.7 Motion context (unavailable)
 
