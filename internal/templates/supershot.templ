@@ -218,13 +218,24 @@ templ superShotBody(data SuperShotPageData) {
 		if data.SuperShot.HasVideo {
 			<div class="card bg-base-100 shadow mb-4">
 				<div class="card-body">
-					<h2 class="text-lg font-semibold">Assembled video</h2>
+					<h2 class="text-lg font-semibold">
+						Assembled video
+						if data.SuperShot.VideoCurrent {
+							<span class="badge badge-success badge-sm ml-2">Current shot</span>
+						} else {
+							<span class="badge badge-warning badge-sm ml-2">Previous output</span>
+						}
+					</h2>
 					<video controls preload="metadata" src={ templ.URL(data.SuperShot.Video.URL) } class="w-full rounded-box border border-base-300"></video>
 					<p class="text-xs opacity-70 mt-1">planned { MSecs(data.SuperShot.PlannedDurationMS) }s · measured { MSecs(data.SuperShot.ActualDurationMS) }s</p>
-					<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/super-shots/" + data.SuperShot.ID + "/select-video") } class="mt-2">
-						<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
-						<button type="submit" class="btn btn-sm">Use as the shot's video (Review &amp; Edit)</button>
-					</form>
+					if data.SuperShot.VideoCurrent {
+						<form method="post" action={ templ.URL(data.Shell.VideoBase() + "/super-shots/" + data.SuperShot.ID + "/select-video") } class="mt-2">
+							<input type="hidden" name="_csrf" value={ data.Shell.CSRFToken }/>
+							<button type="submit" class="btn btn-sm">Use as the shot's video (Review &amp; Edit)</button>
+						</form>
+					} else {
+						<p class="text-xs mt-2">The inputs changed after this export. Re-assemble below to make a current finished shot.</p>
+					}
 					if len(data.SuperShot.Segments) > 1 {
 						<h3 class="text-sm font-semibold mt-3">Join review</h3>
 						for i := 0; i < len(data.SuperShot.Segments)-1; i++ {

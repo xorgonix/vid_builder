@@ -85,6 +85,13 @@ func (p *Planner) SuperShotProposal(ctx context.Context, in SuperShotPromptInput
 	if in.Constraints != "" {
 		system += "\nConstraints: " + in.Constraints
 	}
+	// Per-interval pacing context (R6): the model must know how much screen time
+	// each interval carries so action pacing fits the chain's timing.
+	intervals := make([]string, 0, n)
+	for i, ms := range in.SegmentDurationsMS {
+		intervals = append(intervals, fmt.Sprintf("interval %d: %.1fs", i, float64(ms)/1000.0))
+	}
+	system += "\nInterval durations: " + strings.Join(intervals, "; ")
 	raw, err := p.client.ChatJSON(ctx, system, nil, superShotSchema)
 	if err != nil {
 		return nil, err
@@ -99,7 +106,9 @@ func (p *Planner) SuperShotProposal(ctx context.Context, in SuperShotPromptInput
 	return &payload, nil
 }
 
-// Validate enforces exact counts and rejects empty or placeholder prose.
+// Validate enforces exact counts, strict ordering of returned indices and the
+// absence of empty or placeholder prose (R6: validate indices/order, not just
+// array lengths).
 func (s *SuperShotPayload) Validate(segments int) error {
 	if len(s.Anchors) != segments-1 {
 		return fmt.Errorf("planner: super shot proposed %d intermediate states, want %d", len(s.Anchors), segments-1)
@@ -108,12 +117,18 @@ func (s *SuperShotPayload) Validate(segments int) error {
 		return fmt.Errorf("planner: super shot proposed %d movements, want %d", len(s.Segments), segments)
 	}
 	for i, a := range s.Anchors {
+		if a.Index != i+1 {
+			return fmt.Errorf("planner: intermediate state %d has index %d, want %d", i, a.Index, i+1)
+		}
 		st := strings.TrimSpace(a.State)
 		if st == "" || strings.HasPrefix(strings.ToUpper(st), "PLACEHOLDER") {
 			return fmt.Errorf("planner: intermediate state %d is empty or a placeholder", i+1)
 		}
 	}
 	for i, seg := range s.Segments {
+		if seg.Index != i {
+			return fmt.Errorf("planner: interval %d has index %d, want %d", i, seg.Index, i)
+		}
 		if strings.TrimSpace(seg.Movement) == "" {
 			return fmt.Errorf("planner: interval %d has no movement", i)
 		}

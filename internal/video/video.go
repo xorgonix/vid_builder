@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 
 	"vidbuild/internal/store"
 	"vidbuild/internal/workflows"
@@ -48,6 +49,50 @@ func AnchorInputHash(a store.VideoAnchor, imageWorkflowVersionID string) string 
 func hashHex(raw string) string {
 	h := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(h[:])
+}
+
+// chainSnapshot is the canonical input snapshot of a request's current chain
+// (R2, R6): ordered current segment assets, the max segment revision and the
+// hash over both. One helper so the export freeze and the publication check
+// cannot diverge.
+func chainSnapshot(segs []store.VideoSegment) (assetIDs []string, revision int, hash string) {
+	assetIDs = make([]string, 0, len(segs))
+	h := sha256.New()
+	for _, seg := range segs {
+		assetIDs = append(assetIDs, seg.AssetID.String)
+		if seg.Revision > revision {
+			revision = seg.Revision
+		}
+		fmt.Fprintf(h, "%s:%d;", seg.AssetID.String, seg.Revision)
+	}
+	return assetIDs, revision, hex.EncodeToString(h.Sum(nil))
+}
+
+// AssemblySnapshotIsCurrent reports whether a succeeded assembly's frozen input
+// snapshot still matches the request's succeeded, non-stale segments (R6): a
+// previous output is never the current finished shot.
+func (s *Service) AssemblySnapshotIsCurrent(ctx context.Context, requestID string, asm *store.VideoAssembly) bool {
+	if asm == nil || asm.Status != "succeeded" || !asm.AssetID.Valid {
+		return false
+	}
+	segs, err := s.Store.ListSegments(ctx, requestID)
+	if err != nil || len(segs) == 0 {
+		return false
+	}
+	for _, seg := range segs {
+		if seg.Status != "succeeded" || !seg.AssetID.Valid || seg.Stale {
+			return false
+		}
+	}
+	assetIDs, revision, hash := chainSnapshot(segs)
+	var stored []string
+	if json.Unmarshal([]byte(asm.SegmentAssetJSON), &stored) != nil {
+		return false
+	}
+	if strings.Join(stored, "|") != strings.Join(assetIDs, "|") {
+		return false
+	}
+	return asm.InputRevision == revision && asm.InputHash == hash
 }
 
 // SegmentResult is the outcome of one segment generation, including the exact
@@ -683,24 +728,16 @@ func (s *Service) RunAssembly(ctx context.Context, requestID string) error {
 		return err
 	}
 	current := make([]store.VideoSegment, 0, len(segs))
-	assetIDs := make([]string, 0, len(segs))
-	inputRevision := 0
-	hash := sha256.New()
 	for _, seg := range segs {
 		if seg.Status != "succeeded" || !seg.AssetID.Valid || seg.Stale {
 			return fmt.Errorf("cannot assemble; segment %d is not current", seg.Index)
 		}
 		current = append(current, seg)
-		assetIDs = append(assetIDs, seg.AssetID.String)
-		if seg.Revision > inputRevision {
-			inputRevision = seg.Revision
-		}
-		fmt.Fprintf(hash, "%s:%d;", seg.AssetID.String, seg.Revision)
 	}
+	assetIDs, inputRevision, inputHash := chainSnapshot(current)
 	if len(current) == 0 {
 		return fmt.Errorf("cannot assemble; no current segments")
 	}
-	inputHash := hex.EncodeToString(hash.Sum(nil))
 	if err := s.Store.SetAssemblyRunning(ctx, asm.ID, inputHash); err != nil {
 		return err
 	}

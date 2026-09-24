@@ -703,7 +703,10 @@ type SuperShotView struct {
 	Warnings            []string
 	Video               AssetView
 	HasVideo            bool
-	ActualDurationMS    int
+	// VideoCurrent distinguishes the current finished shot from a previous
+	// output whose inputs changed since the export (R6).
+	VideoCurrent     bool
+	ActualDurationMS int
 }
 
 // SuperShotListData backs the Super Shot overview for a video.

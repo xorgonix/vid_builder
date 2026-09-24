@@ -26,15 +26,27 @@ func (s *Service) RefreshPlanStatus(ctx context.Context, superShotID string) err
 		return err
 	}
 	missingAnchors := 0
+	failedAnchors := 0
 	for _, a := range anchors {
-		if a.Kind == AnchorIntermediate && !a.AssetID.Valid {
+		if a.Kind != AnchorIntermediate {
+			continue
+		}
+		switch {
+		case a.Status == "failed":
+			failedAnchors++
+		case !a.AssetID.Valid:
 			missingAnchors++
 		}
 	}
 	status := plan.Status
-	if missingAnchors > 0 {
+	switch {
+	case failedAnchors > 0:
+		// A terminal anchor failure is a truthful parent failure with an
+		// explicit recovery action (retry the anchor), never perpetual progress.
+		status = "failed"
+	case missingAnchors > 0:
 		status = "generating_anchors"
-	} else {
+	default:
 		pending, stale, failed := 0, false, false
 		for _, seg := range segments {
 			switch seg.Status {
@@ -56,8 +68,17 @@ func (s *Service) RefreshPlanStatus(ctx context.Context, superShotID string) err
 		default:
 			status = "assembling"
 			if plan.GenerationRequestID.Valid {
-				if asm, err := s.Store.GetAssembly(ctx, plan.GenerationRequestID.String); err == nil && asm.Status == "succeeded" {
-					status = "succeeded"
+				if asm, err := s.Store.GetAssembly(ctx, plan.GenerationRequestID.String); err == nil {
+					switch {
+					case asm.Status == "succeeded" && asm.MeasuredState == "measured":
+						status = "succeeded"
+					case asm.Status == "failed":
+						// An assembly failure is a truthful parent failure, not
+						// perpetual "assembling" progress.
+						status = "failed"
+					case asm.Status == "running":
+						status = "assembling"
+					}
 				}
 			}
 		}
@@ -192,6 +213,9 @@ func (s *Service) SelectAssembledVideo(ctx context.Context, superShotID, userID 
 	}
 	if asm.Status != "succeeded" || !asm.AssetID.Valid || asm.MeasuredState != "measured" {
 		return "", fmt.Errorf("assembly is not a current, measured success")
+	}
+	if !s.AssemblySnapshotIsCurrent(ctx, plan.GenerationRequestID.String, asm) {
+		return "", fmt.Errorf("assembly output predates the current inputs; re-assemble before use")
 	}
 	shot, err := s.Store.GetShot(ctx, plan.ShotID)
 	if err != nil {

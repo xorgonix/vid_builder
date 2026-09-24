@@ -116,3 +116,19 @@ func (s *Store) ListLegacyInvalidPlans(ctx context.Context, videoID string) ([]S
 	}
 	return out, nil
 }
+
+// CountLegacyGenerationRequests returns how many pre-Super-Shot duration-video
+// generation requests still exist for a video: motion generations whose segments
+// were never adopted by a Super Shot plan (video_segments.super_shot_request_id
+// IS NULL). Old rows predate the Super Shot workflow and stay visible and
+// diagnosable (contract R6/§9.1); iterating super_shot_requests alone cannot
+// discover them.
+func (s *Store) CountLegacyGenerationRequests(ctx context.Context, videoID string) (int, error) {
+	var n int
+	err := s.QueryRowContext(ctx, `SELECT COUNT(*) FROM (
+		SELECT DISTINCT g.id FROM generation_requests g
+		JOIN video_segments vs ON vs.request_id = g.id
+		WHERE g.video_id=? AND g.output_role='motion' AND (vs.super_shot_request_id IS NULL OR vs.super_shot_request_id='')
+	)`, videoID).Scan(&n)
+	return n, err
+}

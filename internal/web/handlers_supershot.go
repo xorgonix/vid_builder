@@ -64,6 +64,11 @@ func (s *Server) handleSuperShotList(w http.ResponseWriter, r *http.Request) {
 	if legacy, err := s.store.ListLegacyInvalidPlans(r.Context(), vid.ID); err == nil {
 		data.LegacyCount = len(legacy)
 	}
+	// Pre-Super-Shot duration generations remain discoverable and diagnosable
+	// even though they have no super_shot_requests parent (contract R6/§9.1).
+	if n, err := s.store.CountLegacyGenerationRequests(r.Context(), vid.ID); err == nil {
+		data.LegacyCount += n
+	}
 	if m := r.URL.Query().Get("msg"); m != "" {
 		data.Shell.Flash = m
 		data.Shell.FlashKind = r.URL.Query().Get("kind")
@@ -542,13 +547,18 @@ func (s *Server) superShotView(r *http.Request, plan *store.SuperShotRequest) te
 		v.Segments = append(v.Segments, sv)
 	}
 	if plan.GenerationRequestID.Valid {
-		if asm, err := s.store.GetAssembly(r.Context(), plan.GenerationRequestID.String); err == nil {
-			if asm.AssetID.Valid {
-				if asset, err := s.store.GetAsset(r.Context(), asm.AssetID.String); err == nil {
-					v.Video = ssAssetView(asset)
-					v.HasVideo = true
-					v.ActualDurationMS = asm.ActualDurationMS
-				}
+		if asm, err := s.store.GetAssembly(r.Context(), plan.GenerationRequestID.String); err == nil && asm.AssetID.Valid {
+			if asset, err := s.store.GetAsset(r.Context(), asm.AssetID.String); err == nil {
+				v.Video = ssAssetView(asset)
+				v.HasVideo = true
+				v.ActualDurationMS = asm.ActualDurationMS
+				// Presence of the pointer alone is not currency (R6): label the
+				// output current only when the assembly is a measured success
+				// whose frozen input snapshot still matches the live chain.
+				v.VideoCurrent = asm.Status == "succeeded" &&
+					asm.MeasuredState == "measured" &&
+					plan.Status == "succeeded" &&
+					(&video.Service{Store: s.store}).AssemblySnapshotIsCurrent(r.Context(), plan.GenerationRequestID.String, asm)
 			}
 		}
 	}
