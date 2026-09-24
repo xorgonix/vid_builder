@@ -183,6 +183,7 @@ func (s *Server) handleSuperShotPlan(w http.ResponseWriter, r *http.Request) {
 		ShotSpecID: specID, SpecVersion: specVersion,
 		WorkflowVersionID: r.FormValue("workflow_id"), ModelProfileID: r.FormValue("model_profile_id"),
 		ImageWorkflowVersionID: r.FormValue("image_workflow_id"), ImageModelProfileID: r.FormValue("image_profile_id"),
+		ImageMode: r.FormValue("image_mode"),
 		RequestedDurationMS: durationMS, FPSNum: fpsNum, FPSDen: fpsDen, Width: vid.Width, Height: vid.Height,
 		BasePositive: r.FormValue("positive"), BaseNegative: r.FormValue("negative"),
 		ShotIntent: shot.Purpose, Camera: r.FormValue("camera"),

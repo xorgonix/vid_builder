@@ -1,10 +1,12 @@
 package worker
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -209,12 +211,16 @@ func (w *Worker) GenerateSegment(ctx context.Context, seg store.VideoSegment) (v
 }
 
 // GenerateAnchor implements video.AnchorGenerator using an image workflow.
+// Text-only anchors are never auto-generated (R1.5); reference mode requires a
+// workflow that actually declares reference bindings (R1.3).
 func (w *Worker) GenerateAnchor(ctx context.Context, anchor store.VideoAnchor, plan store.SuperShotRequest) (string, error) {
+	if plan.ImageMode == "text_only" {
+		return "", fmt.Errorf("this plan uses text-only anchors; attach an image instead of generating one")
+	}
 	version, err := w.anchorImageWorkflow(ctx, &plan)
 	if err != nil {
 		return "", err
 	}
-	caps, _ := workflows.ParseCapabilities(version.ManifestJSON)
 	dbBindings, err := w.store.ListBindings(ctx, version.ID)
 	if err != nil {
 		return "", err
@@ -222,6 +228,18 @@ func (w *Worker) GenerateAnchor(ctx context.Context, anchor store.VideoAnchor, p
 	bindings := make([]workflows.Binding, 0, len(dbBindings))
 	for _, b := range dbBindings {
 		bindings = append(bindings, workflows.Binding{SemanticField: b.SemanticField, NodeID: b.NodeID, InputName: b.InputName, ValueType: b.ValueType, Required: b.Required})
+	}
+	// R1.3: in reference mode the graph must actually declare a reference input,
+	// otherwise the creator is told to choose a capability-matched workflow.
+	hasReferenceBinding := false
+	for _, b := range bindings {
+		if b.SemanticField == "reference_asset" || b.SemanticField == "reference_asset_2" {
+			hasReferenceBinding = true
+			break
+		}
+	}
+	if plan.ImageMode != "text_only" && !hasReferenceBinding {
+		return "", fmt.Errorf("the selected image workflow declares no reference binding; it cannot condition intermediate images on the supplied endpoints (choose another image workflow or switch to text-only mode)")
 	}
 
 	// A dedicated image attempt records the anchor's provenance (C03).
@@ -247,8 +265,8 @@ func (w *Worker) GenerateAnchor(ctx context.Context, anchor store.VideoAnchor, p
 		values["model_name"] = cp
 	}
 
-	// Reference conditioning: stage the supplied endpoints and the previous
-	// accepted anchor through whatever reference bindings the graph declares.
+	// Reference conditioning: the supplied endpoints plus the previously accepted
+	// anchor are staged through whatever reference bindings the graph declares.
 	refs := w.anchorReferences(ctx, anchor, &plan)
 	boundRefs := map[string]string{}
 	for _, b := range bindings {
@@ -261,11 +279,13 @@ func (w *Worker) GenerateAnchor(ctx context.Context, anchor store.VideoAnchor, p
 			boundRefs[b.SemanticField] = up
 		}
 	}
-	hasRefBindings := len(boundRefs) > 0
-	if caps == nil || !caps.SupportsReferences() {
-		// Text-only anchors are allowed, but we do not claim references reached
-		// a graph that declares no reference input.
-		_ = hasRefBindings
+	// R1.9: when the graph uses the previous generated anchor as its motion
+	// reference, that anchor's image must already be selected — we do not vary
+	// references according to which parallel job happens to finish first.
+	if _, needsPredecessor := refs["reference_asset"]; needsPredecessor {
+		if _, bound := boundRefs["reference_asset"]; !bound {
+			return "", fmt.Errorf("the previous anchor must have an accepted image before anchor %d can be conditioned on it; generate the predecessor first", anchor.Index)
+		}
 	}
 
 	graph, err := workflows.CloneGraph(version.GraphJSON)
@@ -310,8 +330,20 @@ func (w *Worker) GenerateAnchor(ctx context.Context, anchor store.VideoAnchor, p
 	if kind != "image" {
 		return "", fmt.Errorf("anchor workflow returned %s (%s), expected an image", img.Filename, mime)
 	}
+	// R1.8: an extension is not proof; verify the actual bytes are a decodable image.
+	head := make([]byte, 8)
+	if _, err := io.ReadFull(body, head); err != nil {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			return "", fmt.Errorf("anchor output is too short to be a valid image")
+		}
+		return "", fmt.Errorf("read anchor output: %w", err)
+	}
+	if !isImageHeader(head) {
+		return "", fmt.Errorf("anchor output is not a decodable PNG/JPEG image")
+	}
+	payload := io.MultiReader(bytes.NewReader(head), body)
 	relDir := fmt.Sprintf("%s/%s/videos/%s/super-shots/%s/anchors", plan.WorkspaceID, plan.ProjectID, plan.VideoID, plan.ID)
-	uri, checksum, size, err := w.media.Put(relDir, fmt.Sprintf("anchor-%02d-%s", anchor.Index, img.Filename), body)
+	uri, checksum, size, err := w.media.Put(relDir, fmt.Sprintf("anchor-%02d-%s", anchor.Index, img.Filename), payload)
 	if err != nil {
 		return "", fmt.Errorf("store anchor: %w", err)
 	}
@@ -338,13 +370,16 @@ func (w *Worker) GenerateAnchor(ctx context.Context, anchor store.VideoAnchor, p
 	return assetID, nil
 }
 
-// anchorImageWorkflow resolves the plan's chosen image workflow, or the first
-// selectable image package.
+// anchorImageWorkflow resolves the plan's chosen image workflow. When the plan
+// explicitly names one, that choice is binding — a missing or inaccessible
+// version is an error, never a silent fallback (contract R1.2).
 func (w *Worker) anchorImageWorkflow(ctx context.Context, plan *store.SuperShotRequest) (*store.WorkflowVersion, error) {
 	if plan.ImageWorkflowVersionID.Valid && plan.ImageWorkflowVersionID.String != "" {
-		if v, err := w.store.GetWorkflowVersion(ctx, plan.ImageWorkflowVersionID.String); err == nil {
-			return v, nil
+		v, err := w.store.GetWorkflowVersion(ctx, plan.ImageWorkflowVersionID.String)
+		if err != nil {
+			return nil, fmt.Errorf("the selected image workflow could not be loaded; choose another image workflow: %w", err)
 		}
+		return v, nil
 	}
 	return w.pickImageWorkflow(ctx)
 }
@@ -373,7 +408,6 @@ func (w *Worker) anchorReferences(ctx context.Context, anchor store.VideoAnchor,
 	}
 	if anchors[0].AssetID.Valid {
 		out["first_frame_asset"] = anchors[0].AssetID.String
-		out["reference_asset"] = anchors[0].AssetID.String
 	}
 	last := anchors[len(anchors)-1]
 	if last.AssetID.Valid {

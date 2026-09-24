@@ -120,6 +120,7 @@ type PlanRequest struct {
 	PlannerProvenanceJSON  string
 	ImageWorkflowVersionID string
 	ImageModelProfileID    string
+	ImageMode              string
 }
 
 // PlanResult carries the persisted draft plan and the compiled chain.
@@ -262,6 +263,7 @@ func (s *Service) PlanDraft(ctx context.Context, in PlanRequest, userID string) 
 		PlannerStatus: in.PlannerStatus, PlannerWarningsJSON: in.PlannerWarningsJSON,
 		PlannerProvenanceJSON: in.PlannerProvenanceJSON,
 		ImageWorkflowVersionID: in.ImageWorkflowVersionID, ImageModelProfileID: in.ImageModelProfileID,
+		ImageMode: in.ImageMode,
 	}, anchors, segments, userID)
 	if err != nil {
 		return nil, err

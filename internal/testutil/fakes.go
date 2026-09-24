@@ -81,6 +81,7 @@ type ComfyUI struct {
 	uploads        int
 	lastPrompt     map[string]any
 	outputFilename string
+	rawView        []byte
 }
 
 // NewComfyUI starts a fake ComfyUI server.
@@ -150,6 +151,14 @@ func NewComfyUI(t *testing.T) *ComfyUI {
 	})
 
 	mux.HandleFunc("/view", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		raw := f.rawView
+		f.mu.Unlock()
+		if raw != nil {
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(raw)
+			return
+		}
 		png, _ := base64.StdEncoding.DecodeString(tinyPNGBase64)
 		w.Header().Set("Content-Type", "image/png")
 		_, _ = w.Write(png)
@@ -202,6 +211,14 @@ func (f *ComfyUI) SetOutputFilename(name string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.outputFilename = name
+}
+
+// SetRawViewData makes /view return arbitrary bytes (e.g. garbage) so tests can
+// prove non-image output is rejected (A03). Pass nil/empty to restore the PNG.
+func (f *ComfyUI) SetRawViewData(b []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rawView = append([]byte(nil), b...)
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

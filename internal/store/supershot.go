@@ -45,6 +45,7 @@ type SuperShotRequest struct {
 	ImageWorkflowVersionID sql.NullString
 	ImageModelProfileID   sql.NullString
 	SupersededBy          sql.NullString
+	ImageMode             string
 	CreatedByUserID       string
 	CreatedAt             string
 	UpdatedAt             string
@@ -144,6 +145,7 @@ type SuperShotRequestInput struct {
 	PlannerProvenanceJSON  string
 	ImageWorkflowVersionID string
 	ImageModelProfileID    string
+	ImageMode              string
 }
 
 // SuperShotPlan is a persisted draft plan.
@@ -159,7 +161,7 @@ const superShotColumns = `id, generation_request_id, workspace_id, project_id, v
 	base_positive, base_negative, context_mode, status, plan_version, legacy_invalid_plan, plan_summary,
 	continuity_json, created_by_user_id, created_at, updated_at, revision,
 	shot_purpose, complete_movement, planner_status, planner_warnings_json, planner_provenance_json,
-	image_workflow_version_id, image_model_profile_id, superseded_by`
+	image_workflow_version_id, image_model_profile_id, superseded_by, image_mode`
 
 // CreateSuperShotPlan persists a draft plan atomically (contract C11): the linked
 // generation request, the Super Shot request, its anchors, its segments and one
@@ -207,6 +209,7 @@ func (s *Store) CreateSuperShotPlan(ctx context.Context, in SuperShotRequestInpu
 		PlannerStatus:         defaultString(in.PlannerStatus, "incomplete"),
 		PlannerWarningsJSON:   defaultJSONArray(in.PlannerWarningsJSON),
 		PlannerProvenanceJSON: defaultJSONObject(in.PlannerProvenanceJSON),
+		ImageMode:     defaultString(in.ImageMode, "references"),
 		CreatedByUserID:       userID, CreatedAt: now, UpdatedAt: now, Revision: 1,
 	}
 	ss.GenerationRequestID = sql.NullString{String: reqID, Valid: true}
@@ -220,13 +223,13 @@ func (s *Store) CreateSuperShotPlan(ctx context.Context, in SuperShotRequestInpu
 		ss.ImageModelProfileID = sql.NullString{String: in.ImageModelProfileID, Valid: true}
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO super_shot_requests (`+superShotColumns+`)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		ss.ID, reqID, ss.WorkspaceID, ss.ProjectID, ss.VideoID, ss.ShotID, ss.WorkflowVersionID,
 		nullSQL(ss.ModelProfileID), ss.Strategy, ss.RequestedDurationMS, ss.PlannedDurationMS, ss.FPSNum, ss.FPSDen,
 		ss.Width, ss.Height, ss.BasePositive, ss.BaseNegative, ss.ContextMode, ss.Status, ss.PlanVersion,
 		0, ss.PlanSummary, ss.ContinuityJSON, ss.CreatedByUserID, now, now, 1,
 		ss.ShotPurpose, ss.CompleteMovement, ss.PlannerStatus, ss.PlannerWarningsJSON, ss.PlannerProvenanceJSON,
-		nullSQL(ss.ImageWorkflowVersionID), nullSQL(ss.ImageModelProfileID), nil); err != nil {
+		nullSQL(ss.ImageWorkflowVersionID), nullSQL(ss.ImageModelProfileID), nil, ss.ImageMode); err != nil {
 		return nil, fmt.Errorf("insert super shot request: %w", err)
 	}
 
@@ -520,7 +523,7 @@ func scanSuperShot(sc scanner) (*SuperShotRequest, error) {
 		&x.Status, &x.PlanVersion, &legacy, &x.PlanSummary, &x.ContinuityJSON, &x.CreatedByUserID,
 		&x.CreatedAt, &x.UpdatedAt, &x.Revision,
 		&x.ShotPurpose, &x.CompleteMovement, &x.PlannerStatus, &x.PlannerWarningsJSON, &x.PlannerProvenanceJSON,
-		&x.ImageWorkflowVersionID, &x.ImageModelProfileID, &x.SupersededBy)
+		&x.ImageWorkflowVersionID, &x.ImageModelProfileID, &x.SupersededBy, &x.ImageMode)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
