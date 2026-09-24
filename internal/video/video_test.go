@@ -187,7 +187,7 @@ func TestChainGenerateApproveRetryAssembly(t *testing.T) {
 		if anchors[i].Kind != "intermediate" {
 			continue
 		}
-		if err := st.SetAnchorSucceeded(t.Context(), anchors[i].ID, fmt.Sprintf("anchor-asset-%d", i)); err != nil {
+		if _, err := st.SetAnchorSucceeded(t.Context(), anchors[i].ID, fmt.Sprintf("anchor-asset-%d", i)); err != nil {
 			t.Fatalf("anchor success: %v", err)
 		}
 		if err := svc.AnchorReady(t.Context(), anchors[i].ID); err != nil {
@@ -276,7 +276,7 @@ func TestAttemptRetentionAndRetryNewJob(t *testing.T) {
 		if anchors[i].Kind != "intermediate" {
 			continue
 		}
-		_ = st.SetAnchorSucceeded(t.Context(), anchors[i].ID, fmt.Sprintf("anchor-asset-%d", i))
+		_, _ = st.SetAnchorSucceeded(t.Context(), anchors[i].ID, fmt.Sprintf("anchor-asset-%d", i))
 		_ = svc.AnchorReady(t.Context(), anchors[i].ID)
 	}
 	segs, _ := st.ListSegmentsForSuperShot(t.Context(), ssID)
@@ -385,7 +385,7 @@ func TestChangeAnchorInvalidatesAdjacentSegments(t *testing.T) {
 		if anchors[i].Kind != "intermediate" {
 			continue
 		}
-		_ = st.SetAnchorSucceeded(t.Context(), anchors[i].ID, fmt.Sprintf("anchor-asset-%d", i))
+		_, _ = st.SetAnchorSucceeded(t.Context(), anchors[i].ID, fmt.Sprintf("anchor-asset-%d", i))
 		_ = svc.AnchorReady(t.Context(), anchors[i].ID)
 	}
 	segments, _ := st.ListSegmentsForSuperShot(t.Context(), ssID)

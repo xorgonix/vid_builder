@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -41,6 +42,11 @@ func (w *Worker) processAnchor(ctx context.Context, job *store.Job) error {
 		_ = w.store.SetAnchorStatus(ctx, anchor.ID, "planned", "plan cancelled")
 		return w.store.UpdateJobState(ctx, job.ID, "cancelled", "anchor", "info", "Plan cancelled; anchor not generated", 10000)
 	}
+	// R2: the frozen queue-time inputs were edited before this job ran.
+	if anchor.QueuedInputHash == "" {
+		_ = w.store.SetAnchorStatus(ctx, anchor.ID, "planned", "superseded")
+		return w.store.UpdateJobState(ctx, job.ID, "cancelled", "anchor", "info", "Superseded; anchor inputs edited after enqueue", 10000)
+	}
 	_ = w.store.SetAnchorStatus(ctx, anchor.ID, "running", "")
 	_ = w.store.UpdateJobState(ctx, job.ID, "running", "generate", "info", "Generating intermediate image", 3000)
 	assetID, err := w.GenerateAnchor(ctx, *anchor, *plan)
@@ -53,7 +59,16 @@ func (w *Worker) processAnchor(ctx context.Context, job *store.Job) error {
 		_ = w.store.UpdateJobState(ctx, job.ID, "failed", "anchor", "error", err.Error(), 10000)
 		return err
 	}
-	_ = w.store.SetAnchorSucceeded(ctx, anchor.ID, assetID)
+	published, err := w.store.SetAnchorSucceeded(ctx, anchor.ID, assetID)
+	if err != nil {
+		_ = w.store.UpdateJobState(ctx, job.ID, "failed", "anchor", "error", err.Error(), 10000)
+		return err
+	}
+	if published == 0 {
+		// R2: the anchor's frozen inputs were edited while the image generated;
+		// the late result is history and the anchor stays invalidated.
+		return w.store.UpdateJobState(ctx, job.ID, "cancelled", "anchor", "info", "Superseded; anchor inputs edited during generation", 10000)
+	}
 	if err := w.videoService().AnchorReady(ctx, anchor.ID); err != nil {
 		return err
 	}
@@ -64,6 +79,10 @@ func (w *Worker) processAnchor(ctx context.Context, job *store.Job) error {
 func (w *Worker) processSegment(ctx context.Context, job *store.Job) error {
 	svc := w.videoService()
 	if err := svc.RunSegment(ctx, job.AggregateID); err != nil {
+		if errors.Is(err, video.ErrSuperseded) {
+			// R2: immutable superseded outcome, not a provider failure.
+			return w.store.UpdateJobState(ctx, job.ID, "cancelled", "segment", "info", "Superseded; segment inputs edited after enqueue", 10000)
+		}
 		_ = w.store.UpdateJobState(ctx, job.ID, "failed", "segment", "error", err.Error(), 10000)
 		return err
 	}

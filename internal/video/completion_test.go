@@ -50,7 +50,7 @@ func TestLateResultCannotOverwrite(t *testing.T) {
 		if anchors[i].Kind != "intermediate" {
 			continue
 		}
-		_ = st.SetAnchorSucceeded(t.Context(), anchors[i].ID, "asset-"+anchors[i].ID)
+		_, _ = st.SetAnchorSucceeded(t.Context(), anchors[i].ID, "asset-"+anchors[i].ID)
 		_ = svc.AnchorReady(t.Context(), anchors[i].ID)
 	}
 	segs, _ := st.ListSegmentsForSuperShot(t.Context(), ssID)

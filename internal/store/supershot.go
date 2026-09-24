@@ -47,9 +47,11 @@ type SuperShotRequest struct {
 	SupersededBy          sql.NullString
 	ImageMode             string
 	CreatedByUserID       string
-	CreatedAt             string
-	UpdatedAt             string
-	Revision              int
+	Error              string
+	CreatedAt          string
+	UpdatedAt          string
+	Revision           int
+	QueuedInputHash    string
 }
 
 // VideoAnchor is one ordered boundary state (spec §5.3).
@@ -70,6 +72,7 @@ type VideoAnchor struct {
 	CreatedAt            string
 	UpdatedAt            string
 	Revision             int
+	QueuedInputHash      string
 }
 
 // MotionContext is a validated motion-context artifact (spec §15.5).
@@ -380,7 +383,8 @@ func (s *Store) MarkLegacyInvalidPlan(ctx context.Context, id string) error {
 // --- Anchors ---
 
 const anchorColumns = `id, super_shot_request_id, idx, time_offset_ms, kind, state_prompt, negative_prompt,
-	continuity_json, status, asset_id, source_anchor_id, error, created_at, updated_at, revision, image_attempt_id`
+	continuity_json, status, asset_id, source_anchor_id, error, created_at, updated_at, revision, image_attempt_id,
+	queued_input_hash`
 
 func insertAnchorsTx(ctx context.Context, tx *sql.Tx, superShotID string, anchors []AnchorInput) ([]VideoAnchor, error) {
 	now := db.Now()
@@ -400,9 +404,9 @@ func insertAnchorsTx(ctx context.Context, tx *sql.Tx, superShotID string, anchor
 			an.SourceAnchorID = sql.NullString{String: a.SourceAnchorID, Valid: true}
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO video_anchors (`+anchorColumns+`)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			an.ID, an.SuperShotRequestID, an.Index, an.TimeOffsetMS, an.Kind, an.StatePrompt, an.NegativePrompt,
-			an.ContinuityJSON, an.Status, nullSQL(an.AssetID), nullSQL(an.SourceAnchorID), "", now, now, 1, nullSQL(an.ImageAttemptID)); err != nil {
+			an.ContinuityJSON, an.Status, nullSQL(an.AssetID), nullSQL(an.SourceAnchorID), "", now, now, 1, nullSQL(an.ImageAttemptID), ""); err != nil {
 			return nil, fmt.Errorf("insert video anchor: %w", err)
 		}
 		out = append(out, an)
@@ -453,9 +457,27 @@ func (s *Store) SetAnchorStatus(ctx context.Context, id, status, errMsg string) 
 	return err
 }
 
-// SetAnchorSucceeded records the generated intermediate image.
-func (s *Store) SetAnchorSucceeded(ctx context.Context, id, assetID string) error {
-	_, err := s.ExecContext(ctx, `UPDATE video_anchors SET status='succeeded', asset_id=?, error='', revision=revision+1, updated_at=? WHERE id=?`, assetID, db.Now(), id)
+// SetAnchorSucceeded records the generated intermediate image. Publication is
+// only possible while the frozen queue-time input snapshot is intact (R2).
+func (s *Store) SetAnchorSucceeded(ctx context.Context, id, assetID string) (int64, error) {
+	res, err := s.ExecContext(ctx, `UPDATE video_anchors SET status='succeeded', asset_id=?, error='', revision=revision+1, updated_at=? WHERE id=? AND queued_input_hash != ''`, assetID, db.Now(), id)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// QueueAnchorInput freezes the canonical input hash for an anchor's queued
+// image work (R2).
+func (s *Store) QueueAnchorInput(ctx context.Context, id, hash string) error {
+	_, err := s.ExecContext(ctx, `UPDATE video_anchors SET queued_input_hash=? WHERE id=?`, hash, id)
+	return err
+}
+
+// ClearAnchorQueuedInput invalidates the frozen snapshot: the anchor's inputs
+// (e.g. a different source image) were selected after enqueue (R2).
+func (s *Store) ClearAnchorQueuedInput(ctx context.Context, id string) error {
+	_, err := s.ExecContext(ctx, `UPDATE video_anchors SET queued_input_hash='', revision=revision+1, updated_at=? WHERE id=?`, db.Now(), id)
 	return err
 }
 
@@ -538,7 +560,7 @@ func scanAnchor(sc scanner) (*VideoAnchor, error) {
 	var x VideoAnchor
 	err := sc.Scan(&x.ID, &x.SuperShotRequestID, &x.Index, &x.TimeOffsetMS, &x.Kind, &x.StatePrompt,
 		&x.NegativePrompt, &x.ContinuityJSON, &x.Status, &x.AssetID, &x.SourceAnchorID, &x.Error,
-		&x.CreatedAt, &x.UpdatedAt, &x.Revision, &x.ImageAttemptID)
+		&x.CreatedAt, &x.UpdatedAt, &x.Revision, &x.ImageAttemptID, &x.QueuedInputHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

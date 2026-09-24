@@ -51,6 +51,8 @@ type VideoSegment struct {
 	CreatedAt          string
 	UpdatedAt          string
 	Revision           int
+	QueuedInputHash    string
+	InputRevision      int
 }
 
 // VideoAssembly is the ordered concatenation of a request's segment assets.
@@ -76,13 +78,15 @@ type VideoAssembly struct {
 	CreatedAt          string
 	UpdatedAt          string
 	Revision           int
+	QueuedInputHash    string
 }
 
 const segmentColumns = `id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, idx,
 	start_anchor_id, end_anchor_id, positive, negative, action_prompt, raw_action, compiled_prompt, continuity_json,
 	start_asset_id, end_asset_id, start_offset_ms, end_offset_ms, duration_ms, frame_count,
 	fps_num, fps_den, context_mode, context_input_id, depends_on_segment_id, stale,
-	status, attempt_id, selected_attempt_id, asset_id, error, created_at, updated_at, revision`
+	status, attempt_id, selected_attempt_id, asset_id, error, created_at, updated_at, revision,
+	queued_input_hash, input_revision`
 
 // SegmentInput is one segment to persist when planning a Super Shot.
 type SegmentInput struct {
@@ -159,12 +163,12 @@ func insertSegmentsTx(ctx context.Context, tx *sql.Tx, requestID, superShotID, w
 		seg.SelectedAttemptID = seg.AttemptID
 		seg.DependsOnSegmentID = ns(in.DependsOnSegmentID)
 		if _, err := tx.ExecContext(ctx, `INSERT INTO video_segments (`+segmentColumns+`)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			seg.ID, seg.RequestID, nullSQL(seg.SuperShotRequestID), seg.WorkspaceID, seg.ProjectID, seg.VideoID, seg.ShotID, seg.Index,
 			nullSQL(seg.StartAnchorID), nullSQL(seg.EndAnchorID), seg.Positive, seg.Negative, seg.ActionPrompt, seg.RawAction, seg.CompiledPrompt, seg.ContinuityJSON,
 			nullSQL(seg.StartAssetID), nullSQL(seg.EndAssetID), seg.StartOffsetMS, seg.EndOffsetMS, seg.DurationMS, seg.FrameCount,
 			seg.FPSNum, seg.FPSDen, seg.ContextMode, nullSQL(seg.ContextInputID), nullSQL(seg.DependsOnSegmentID), boolInt(seg.Stale),
-			seg.Status, nullSQL(seg.AttemptID), nullSQL(seg.SelectedAttemptID), nullSQL(seg.AssetID), "", now, now, 1); err != nil {
+			seg.Status, nullSQL(seg.AttemptID), nullSQL(seg.SelectedAttemptID), nullSQL(seg.AssetID), "", now, now, 1, "", 0); err != nil {
 			return nil, fmt.Errorf("insert video segment: %w", err)
 		}
 		out = append(out, seg)
@@ -252,12 +256,29 @@ func (s *Store) UpdateSegmentActionRaw(ctx context.Context, id, rawAction, compi
 	return nil
 }
 
+// QueueSegmentInput freezes the canonical input hash for a segment's queued
+// work. Publication is only possible while this hash is still set (R2).
+func (s *Store) QueueSegmentInput(ctx context.Context, id, hash string) error {
+	_, err := s.ExecContext(ctx, `UPDATE video_segments SET queued_input_hash=? WHERE id=?`, hash, id)
+	return err
+}
+
+// ClearSegmentQueuedInput invalidates the frozen snapshot: creative inputs were
+// edited after enqueue, so any queued run must be superseded before it publishes
+// (R2). It bumps the immutable input revision by one.
+func (s *Store) ClearSegmentQueuedInput(ctx context.Context, id string) error {
+	_, err := s.ExecContext(ctx, `UPDATE video_segments SET queued_input_hash='', input_revision=input_revision+1, revision=revision+1, updated_at=? WHERE id=?`, db.Now(), id)
+	return err
+}
+
 // SetSegmentSucceededIfCurrent records a segment success only when the segment's
-// current attempt still matches the attempt that produced the output. A late
-// result from a superseded attempt cannot overwrite the new selection (C06).
+// current attempt still matches the attempt that produced the output AND the
+// frozen queue-time input snapshot was not invalidated by an edit (C06, R2).
+// A late result from a superseded attempt or stale inputs cannot overwrite the
+// new selection.
 func (s *Store) SetSegmentSucceededIfCurrent(ctx context.Context, id, expectedAttemptID, assetID, startAssetID, endAssetID string) (int64, error) {
 	res, err := s.ExecContext(ctx, `UPDATE video_segments SET status='succeeded', asset_id=?, start_asset_id=?, end_asset_id=?, stale=0, error='', revision=revision+1, updated_at=?
-		WHERE id=? AND (attempt_id IS ? OR attempt_id=?)`,
+		WHERE id=? AND (attempt_id IS ? OR attempt_id=?) AND queued_input_hash != ''`,
 		assetID, nullIfEmpty(startAssetID), nullIfEmpty(endAssetID), db.Now(), id, nullIfEmpty(expectedAttemptID), expectedAttemptID)
 	if err != nil {
 		return 0, err
@@ -352,9 +373,9 @@ func (s *Store) UpsertAssembly(ctx context.Context, requestID, superShotID, work
 	if superShotID != "" {
 		a.SuperShotRequestID = sql.NullString{String: superShotID, Valid: true}
 	}
-	if _, err := s.ExecContext(ctx, `INSERT INTO video_assemblies (id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, status, asset_id, segment_asset_ids_json, planned_duration_ms, actual_duration_ms, joins_json, ffmpeg_receipt, input_revision, input_hash, measured_state, error, created_at, updated_at, revision)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		a.ID, a.RequestID, nullSQL(a.SuperShotRequestID), a.WorkspaceID, a.ProjectID, a.VideoID, a.ShotID, a.Status, nil, a.SegmentAssetJSON, a.PlannedDurationMS, 0, a.JoinsJSON, "", 0, "", a.MeasuredState, "", now, now, 1); err != nil {
+	if _, err := s.ExecContext(ctx, `INSERT INTO video_assemblies (id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, status, asset_id, segment_asset_ids_json, planned_duration_ms, actual_duration_ms, joins_json, ffmpeg_receipt, input_revision, input_hash, measured_state, error, created_at, updated_at, revision, queued_input_hash)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		a.ID, a.RequestID, nullSQL(a.SuperShotRequestID), a.WorkspaceID, a.ProjectID, a.VideoID, a.ShotID, a.Status, nil, a.SegmentAssetJSON, a.PlannedDurationMS, 0, a.JoinsJSON, "", 0, "", a.MeasuredState, "", now, now, 1, ""); err != nil {
 		return nil, fmt.Errorf("insert video assembly: %w", err)
 	}
 	return a, nil
@@ -362,14 +383,14 @@ func (s *Store) UpsertAssembly(ctx context.Context, requestID, superShotID, work
 
 // GetAssembly returns the request's assembly, or ErrNotFound.
 func (s *Store) GetAssembly(ctx context.Context, requestID string) (*VideoAssembly, error) {
-	row := s.QueryRowContext(ctx, `SELECT id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, status, asset_id, segment_asset_ids_json, planned_duration_ms, actual_duration_ms, joins_json, ffmpeg_receipt, input_revision, input_hash, measured_state, error, created_at, updated_at, revision
+	row := s.QueryRowContext(ctx, `SELECT id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, status, asset_id, segment_asset_ids_json, planned_duration_ms, actual_duration_ms, joins_json, ffmpeg_receipt, input_revision, input_hash, measured_state, error, created_at, updated_at, revision, queued_input_hash
 		FROM video_assemblies WHERE request_id=?`, requestID)
 	return scanAssembly(row)
 }
 
 // ListAssembliesForVideo returns a video's assemblies, newest first.
 func (s *Store) ListAssembliesForVideo(ctx context.Context, videoID string) ([]VideoAssembly, error) {
-	rows, err := s.QueryContext(ctx, `SELECT id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, status, asset_id, segment_asset_ids_json, planned_duration_ms, actual_duration_ms, joins_json, ffmpeg_receipt, input_revision, input_hash, measured_state, error, created_at, updated_at, revision
+	rows, err := s.QueryContext(ctx, `SELECT id, request_id, super_shot_request_id, workspace_id, project_id, video_id, shot_id, status, asset_id, segment_asset_ids_json, planned_duration_ms, actual_duration_ms, joins_json, ffmpeg_receipt, input_revision, input_hash, measured_state, error, created_at, updated_at, revision, queued_input_hash
 		FROM video_assemblies WHERE video_id=? ORDER BY created_at DESC`, videoID)
 	if err != nil {
 		return nil, err
@@ -389,27 +410,36 @@ func (s *Store) ListAssembliesForVideo(ctx context.Context, videoID string) ([]V
 // InvalidateAssembly marks an existing assembly as needing a rebuild (spec §7.3,
 // §11.11). After a segment or anchor changes, call this before re-running
 // generation so TryAssemble does not incorrectly early-return on a stale success.
+// The frozen queue-time input snapshot is dropped together with the status, so a
+// running export cannot publish after the inputs changed (R2).
 func (s *Store) InvalidateAssembly(ctx context.Context, requestID string) error {
-	_, err := s.ExecContext(ctx, `UPDATE video_assemblies SET status='pending', revision=revision+1, updated_at=? WHERE request_id=?`, db.Now(), requestID)
+	_, err := s.ExecContext(ctx, `UPDATE video_assemblies SET status='pending', queued_input_hash='', revision=revision+1, updated_at=? WHERE request_id=?`, db.Now(), requestID)
 	return err
 }
 
-// SetAssemblyRunning marks the assembly running.
-func (s *Store) SetAssemblyRunning(ctx context.Context, id string) error {
-	_, err := s.ExecContext(ctx, `UPDATE video_assemblies SET status='running', error='', revision=revision+1, updated_at=? WHERE id=?`, db.Now(), id)
+// SetAssemblyRunning marks the assembly running and freezes the ordered input
+// snapshot consumed by the export (R2). Publication is only possible while this
+// frozen hash is still intact.
+func (s *Store) SetAssemblyRunning(ctx context.Context, id, inputHash string) error {
+	_, err := s.ExecContext(ctx, `UPDATE video_assemblies SET status='running', queued_input_hash=?, error='', revision=revision+1, updated_at=? WHERE id=?`, inputHash, db.Now(), id)
 	return err
 }
 
 // SetAssemblySucceeded records the assembled asset, ordered segment lineage and
 // the duration/joins/input-snapshot receipts (spec §7.4, §15.7, contract C08).
-func (s *Store) SetAssemblySucceeded(ctx context.Context, id, assetID string, segmentAssetIDs []string, actualDurationMS, inputRevision int, inputHash, joinsJSON, ffmpegReceipt, measuredState string) error {
+// Publication is conditional on the still-running status and the intact frozen
+// input snapshot: an edit during the export invalidates both atomically (R2).
+func (s *Store) SetAssemblySucceeded(ctx context.Context, id, assetID string, segmentAssetIDs []string, actualDurationMS, inputRevision int, inputHash, joinsJSON, ffmpegReceipt, measuredState string) (int64, error) {
 	raw, _ := json.Marshal(segmentAssetIDs)
 	if measuredState == "" {
 		measuredState = "measured"
 	}
-	_, err := s.ExecContext(ctx, `UPDATE video_assemblies SET status='succeeded', asset_id=?, segment_asset_ids_json=?, actual_duration_ms=?, input_revision=?, input_hash=?, measured_state=?, joins_json=?, ffmpeg_receipt=?, error='', revision=revision+1, updated_at=? WHERE id=?`,
+	res, err := s.ExecContext(ctx, `UPDATE video_assemblies SET status='succeeded', asset_id=?, segment_asset_ids_json=?, actual_duration_ms=?, input_revision=?, input_hash=?, measured_state=?, joins_json=?, ffmpeg_receipt=?, error='', queued_input_hash='', revision=revision+1, updated_at=? WHERE id=? AND status='running' AND queued_input_hash != ''`,
 		assetID, string(raw), actualDurationMS, inputRevision, inputHash, measuredState, defaultJSONArray(joinsJSON), ffmpegReceipt, db.Now(), id)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 // SetAssemblyFailed records an assembly failure.
@@ -481,7 +511,8 @@ func scanSegment(sc scanner) (*VideoSegment, error) {
 		&x.StartAnchorID, &x.EndAnchorID, &x.Positive, &x.Negative, &x.ActionPrompt, &x.RawAction, &x.CompiledPrompt, &x.ContinuityJSON,
 		&x.StartAssetID, &x.EndAssetID, &x.StartOffsetMS, &x.EndOffsetMS, &x.DurationMS, &x.FrameCount,
 		&x.FPSNum, &x.FPSDen, &x.ContextMode, &x.ContextInputID, &x.DependsOnSegmentID, &stale,
-		&x.Status, &x.AttemptID, &x.SelectedAttemptID, &x.AssetID, &x.Error, &x.CreatedAt, &x.UpdatedAt, &x.Revision)
+		&x.Status, &x.AttemptID, &x.SelectedAttemptID, &x.AssetID, &x.Error, &x.CreatedAt, &x.UpdatedAt, &x.Revision,
+		&x.QueuedInputHash, &x.InputRevision)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -496,7 +527,7 @@ func scanAssembly(sc scanner) (*VideoAssembly, error) {
 	var a VideoAssembly
 	err := sc.Scan(&a.ID, &a.RequestID, &a.SuperShotRequestID, &a.WorkspaceID, &a.ProjectID, &a.VideoID, &a.ShotID,
 		&a.Status, &a.AssetID, &a.SegmentAssetJSON, &a.PlannedDurationMS, &a.ActualDurationMS, &a.JoinsJSON, &a.FFmpegReceipt,
-		&a.InputRevision, &a.InputHash, &a.MeasuredState, &a.Error, &a.CreatedAt, &a.UpdatedAt, &a.Revision)
+		&a.InputRevision, &a.InputHash, &a.MeasuredState, &a.Error, &a.CreatedAt, &a.UpdatedAt, &a.Revision, &a.QueuedInputHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

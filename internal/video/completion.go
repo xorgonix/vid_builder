@@ -90,6 +90,9 @@ func (s *Service) Resume(ctx context.Context, superShotID string) error {
 		if _, err := s.Store.EnqueueJob(ctx, plan.WorkspaceID, "generate_anchor", "video_anchor", a.ID, key); err != nil {
 			return err
 		}
+		if err := s.Store.QueueAnchorInput(ctx, a.ID, AnchorInputHash(a, plan.ImageWorkflowVersionID.String)); err != nil {
+			return err
+		}
 		_ = s.Store.SetAnchorStatus(ctx, a.ID, "queued", "")
 	}
 	return s.enqueueReadySegments(ctx, superShotID)

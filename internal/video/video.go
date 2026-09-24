@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -17,6 +18,37 @@ import (
 	"vidbuild/internal/store"
 	"vidbuild/internal/workflows"
 )
+
+// ErrSuperseded reports queue work whose frozen input snapshot was invalidated
+// before it executed (R2): the inputs were edited after enqueue, so the run is
+// superseded rather than failed.
+var ErrSuperseded = errors.New("superseded: inputs edited after enqueue")
+
+// SegmentInputHash is the canonical hash over the immutable, queue-relevant
+// segment inputs (R2): compiled movement, prompts, timing, anchors and context.
+// It must not change when only status or progress changes.
+func SegmentInputHash(seg store.VideoSegment, workflowVersionID string) string {
+	raw := fmt.Sprintf("seg:%s|%s|%s|%s|%s|%d|%d/%d|%d-%d|%s|%s|%s",
+		seg.ID, seg.CompiledPrompt, seg.RawAction, seg.Positive, seg.Negative, seg.FrameCount,
+		seg.FPSNum, seg.FPSDen, seg.StartOffsetMS, seg.EndOffsetMS,
+		seg.StartAnchorID.String, seg.EndAnchorID.String,
+		seg.ContextMode+"/"+seg.ContextInputID.String)
+	return hashHex(raw + "|" + workflowVersionID)
+}
+
+// AnchorInputHash is the canonical hash over the immutable, queue-relevant
+// anchor inputs (R2): the selected reference source and image workflow.
+func AnchorInputHash(a store.VideoAnchor, imageWorkflowVersionID string) string {
+	raw := fmt.Sprintf("anchor:%s|%s|%s|%s|%s|%s|%d/%d",
+		a.ID, a.StatePrompt, a.NegativePrompt, a.ContinuityJSON, a.SourceAnchorID.String,
+		imageWorkflowVersionID, a.TimeOffsetMS, a.Index)
+	return hashHex(raw)
+}
+
+func hashHex(raw string) string {
+	h := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(h[:])
+}
 
 // SegmentResult is the outcome of one segment generation, including the exact
 // endpoint assets that were resolved from its anchors.
@@ -305,6 +337,9 @@ func (s *Service) Approve(ctx context.Context, superShotID string, revision int)
 		if _, err := s.Store.EnqueueJob(ctx, plan.WorkspaceID, "generate_anchor", "video_anchor", a.ID, "supershot:anchor:"+a.ID+":gen:"+strconv.Itoa(a.Revision)); err != nil {
 			return err
 		}
+		if err := s.Store.QueueAnchorInput(ctx, a.ID, AnchorInputHash(a, plan.ImageWorkflowVersionID.String)); err != nil {
+			return err
+		}
 		_ = s.Store.SetAnchorStatus(ctx, a.ID, "queued", "")
 	}
 	_ = s.Store.SetSuperShotStatus(ctx, superShotID, "generating_anchors")
@@ -357,6 +392,9 @@ func (s *Service) enqueueReadySegments(ctx context.Context, superShotID string) 
 		if _, err := s.Store.EnqueueJob(ctx, seg.WorkspaceID, "generate_segment", "video_segment", seg.ID, key); err != nil {
 			return err
 		}
+		if err := s.Store.QueueSegmentInput(ctx, seg.ID, SegmentInputHash(seg, plan.WorkflowVersionID)); err != nil {
+			return err
+		}
 		queued++
 	}
 	if queued > 0 {
@@ -403,11 +441,17 @@ func (s *Service) ChangeAnchor(ctx context.Context, anchorID string) error {
 		if (seg.StartAnchorID.Valid && seg.StartAnchorID.String == anchorID) ||
 			(seg.EndAnchorID.Valid && seg.EndAnchorID.String == anchorID) {
 			_ = s.Store.MarkSegmentStale(ctx, seg.ID)
+			// The frozen queue-time snapshot of a dependent queued run includes
+			// this anchor; editing the anchor supersedes those runs (R2).
+			_ = s.Store.ClearSegmentQueuedInput(ctx, seg.ID)
 			if seg.ContextMode != ContextAnchorOnly && plan.GenerationRequestID.Valid {
 				_, _ = s.Store.MarkDownstreamStale(ctx, plan.GenerationRequestID.String, seg.ID)
 			}
 		}
 	}
+	// Any change to a contributing segment or anchor invalidates the assembly,
+	// and any queued replacement attempt for this anchor is superseded (R2).
+	_ = s.Store.ClearAnchorQueuedInput(ctx, anchor.ID)
 	// Any change to a contributing segment or anchor invalidates the assembly.
 	if plan.GenerationRequestID.Valid {
 		_ = s.Store.InvalidateAssembly(ctx, plan.GenerationRequestID.String)
@@ -422,6 +466,10 @@ func (s *Service) RunSegment(ctx context.Context, segmentID string) error {
 	seg, err := s.Store.GetSegment(ctx, segmentID)
 	if err != nil {
 		return err
+	}
+	if seg.QueuedInputHash == "" {
+		// R2: the frozen queue-time inputs were edited before this job ran.
+		return ErrSuperseded
 	}
 	if seg.SuperShotRequestID.Valid {
 		plan, err := s.Store.GetSuperShotRequest(ctx, seg.SuperShotRequestID.String)
@@ -498,6 +546,12 @@ func (s *Service) EditSegmentAction(ctx context.Context, segmentID, rawAction st
 	if err := s.Store.UpdateSegmentActionRaw(ctx, seg.ID, rawAction, compiled, revision); err != nil {
 		return err
 	}
+	// Any creative edit invalidates the frozen queue-time snapshot and bumps the
+	// immutable input revision, so a queued run of the old movement can never
+	// publish (R2).
+	if err := s.Store.ClearSegmentQueuedInput(ctx, seg.ID); err != nil {
+		return err
+	}
 	switch plan.Status {
 	case "draft", "awaiting_approval":
 		// Cheap draft edit; no outputs exist yet.
@@ -540,8 +594,12 @@ func (s *Service) RetrySegment(ctx context.Context, segmentID string) error {
 		return err
 	}
 	_ = s.Store.InvalidateAssembly(ctx, seg.RequestID)
-	_, err = s.Store.EnqueueJob(ctx, seg.WorkspaceID, "generate_segment", "video_segment", seg.ID, "supershot:segment:"+seg.ID+":attempt:"+attemptID)
-	return err
+	if _, err = s.Store.EnqueueJob(ctx, seg.WorkspaceID, "generate_segment", "video_segment", seg.ID, "supershot:segment:"+seg.ID+":attempt:"+attemptID); err != nil {
+		return err
+	}
+	// Freeze the queue-time input snapshot for this attempt under its new job
+	// identity (C05, R2).
+	return s.Store.QueueSegmentInput(ctx, seg.ID, SegmentInputHash(*seg, wfID))
 }
 
 // RetryAnchor re-queues one failed intermediate anchor under a new revision key.
@@ -569,7 +627,11 @@ func (s *Service) RetryAnchor(ctx context.Context, anchorID string) error {
 		return err
 	}
 	_, err = s.Store.EnqueueJob(ctx, plan.WorkspaceID, "generate_anchor", "video_anchor", anchor.ID, "supershot:anchor:"+anchor.ID+":gen:"+strconv.Itoa(fresh.Revision))
-	return err
+	if err != nil {
+		return err
+	}
+	// Freeze the queue-time input snapshot for this anchor attempt (R2).
+	return s.Store.QueueAnchorInput(ctx, anchor.ID, AnchorInputHash(*fresh, plan.ImageWorkflowVersionID.String))
 }
 
 // TryAssemble queues assembly once every current segment is ready. It is
@@ -639,7 +701,7 @@ func (s *Service) RunAssembly(ctx context.Context, requestID string) error {
 		return fmt.Errorf("cannot assemble; no current segments")
 	}
 	inputHash := hex.EncodeToString(hash.Sum(nil))
-	if err := s.Store.SetAssemblyRunning(ctx, asm.ID); err != nil {
+	if err := s.Store.SetAssemblyRunning(ctx, asm.ID, inputHash); err != nil {
 		return err
 	}
 	result, err := s.Assemble.Assemble(ctx, *asm, current)
@@ -651,7 +713,12 @@ func (s *Service) RunAssembly(ctx context.Context, requestID string) error {
 		_ = s.Store.SetAssemblyFailed(ctx, asm.ID, err.Error())
 		return err
 	}
-	err = s.Store.SetAssemblySucceeded(ctx, asm.ID, result.AssetID, assetIDs, result.ActualDurationMS, inputRevision, inputHash, result.JoinsJSON, result.Receipt, "measured")
+	published, err := s.Store.SetAssemblySucceeded(ctx, asm.ID, result.AssetID, assetIDs, result.ActualDurationMS, inputRevision, inputHash, result.JoinsJSON, result.Receipt, "measured")
+	if err == nil && published == 0 {
+		// The assembly was invalidated (or its frozen snapshot dropped) while the
+		// export ran; the output is history only (R2).
+		return nil
+	}
 	if err == nil && asm.SuperShotRequestID.Valid {
 		_ = s.RefreshPlanStatus(ctx, asm.SuperShotRequestID.String)
 	}
